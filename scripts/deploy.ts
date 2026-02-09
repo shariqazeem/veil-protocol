@@ -1,33 +1,25 @@
 /**
  * Ghost Sats - Starknet Sepolia Deployment Script
  *
+ * Modes:
+ *   npm run deploy          — Deploy with mock tokens + mock Avnu router (dev/test)
+ *   npm run deploy:live     — Deploy ShieldedPool only, using real Sepolia tokens + Avnu
+ *
  * Declares and deploys:
- *   1. MockERC20      (USDC mock)  -- no constructor args
- *   2. MockERC20      (WBTC mock)  -- no constructor args  (same class, second instance)
- *   3. MockEkuboRouter             -- constructor(rate_numerator: u256, rate_denominator: u256)
- *   4. ShieldedPool                -- constructor(usdc_token, wbtc_token, owner, ekubo_router)
+ *   Dev mode:
+ *     1. MockERC20      (USDC mock)
+ *     2. MockERC20      (WBTC mock)
+ *     3. MockAvnuRouter
+ *     4. ShieldedPool
+ *
+ *   Live mode:
+ *     1. ShieldedPool only (uses real USDC, WBTC, Avnu addresses)
  *
  * Prerequisites:
- *   1. Enable CASM output in contracts/Scarb.toml:
- *        [[target.starknet-contract]]
- *        sierra = true
- *        casm   = true
- *
- *   2. Build the contracts:
- *        cd contracts && scarb build
- *
- *   3. Copy .env.example to .env and fill in PRIVATE_KEY and ACCOUNT_ADDRESS.
- *
- *   4. Install dependencies:
- *        cd scripts && npm install
- *
- *   5. Run:
- *        npm run deploy
- *
- * Environment variables:
- *   PRIVATE_KEY       - Hex-encoded private key of the deployer account
- *   ACCOUNT_ADDRESS   - Hex-encoded address of the deployer account
- *   STARKNET_RPC_URL  - (optional) RPC endpoint; defaults to Blast public Sepolia
+ *   1. Build the contracts:  cd contracts && scarb build
+ *   2. Copy .env.example to .env and fill in PRIVATE_KEY and ACCOUNT_ADDRESS.
+ *   3. Install dependencies: cd scripts && npm install
+ *   4. Run: npm run deploy (or npm run deploy:live)
  */
 
 import * as fs from "fs";
@@ -43,18 +35,27 @@ import {
 import "dotenv/config";
 
 // ---------------------------------------------------------------------------
+// Live Sepolia Addresses
+// ---------------------------------------------------------------------------
+
+const LIVE_ADDRESSES = {
+  usdc: "0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080",
+  wbtc: "0x00452bd5c0512a61df7c7be8cfea5e4f893cb40e126bdc40aee6054db955129e",
+  avnuRouter:
+    "0x02c56e8b00dbe2a71e57472685378fc8988bba947e9a99b26a00fade2b4fe7c2",
+};
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** Resolve a path relative to the contracts/target/dev/ directory. */
 function artifactPath(filename: string): string {
   return path.resolve(__dirname, "..", "contracts", "target", "dev", filename);
 }
 
-/** Load and parse a JSON artifact from the build output directory. */
 function loadArtifact(filename: string): any {
   const fullPath = artifactPath(filename);
   if (!fs.existsSync(fullPath)) {
@@ -67,12 +68,6 @@ function loadArtifact(filename: string): any {
   return json.parse(fs.readFileSync(fullPath).toString("ascii"));
 }
 
-/**
- * Declare a contract class on Starknet (Sierra + CASM).
- *
- * If the class is already declared the RPC node will return an error;
- * we catch that and return the classHash so the script is idempotent.
- */
 async function declareContract(
   account: Account,
   provider: RpcProvider,
@@ -96,11 +91,8 @@ async function declareContract(
     console.log(`  Class hash: ${declareResponse.class_hash}`);
     return declareResponse.class_hash;
   } catch (err: any) {
-    // If the class is already declared, extract the classHash from the error
-    // or compute it from the artifact so we can continue deploying.
     const msg: string = err?.message ?? String(err);
     if (msg.includes("already declared") || msg.includes("class already declared")) {
-      // Compute the classHash ourselves from the Sierra artifact
       const { hash } = await import("starknet");
       const classHash = hash.computeContractClassHash(compiledSierra);
       console.log(`  Already declared. Class hash: ${classHash}`);
@@ -110,9 +102,6 @@ async function declareContract(
   }
 }
 
-/**
- * Deploy an instance of an already-declared contract class.
- */
 async function deployContract(
   account: Account,
   provider: RpcProvider,
@@ -136,12 +125,13 @@ async function deployContract(
 // ---------------------------------------------------------------------------
 
 async function main() {
-  // ---- Environment ----
+  const isLive = process.argv.includes("--live");
+
   const privateKey = process.env.PRIVATE_KEY;
   const accountAddress = process.env.ACCOUNT_ADDRESS;
   const rpcUrl =
     process.env.STARKNET_RPC_URL ??
-    "https://starknet-sepolia.public.blastapi.io/rpc/v0_7";
+    "https://starknet-sepolia-rpc.publicnode.com";
 
   if (!privateKey || !accountAddress) {
     console.error(
@@ -151,41 +141,105 @@ async function main() {
     process.exit(1);
   }
 
-  // ---- Provider & Account ----
-  console.log(`\nConnecting to Starknet Sepolia at ${rpcUrl} ...\n`);
+  console.log(`\nConnecting to Starknet Sepolia at ${rpcUrl} ...`);
+  console.log(`Mode: ${isLive ? "LIVE (real tokens + Avnu)" : "DEV (mock tokens + mock router)"}\n`);
+
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
   const account = new Account(provider, accountAddress, privateKey);
-
-  // Quick sanity check -- ensure the account is reachable
   const chainId = await provider.getChainId();
   console.log(`Chain ID: ${chainId}\n`);
 
-  // =========================================================================
-  // 1. Declare contracts
-  // =========================================================================
+  let usdcAddress: string;
+  let wbtcAddress: string;
+  let routerAddress: string;
+  let mockERC20ClassHash = "";
+  let mockAvnuRouterClassHash = "";
 
-  console.log("========================================");
-  console.log("Step 1 - Declare MockERC20");
-  console.log("========================================");
-  const mockERC20ClassHash = await declareContract(
-    account,
-    provider,
-    "ghost_sats_MockERC20.contract_class.json",
-    "ghost_sats_MockERC20.compiled_contract_class.json"
-  );
+  if (isLive) {
+    // =====================================================================
+    // LIVE MODE: Use real Sepolia tokens + Avnu
+    // =====================================================================
+    usdcAddress = LIVE_ADDRESSES.usdc;
+    wbtcAddress = LIVE_ADDRESSES.wbtc;
+    routerAddress = LIVE_ADDRESSES.avnuRouter;
 
-  console.log("\n========================================");
-  console.log("Step 2 - Declare MockEkuboRouter");
-  console.log("========================================");
-  const mockEkuboRouterClassHash = await declareContract(
-    account,
-    provider,
-    "ghost_sats_MockEkuboRouter.contract_class.json",
-    "ghost_sats_MockEkuboRouter.compiled_contract_class.json"
-  );
+    console.log("Using live Sepolia addresses:");
+    console.log(`  USDC:        ${usdcAddress}`);
+    console.log(`  WBTC:        ${wbtcAddress}`);
+    console.log(`  Avnu Router: ${routerAddress}`);
+    console.log();
+  } else {
+    // =====================================================================
+    // DEV MODE: Deploy mock tokens + mock router
+    // =====================================================================
 
-  console.log("\n========================================");
-  console.log("Step 3 - Declare ShieldedPool");
+    console.log("========================================");
+    console.log("Step 1 - Declare MockERC20");
+    console.log("========================================");
+    mockERC20ClassHash = await declareContract(
+      account,
+      provider,
+      "ghost_sats_MockERC20.contract_class.json",
+      "ghost_sats_MockERC20.compiled_contract_class.json"
+    );
+
+    console.log("\n========================================");
+    console.log("Step 2 - Declare MockAvnuRouter");
+    console.log("========================================");
+    mockAvnuRouterClassHash = await declareContract(
+      account,
+      provider,
+      "ghost_sats_MockAvnuRouter.contract_class.json",
+      "ghost_sats_MockAvnuRouter.compiled_contract_class.json"
+    );
+
+    console.log("\n========================================");
+    console.log("Step 3 - Deploy MockERC20 as USDC");
+    console.log("========================================");
+    const erc20Sierra = loadArtifact("ghost_sats_MockERC20.contract_class.json");
+    const erc20CallData = new CallData(erc20Sierra.abi);
+    const usdcConstructor = erc20CallData.compile("constructor", {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 0,
+    });
+    usdcAddress = await deployContract(account, provider, mockERC20ClassHash, usdcConstructor);
+
+    console.log("\n========================================");
+    console.log("Step 4 - Deploy MockERC20 as WBTC");
+    console.log("========================================");
+    const wbtcConstructor = erc20CallData.compile("constructor", {
+      name: "Wrapped BTC",
+      symbol: "WBTC",
+      decimals: 0,
+    });
+    wbtcAddress = await deployContract(account, provider, mockERC20ClassHash, wbtcConstructor);
+
+    console.log("\n========================================");
+    console.log("Step 5 - Deploy MockAvnuRouter");
+    console.log("========================================");
+    const routerSierra = loadArtifact("ghost_sats_MockAvnuRouter.contract_class.json");
+    const routerCallData = new CallData(routerSierra.abi);
+    const routerConstructor = routerCallData.compile("constructor", {
+      rate_numerator: { low: 1n, high: 0n },
+      rate_denominator: { low: 1n, high: 0n },
+    });
+
+    routerAddress = await deployContract(
+      account,
+      provider,
+      mockAvnuRouterClassHash,
+      routerConstructor
+    );
+  }
+
+  // =====================================================================
+  // Deploy ShieldedPool (both modes)
+  // =====================================================================
+
+  const stepNum = isLive ? 1 : 6;
+  console.log(`\n========================================`);
+  console.log(`Step ${stepNum} - Declare ShieldedPool`);
   console.log("========================================");
   const shieldedPoolClassHash = await declareContract(
     account,
@@ -194,70 +248,16 @@ async function main() {
     "ghost_sats_ShieldedPool.compiled_contract_class.json"
   );
 
-  // =========================================================================
-  // 2. Deploy contract instances
-  // =========================================================================
-
-  // -- MockERC20 (USDC) -- no constructor args
-  console.log("\n========================================");
-  console.log("Step 4 - Deploy MockERC20 as USDC");
+  console.log(`\n========================================`);
+  console.log(`Step ${stepNum + 1} - Deploy ShieldedPool`);
   console.log("========================================");
-  const usdcAddress = await deployContract(
-    account,
-    provider,
-    mockERC20ClassHash
-  );
-
-  // -- MockERC20 (WBTC) -- same class, new instance, no constructor args
-  console.log("\n========================================");
-  console.log("Step 5 - Deploy MockERC20 as WBTC");
-  console.log("========================================");
-  const wbtcAddress = await deployContract(
-    account,
-    provider,
-    mockERC20ClassHash
-  );
-
-  // -- MockEkuboRouter -- constructor(rate_numerator: u256, rate_denominator: u256)
-  // u256 in Cairo is { low: felt252, high: felt252 }.
-  // CallData.compile flattens objects; we pass the u256 values as plain numbers/bigints
-  // and let starknet.js serialize them.  For u256 we pass the full value; starknet.js
-  // will split it into (low, high) automatically when using CallData.compile with the ABI.
-  //
-  // Rate: 1 USDC (6 decimals) => 0.000015 WBTC (8 decimals)
-  //   rate_numerator   = 1500   (wbtc amount in smallest unit)
-  //   rate_denominator = 1000000 (usdc amount in smallest unit)
-  // This gives: wbtc_out = usdc_in * 1500 / 1_000_000
-  console.log("\n========================================");
-  console.log("Step 6 - Deploy MockEkuboRouter");
-  console.log("========================================");
-
-  const ekuboSierra = loadArtifact("ghost_sats_MockEkuboRouter.contract_class.json");
-  const ekuboCallData = new CallData(ekuboSierra.abi);
-  const ekuboConstructor = ekuboCallData.compile("constructor", {
-    rate_numerator: { low: 1500n, high: 0n },
-    rate_denominator: { low: 1_000_000n, high: 0n },
-  });
-
-  const ekuboRouterAddress = await deployContract(
-    account,
-    provider,
-    mockEkuboRouterClassHash,
-    ekuboConstructor
-  );
-
-  // -- ShieldedPool -- constructor(usdc_token, wbtc_token, owner, ekubo_router)
-  console.log("\n========================================");
-  console.log("Step 7 - Deploy ShieldedPool");
-  console.log("========================================");
-
   const poolSierra = loadArtifact("ghost_sats_ShieldedPool.contract_class.json");
   const poolCallData = new CallData(poolSierra.abi);
   const poolConstructor = poolCallData.compile("constructor", {
     usdc_token: usdcAddress,
     wbtc_token: wbtcAddress,
     owner: accountAddress,
-    ekubo_router: ekuboRouterAddress,
+    avnu_router: routerAddress,
   });
 
   const shieldedPoolAddress = await deployContract(
@@ -267,48 +267,45 @@ async function main() {
     poolConstructor
   );
 
-  // =========================================================================
-  // 3. Summary
-  // =========================================================================
+  // =====================================================================
+  // Summary
+  // =====================================================================
 
   console.log("\n");
   console.log("=".repeat(60));
-  console.log("  DEPLOYMENT COMPLETE");
+  console.log(`  DEPLOYMENT COMPLETE (${isLive ? "LIVE" : "DEV"})`);
   console.log("=".repeat(60));
   console.log();
-  console.log("  Class Hashes:");
-  console.log(`    MockERC20       : ${mockERC20ClassHash}`);
-  console.log(`    MockEkuboRouter : ${mockEkuboRouterClassHash}`);
-  console.log(`    ShieldedPool    : ${shieldedPoolClassHash}`);
-  console.log();
   console.log("  Contract Addresses:");
-  console.log(`    USDC (MockERC20)  : ${usdcAddress}`);
-  console.log(`    WBTC (MockERC20)  : ${wbtcAddress}`);
-  console.log(`    MockEkuboRouter   : ${ekuboRouterAddress}`);
-  console.log(`    ShieldedPool      : ${shieldedPoolAddress}`);
+  console.log(`    USDC            : ${usdcAddress}`);
+  console.log(`    WBTC            : ${wbtcAddress}`);
+  console.log(`    Router (Avnu)   : ${routerAddress}`);
+  console.log(`    ShieldedPool    : ${shieldedPoolAddress}`);
   console.log();
   console.log("  View on Voyager:");
-  console.log(`    https://sepolia.voyager.online/contract/${usdcAddress}`);
-  console.log(`    https://sepolia.voyager.online/contract/${wbtcAddress}`);
-  console.log(`    https://sepolia.voyager.online/contract/${ekuboRouterAddress}`);
   console.log(`    https://sepolia.voyager.online/contract/${shieldedPoolAddress}`);
   console.log();
 
-  // Write deployed addresses to a JSON file for use by the frontend/tests
-  const deployment = {
-    network: "starknet-sepolia",
+  // Write deployment manifest
+  const deployment: Record<string, any> = {
+    network: "sepolia",
+    mode: isLive ? "live" : "dev",
     chainId,
     deployer: accountAddress,
-    classHashes: {
-      MockERC20: mockERC20ClassHash,
-      MockEkuboRouter: mockEkuboRouterClassHash,
-      ShieldedPool: shieldedPoolClassHash,
-    },
     contracts: {
       usdc: usdcAddress,
       wbtc: wbtcAddress,
-      ekuboRouter: ekuboRouterAddress,
+      avnuRouter: routerAddress,
       shieldedPool: shieldedPoolAddress,
+    },
+    classHashes: {
+      ShieldedPool: shieldedPoolClassHash,
+      ...(isLive
+        ? {}
+        : {
+            MockERC20: mockERC20ClassHash,
+            MockAvnuRouter: mockAvnuRouterClassHash,
+          }),
     },
     deployedAt: new Date().toISOString(),
   };
@@ -316,6 +313,30 @@ async function main() {
   const outPath = path.resolve(__dirname, "deployment.json");
   fs.writeFileSync(outPath, JSON.stringify(deployment, null, 2));
   console.log(`  Deployment manifest written to: ${outPath}`);
+
+  // Also update the frontend addresses
+  const frontendAddresses = {
+    network: "sepolia",
+    contracts: {
+      usdc: usdcAddress,
+      wbtc: wbtcAddress,
+      avnuRouter: routerAddress,
+      shieldedPool: shieldedPoolAddress,
+    },
+    deployer: accountAddress,
+    classHashes: deployment.classHashes,
+  };
+
+  const frontendPath = path.resolve(
+    __dirname,
+    "..",
+    "frontend",
+    "src",
+    "contracts",
+    "addresses.json"
+  );
+  fs.writeFileSync(frontendPath, JSON.stringify(frontendAddresses, null, 2));
+  console.log(`  Frontend addresses written to: ${frontendPath}`);
   console.log();
 }
 

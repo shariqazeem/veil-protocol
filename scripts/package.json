@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "npx ts-node --esm deploy.ts"
+    "deploy": "npx ts-node --esm deploy.ts",
+    "deploy:live": "npx ts-node --esm deploy.ts --live",
+    "keeper": "npx ts-node --esm keeper.ts",
+    "keeper:loop": "npx ts-node --esm keeper.ts --loop",
+    "keeper:dry-run": "npx ts-node --esm keeper.ts --dry-run"
   },
   "dependencies": {
     "starknet": "^6.24.1",
