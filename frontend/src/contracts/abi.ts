@@ -1,16 +1,6 @@
-/** Minimal ABI fragments for contract interactions. */
+/** ABI fragments for contract interactions. */
 
 export const ERC20_ABI = [
-  {
-    name: "mint",
-    type: "function",
-    inputs: [
-      { name: "to", type: "core::starknet::contract_address::ContractAddress" },
-      { name: "amount", type: "core::integer::u256" },
-    ],
-    outputs: [],
-    state_mutability: "external",
-  },
   {
     name: "approve",
     type: "function",
@@ -34,11 +24,46 @@ export const ERC20_ABI = [
 
 export const SHIELDED_POOL_ABI = [
   {
+    type: "struct",
+    name: "core::integer::u256",
+    members: [
+      { name: "low", type: "core::integer::u128" },
+      { name: "high", type: "core::integer::u128" },
+    ],
+  },
+  {
+    type: "struct",
+    name: "ghost_sats::BatchResult",
+    members: [
+      { name: "total_usdc_in", type: "core::integer::u256" },
+      { name: "total_wbtc_out", type: "core::integer::u256" },
+      { name: "timestamp", type: "core::integer::u64" },
+      { name: "is_finalized", type: "core::bool" },
+    ],
+  },
+  {
     name: "deposit",
     type: "function",
     inputs: [
       { name: "commitment", type: "core::felt252" },
-      { name: "amount", type: "core::integer::u256" },
+      { name: "denomination", type: "core::integer::u8" },
+      { name: "btc_identity_hash", type: "core::felt252" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "withdraw",
+    type: "function",
+    inputs: [
+      { name: "denomination", type: "core::integer::u8" },
+      { name: "secret", type: "core::felt252" },
+      { name: "blinder", type: "core::felt252" },
+      { name: "nullifier", type: "core::felt252" },
+      { name: "merkle_path", type: "core::array::Array::<core::felt252>" },
+      { name: "path_indices", type: "core::array::Array::<core::integer::u8>" },
+      { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "btc_recipient_hash", type: "core::felt252" },
     ],
     outputs: [],
     state_mutability: "external",
@@ -65,18 +90,6 @@ export const SHIELDED_POOL_ABI = [
     state_mutability: "view",
   },
   {
-    name: "withdraw",
-    type: "function",
-    inputs: [
-      { name: "amount", type: "core::integer::u256" },
-      { name: "secret", type: "core::felt252" },
-      { name: "blinder", type: "core::felt252" },
-      { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
-    ],
-    outputs: [],
-    state_mutability: "external",
-  },
-  {
     name: "get_batch_result",
     type: "function",
     inputs: [
@@ -88,6 +101,15 @@ export const SHIELDED_POOL_ABI = [
     state_mutability: "view",
   },
   {
+    name: "is_commitment_valid",
+    type: "function",
+    inputs: [
+      { name: "commitment", type: "core::felt252" },
+    ],
+    outputs: [{ type: "core::bool" }],
+    state_mutability: "view",
+  },
+  {
     name: "is_nullifier_spent",
     type: "function",
     inputs: [
@@ -95,5 +117,139 @@ export const SHIELDED_POOL_ABI = [
     ],
     outputs: [{ type: "core::bool" }],
     state_mutability: "view",
+  },
+  {
+    name: "get_merkle_root",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::felt252" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_leaf_count",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::integer::u32" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_denomination_amount",
+    type: "function",
+    inputs: [
+      { name: "tier", type: "core::integer::u8" },
+    ],
+    outputs: [{ type: "core::integer::u256" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_total_volume",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::integer::u256" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_total_batches_executed",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::integer::u64" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_leaf",
+    type: "function",
+    inputs: [
+      { name: "index", type: "core::integer::u32" },
+    ],
+    outputs: [{ type: "core::felt252" }],
+    state_mutability: "view",
+  },
+  {
+    name: "withdraw_via_relayer",
+    type: "function",
+    inputs: [
+      { name: "denomination", type: "core::integer::u8" },
+      { name: "secret", type: "core::felt252" },
+      { name: "blinder", type: "core::felt252" },
+      { name: "nullifier", type: "core::felt252" },
+      { name: "merkle_path", type: "core::array::Array::<core::felt252>" },
+      { name: "path_indices", type: "core::array::Array::<core::integer::u8>" },
+      { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "relayer", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "fee_bps", type: "core::integer::u256" },
+      { name: "btc_recipient_hash", type: "core::felt252" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "get_btc_identity",
+    type: "function",
+    inputs: [
+      { name: "commitment", type: "core::felt252" },
+    ],
+    outputs: [{ type: "core::felt252" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_btc_linked_count",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::integer::u32" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_anonymity_set",
+    type: "function",
+    inputs: [
+      { name: "tier", type: "core::integer::u8" },
+    ],
+    outputs: [{ type: "core::integer::u32" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_withdrawal_delay",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::integer::u64" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_max_relayer_fee_bps",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::integer::u256" }],
+    state_mutability: "view",
+  },
+  {
+    name: "register_view_key",
+    type: "function",
+    inputs: [
+      { name: "commitment", type: "core::felt252" },
+      { name: "view_key_hash", type: "core::felt252" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+] as const;
+
+export const AVNU_ROUTER_ABI = [
+  {
+    type: "struct",
+    name: "core::integer::u256",
+    members: [
+      { name: "low", type: "core::integer::u128" },
+      { name: "high", type: "core::integer::u128" },
+    ],
+  },
+  {
+    name: "set_rate",
+    type: "function",
+    inputs: [
+      { name: "rate_numerator", type: "core::integer::u256" },
+      { name: "rate_denominator", type: "core::integer::u256" },
+    ],
+    outputs: [],
+    state_mutability: "external",
   },
 ] as const;

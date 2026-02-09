@@ -1,12 +1,12 @@
 /**
  * Notes Manager for GhostSats.
  *
- * Reads notes from localStorage and checks their on-chain status
+ * Reads notes from encrypted/plaintext storage and checks their on-chain status
  * by querying the ShieldedPool contract's batch results.
  */
 
 import type { GhostNote } from "./privacy";
-import { loadNotes } from "./privacy";
+import { loadNotes, loadNotesEncrypted } from "./privacy";
 import { RpcProvider, Contract, type Abi } from "starknet";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import addresses from "@/contracts/addresses.json";
@@ -15,28 +15,13 @@ export type NoteStatus = "PENDING" | "READY" | "CLAIMED";
 
 export interface NoteWithStatus extends GhostNote {
   status: NoteStatus;
-  wbtcShare?: string; // estimated WBTC share if batch is finalized
+  wbtcShare?: string;
+  hasBtcIdentity?: boolean;
+  batchTimestamp?: number;
+  withdrawableAt?: number;
 }
 
-/** Get all notes from localStorage. */
-export function getNotes(): GhostNote[] {
-  return loadNotes();
-}
-
-/** Get active (unclaimed) notes. */
-export function getActiveNotes(): GhostNote[] {
-  return loadNotes().filter((n) => !n.claimed);
-}
-
-/**
- * Check the on-chain status of a single note.
- *
- * Logic:
- * 1. If note.claimed → CLAIMED
- * 2. Read get_batch_result(note.batchId) from the ShieldedPool
- * 3. If batch.is_finalized → READY (and compute estimated WBTC share)
- * 4. Otherwise → PENDING
- */
+/** Check the on-chain status of a single note. */
 export async function checkNoteStatus(
   note: GhostNote,
   provider?: RpcProvider,
@@ -54,7 +39,7 @@ export async function checkNoteStatus(
     const rpc =
       provider ??
       new RpcProvider({
-        nodeUrl: "https://starknet-sepolia.public.blastapi.io/rpc/v0_7",
+        nodeUrl: "https://starknet-sepolia-rpc.publicnode.com",
       });
 
     const pool = new Contract({
@@ -62,9 +47,15 @@ export async function checkNoteStatus(
       address: poolAddress,
       providerOrAccount: rpc,
     });
+
+    // Verify commitment exists on-chain
+    const isValid = await pool.call("is_commitment_valid", [note.commitment]);
+    if (!isValid) {
+      return { ...note, status: "PENDING" };
+    }
+
     const batch = await pool.call("get_batch_result", [note.batchId]);
 
-    // BatchResult is returned as a struct: { total_usdc_in, total_wbtc_out, timestamp, is_finalized }
     const result = batch as Record<string, bigint | boolean>;
     const isFinalized = Boolean(result.is_finalized);
 
@@ -72,7 +63,6 @@ export async function checkNoteStatus(
       return { ...note, status: "PENDING" };
     }
 
-    // Calculate pro-rata share: user_share = (amount * total_wbtc_out) / total_usdc_in
     const amount = BigInt(note.amount);
     const totalUsdcIn = BigInt(result.total_usdc_in?.toString() ?? "0");
     const totalWbtcOut = BigInt(result.total_wbtc_out?.toString() ?? "0");
@@ -82,19 +72,40 @@ export async function checkNoteStatus(
       wbtcShare = ((amount * totalWbtcOut) / totalUsdcIn).toString();
     }
 
-    return { ...note, status: "READY", wbtcShare };
+    // Check if this deposit has a linked Bitcoin identity
+    let hasBtcIdentity = false;
+    try {
+      const btcId = await pool.call("get_btc_identity", [note.commitment]);
+      hasBtcIdentity = btcId !== 0n && btcId !== "0x0" && btcId !== "0" && btcId != null;
+    } catch {
+      // Older contracts may not have this function
+    }
+
+    const batchTimestamp = Number(result.timestamp?.toString() ?? "0");
+    const withdrawableAt = batchTimestamp + 60;
+
+    return { ...note, status: "READY", wbtcShare, hasBtcIdentity, batchTimestamp, withdrawableAt };
   } catch {
-    // If contract call fails (e.g. not deployed), treat as pending
     return { ...note, status: "PENDING" };
   }
 }
 
-/**
- * Check status of all active notes.
- */
+/** Check status of all notes (supports encrypted storage). */
 export async function checkAllNoteStatuses(
+  walletAddress?: string,
   provider?: RpcProvider,
 ): Promise<NoteWithStatus[]> {
-  const notes = loadNotes();
-  return Promise.all(notes.map((n) => checkNoteStatus(n, provider)));
+  const notes = walletAddress
+    ? await loadNotesEncrypted(walletAddress)
+    : loadNotes();
+  const withStatuses = await Promise.all(notes.map((n) => checkNoteStatus(n, provider)));
+  // Filter out stale notes whose commitments don't exist on-chain (e.g. from old contract deployments)
+  // Keep claimed notes regardless (historical record)
+  return withStatuses.filter((n) => {
+    if (n.claimed) return true;
+    // Notes with valid on-chain commitments are kept
+    // Notes stuck as PENDING with amount "1" or "0" are stale artifacts
+    if (n.status === "PENDING" && (n.amount === "1" || n.amount === "0")) return false;
+    return true;
+  });
 }
