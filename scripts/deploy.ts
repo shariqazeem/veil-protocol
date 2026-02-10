@@ -253,11 +253,15 @@ async function main() {
   console.log("========================================");
   const poolSierra = loadArtifact("ghost_sats_ShieldedPool.contract_class.json");
   const poolCallData = new CallData(poolSierra.abi);
+  // ZK verifier: zero address for now (proof verification skipped)
+  // Deploy the Garaga verifier separately and update this address for full ZK
+  const zkVerifierAddress = process.env.ZK_VERIFIER_ADDRESS ?? "0x0";
   const poolConstructor = poolCallData.compile("constructor", {
     usdc_token: usdcAddress,
     wbtc_token: wbtcAddress,
     owner: accountAddress,
     avnu_router: routerAddress,
+    zk_verifier: zkVerifierAddress,
   });
 
   const shieldedPoolAddress = await deployContract(
@@ -280,6 +284,7 @@ async function main() {
   console.log(`    USDC            : ${usdcAddress}`);
   console.log(`    WBTC            : ${wbtcAddress}`);
   console.log(`    Router (Avnu)   : ${routerAddress}`);
+  console.log(`    ZK Verifier     : ${zkVerifierAddress}`);
   console.log(`    ShieldedPool    : ${shieldedPoolAddress}`);
   console.log();
   console.log("  View on Voyager:");

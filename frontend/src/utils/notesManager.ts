@@ -11,6 +11,19 @@ import { RpcProvider, Contract, type Abi } from "starknet";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import addresses from "@/contracts/addresses.json";
 
+/** Retry an async function with exponential backoff. */
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 500): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, i)));
+    }
+  }
+  throw new Error("Retry exhausted");
+}
+
 export type NoteStatus = "PENDING" | "READY" | "CLAIMED";
 
 export interface NoteWithStatus extends GhostNote {
@@ -48,13 +61,13 @@ export async function checkNoteStatus(
       providerOrAccount: rpc,
     });
 
-    // Verify commitment exists on-chain
-    const isValid = await pool.call("is_commitment_valid", [note.commitment]);
+    // Verify commitment exists on-chain (with retry)
+    const isValid = await withRetry(() => pool.call("is_commitment_valid", [note.commitment]));
     if (!isValid) {
       return { ...note, status: "PENDING" };
     }
 
-    const batch = await pool.call("get_batch_result", [note.batchId]);
+    const batch = await withRetry(() => pool.call("get_batch_result", [note.batchId]));
 
     const result = batch as Record<string, bigint | boolean>;
     const isFinalized = Boolean(result.is_finalized);
@@ -75,7 +88,7 @@ export async function checkNoteStatus(
     // Check if this deposit has a linked Bitcoin identity
     let hasBtcIdentity = false;
     try {
-      const btcId = await pool.call("get_btc_identity", [note.commitment]);
+      const btcId = await withRetry(() => pool.call("get_btc_identity", [note.commitment]));
       hasBtcIdentity = btcId !== 0n && btcId !== "0x0" && btcId !== "0" && btcId != null;
     } catch {
       // Older contracts may not have this function

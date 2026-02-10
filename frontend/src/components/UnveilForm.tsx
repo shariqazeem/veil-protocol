@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAccount, useSendTransaction } from "@starknet-react/core";
-import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin, Clock } from "lucide-react";
+import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin, Clock, Zap } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 import { computeBtcIdentityHash } from "@/utils/bitcoin";
 import { motion, AnimatePresence } from "framer-motion";
 import { markNoteClaimed, computeNullifier, buildMerkleProof } from "@/utils/privacy";
+import { generateWithdrawalProof } from "@/utils/zkProver";
 import {
   type NoteWithStatus,
   checkAllNoteStatuses,
@@ -14,10 +16,11 @@ import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import { CallData, RpcProvider, Contract, type Abi, num } from "starknet";
 
-type ClaimPhase = "idle" | "building_proof" | "withdrawing" | "success" | "error";
+type ClaimPhase = "idle" | "building_proof" | "generating_zk" | "withdrawing" | "success" | "error";
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
+const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "http://localhost:3001";
 
 function truncateHash(h: string, chars = 4): string {
   if (h.length <= chars * 2 + 2) return h;
@@ -26,9 +29,9 @@ function truncateHash(h: string, chars = 4): string {
 
 function StatusBadge({ status }: { status: NoteWithStatus["status"] }) {
   const styles = {
-    PENDING: "bg-amber-50 text-amber-600",
-    READY: "bg-emerald-50 text-emerald-600",
-    CLAIMED: "bg-gray-100 text-[var(--text-tertiary)]",
+    PENDING: "bg-amber-900/20 text-amber-400",
+    READY: "bg-emerald-900/20 text-emerald-400",
+    CLAIMED: "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]",
   };
   return (
     <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${styles[status]}`}>
@@ -59,7 +62,7 @@ function CountdownTimer({ withdrawableAt, onReady }: { withdrawableAt: number; o
   if (remaining <= 0) return null;
 
   return (
-    <div className="w-full py-3 rounded-xl text-sm font-medium text-center bg-amber-50 text-amber-700 flex items-center justify-center gap-2">
+    <div className="w-full py-3 rounded-xl text-sm font-medium text-center bg-amber-900/20 text-amber-400 flex items-center justify-center gap-2">
       <Clock size={14} strokeWidth={1.5} />
       <span>Privacy cooldown: {remaining}s remaining</span>
     </div>
@@ -104,7 +107,7 @@ function NoteCard({
         </div>
         <div className="flex items-center gap-1.5">
           {note.hasBtcIdentity && (
-            <span className="flex items-center gap-1 text-[10px] bg-orange-50 text-[var(--accent-orange)] px-2 py-0.5 rounded-full font-medium">
+            <span className="flex items-center gap-1 text-[10px] bg-orange-900/20 text-[var(--accent-orange)] px-2 py-0.5 rounded-full font-medium">
               <Bitcoin size={10} strokeWidth={1.5} />
               BTC
             </span>
@@ -147,7 +150,7 @@ function NoteCard({
         <motion.button
           onClick={() => onClaim(note)}
           disabled={isClaiming}
-          className="w-full py-3 bg-[var(--text-primary)] text-white rounded-xl text-sm font-semibold
+          className="w-full py-3 bg-[var(--accent-orange)] text-white rounded-xl text-sm font-semibold
                      disabled:opacity-50 disabled:cursor-not-allowed
                      flex items-center justify-center gap-2 cursor-pointer"
           whileHover={{ y: -1, boxShadow: "var(--shadow-elevated)" }}
@@ -169,6 +172,7 @@ function NoteCard({
 export default function UnveilForm() {
   const { address, account, isConnected } = useAccount();
   const { sendAsync } = useSendTransaction({ calls: [] });
+  const { toast } = useToast();
 
   const [notes, setNotes] = useState<NoteWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,6 +183,8 @@ export default function UnveilForm() {
   const [claimedWbtcAmount, setClaimedWbtcAmount] = useState<string | null>(null);
   const [btcWithdrawAddress, setBtcWithdrawAddress] = useState<string>("");
   const [tokenAdded, setTokenAdded] = useState(false);
+  const [useRelayer, setUseRelayer] = useState(false);
+  const [relayerFee, setRelayerFee] = useState<number | null>(null);
 
   const poolAddress = addresses.contracts.shieldedPool;
 
@@ -196,6 +202,21 @@ export default function UnveilForm() {
   useEffect(() => {
     refreshNotes();
   }, [refreshNotes]);
+
+  // Fetch relayer fee info
+  useEffect(() => {
+    if (!useRelayer) return;
+    async function fetchRelayerInfo() {
+      try {
+        const res = await fetch(`${RELAYER_URL}/info`);
+        const data = await res.json();
+        setRelayerFee(data.fee_bps ?? 200);
+      } catch {
+        setRelayerFee(200); // Default 2%
+      }
+    }
+    fetchRelayerInfo();
+  }, [useRelayer]);
 
   async function handleClaim(note: NoteWithStatus) {
     if (!isConnected || !address) return;
@@ -221,41 +242,116 @@ export default function UnveilForm() {
       const allCommitments = await Promise.all(leafPromises);
 
       const leafIndex = note.leafIndex ?? 0;
+
+      // Validate leaf index matches on-chain commitment
+      if (leafIndex >= allCommitments.length || allCommitments[leafIndex] !== note.commitment) {
+        const found = allCommitments.indexOf(note.commitment);
+        if (found === -1) {
+          throw new Error("Commitment not found on-chain. It may not have been included in a batch yet.");
+        }
+        // Auto-correct the leaf index
+        note.leafIndex = found;
+      }
+      const validIndex = note.leafIndex ?? leafIndex;
+
       const { path: merklePath, indices: pathIndices } = buildMerkleProof(
-        leafIndex,
+        validIndex,
         allCommitments,
       );
 
-      const nullifier = computeNullifier(note.secret);
-
-      setClaimPhase("withdrawing");
       const denomination = note.denomination ?? 1;
       const btcRecipientHash = btcWithdrawAddress
         ? computeBtcIdentityHash(btcWithdrawAddress)
         : "0x0";
 
-      const withdrawCalls = [
-        {
-          contractAddress: poolAddress,
-          entrypoint: "withdraw",
-          calldata: CallData.compile({
+      // Use ZK-private withdrawal if note has a ZK commitment
+      const hasZK = !!note.zkCommitment;
+
+      if (hasZK && useRelayer) {
+        // Gasless withdrawal via relayer
+        setClaimPhase("generating_zk");
+        const { proof, zkNullifier } = generateWithdrawalProof({
+          secret: BigInt(note.secret),
+          blinder: BigInt(note.blinder),
+          denomination: BigInt(denomination),
+        });
+
+        setClaimPhase("withdrawing");
+        const relayRes = await fetch(`${RELAYER_URL}/relay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             denomination,
-            secret: note.secret,
-            blinder: note.blinder,
-            nullifier,
+            zk_nullifier: zkNullifier,
+            zk_commitment: note.zkCommitment!,
+            proof,
             merkle_path: merklePath,
-            path_indices: pathIndices,
+            path_indices: pathIndices.map(Number),
             recipient: address,
             btc_recipient_hash: btcRecipientHash,
           }),
-        },
-      ];
-      const result = await sendAsync(withdrawCalls);
-      setClaimTxHash(result.transaction_hash);
-      setClaimedWbtcAmount(note.wbtcShare ?? null);
+        });
+        const relayData = await relayRes.json();
+        if (!relayData.success) throw new Error(relayData.error ?? "Relayer failed");
+        setClaimTxHash(relayData.txHash);
+        setClaimedWbtcAmount(note.wbtcShare ?? null);
+      } else if (hasZK) {
+        // ZK-private withdrawal (user pays gas)
+        setClaimPhase("generating_zk");
+        const { proof, zkNullifier } = generateWithdrawalProof({
+          secret: BigInt(note.secret),
+          blinder: BigInt(note.blinder),
+          denomination: BigInt(denomination),
+        });
+
+        setClaimPhase("withdrawing");
+        const withdrawCalls = [
+          {
+            contractAddress: poolAddress,
+            entrypoint: "withdraw_private",
+            calldata: CallData.compile({
+              denomination,
+              zk_nullifier: zkNullifier,
+              zk_commitment: note.zkCommitment!,
+              proof,
+              merkle_path: merklePath,
+              path_indices: pathIndices,
+              recipient: address,
+              btc_recipient_hash: btcRecipientHash,
+            }),
+          },
+        ];
+        const result = await sendAsync(withdrawCalls);
+        setClaimTxHash(result.transaction_hash);
+        setClaimedWbtcAmount(note.wbtcShare ?? null);
+      } else {
+        // Legacy withdrawal for notes created before ZK integration
+        const nullifier = computeNullifier(note.secret);
+        setClaimPhase("withdrawing");
+        const withdrawCalls = [
+          {
+            contractAddress: poolAddress,
+            entrypoint: "withdraw",
+            calldata: CallData.compile({
+              denomination,
+              secret: note.secret,
+              blinder: note.blinder,
+              nullifier,
+              merkle_path: merklePath,
+              path_indices: pathIndices,
+              recipient: address,
+              btc_recipient_hash: btcRecipientHash,
+            }),
+          },
+        ];
+        const result = await sendAsync(withdrawCalls);
+        setClaimTxHash(result.transaction_hash);
+        setClaimedWbtcAmount(note.wbtcShare ?? null);
+      }
 
       await markNoteClaimed(note.commitment, address);
       setClaimPhase("success");
+      toast("success", "WBTC withdrawn privately");
 
       await refreshNotes();
     } catch (err: unknown) {
@@ -263,12 +359,16 @@ export default function UnveilForm() {
       const msg = err instanceof Error ? err.message : "Withdrawal failed";
       if (msg.includes("too early") || msg.includes("Withdrawal too early")) {
         setClaimError("Privacy cooldown not finished. Wait 60 seconds after batch execution before withdrawing. This prevents timing attacks.");
+        toast("error", "Privacy cooldown not finished");
       } else if (msg.includes("nullifier") || msg.includes("already spent")) {
         setClaimError("This note has already been claimed (nullifier spent).");
+        toast("error", "Note already claimed");
       } else if (msg.includes("User abort") || msg.includes("cancelled") || msg.includes("rejected")) {
         setClaimError("Transaction rejected in wallet.");
+        toast("error", "Transaction rejected");
       } else {
         setClaimError(msg);
+        toast("error", "Withdrawal failed");
       }
     } finally {
       setClaimingCommitment(null);
@@ -308,7 +408,9 @@ export default function UnveilForm() {
               <span>
                 {claimPhase === "building_proof"
                   ? "Reconstructing Merkle tree & building proof..."
-                  : "Submitting withdrawal with zero-knowledge proof..."}
+                  : claimPhase === "generating_zk"
+                    ? "Generating zero-knowledge proof..."
+                    : "Submitting withdrawal with zero-knowledge proof..."}
               </span>
             </div>
           </motion.div>
@@ -320,19 +422,19 @@ export default function UnveilForm() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="rounded-xl p-4 bg-emerald-50 text-sm text-emerald-700 space-y-2"
+          className="rounded-xl p-4 bg-emerald-900/20 text-sm text-emerald-400 space-y-2 border border-emerald-800/30"
         >
           <div className="flex items-center gap-2">
             <CheckCircle size={14} strokeWidth={1.5} />
             <span>WBTC withdrawn privately{btcWithdrawAddress ? " + Bitcoin intent emitted" : ""}</span>
           </div>
           {claimedWbtcAmount && (
-            <div className="text-xs text-emerald-600">
+            <div className="text-xs text-emerald-400">
               Received: <span className="font-[family-name:var(--font-geist-mono)] font-semibold">{(Number(claimedWbtcAmount) / 1e8).toFixed(8)}</span> BTC
             </div>
           )}
           {btcWithdrawAddress && (
-            <div className="text-xs text-emerald-600">
+            <div className="text-xs text-emerald-400">
               Cross-chain intent: <span className="font-[family-name:var(--font-geist-mono)]">{btcWithdrawAddress.slice(0, 12)}...</span>
             </div>
           )}
@@ -341,16 +443,16 @@ export default function UnveilForm() {
               href={`${SEPOLIA_EXPLORER}${claimTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs text-emerald-600 hover:underline font-[family-name:var(--font-geist-mono)]"
+              className="flex items-center gap-1.5 text-xs text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"
             >
               View on Voyager
               <ExternalLink size={10} strokeWidth={1.5} />
             </a>
           )}
-          <div className="rounded-lg bg-emerald-100/50 p-2.5 space-y-1.5">
-            <div className="text-[10px] text-emerald-700 font-medium">Add WBTC token to your wallet:</div>
+          <div className="rounded-lg bg-emerald-900/10 p-2.5 space-y-1.5 border border-emerald-800/20">
+            <div className="text-[10px] text-emerald-400 font-medium">Add WBTC token to your wallet:</div>
             <div className="flex items-center gap-2">
-              <code className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-800 bg-emerald-100 px-2 py-1 rounded flex-1 truncate">
+              <code className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-300 bg-emerald-900/30 px-2 py-1 rounded flex-1 truncate">
                 {addresses.contracts.wbtc}
               </code>
               <button
@@ -358,12 +460,12 @@ export default function UnveilForm() {
                   navigator.clipboard.writeText(addresses.contracts.wbtc);
                   setTokenAdded(true);
                 }}
-                className="text-[10px] font-medium text-emerald-700 hover:text-emerald-900 px-2 py-1 bg-emerald-100 rounded cursor-pointer whitespace-nowrap"
+                className="text-[10px] font-medium text-emerald-400 hover:text-emerald-300 px-2 py-1 bg-emerald-900/30 rounded cursor-pointer whitespace-nowrap"
               >
                 {tokenAdded ? "Copied" : "Copy"}
               </button>
             </div>
-            <div className="text-[9px] text-emerald-600">
+            <div className="text-[9px] text-emerald-400">
               In Argent/Braavos: Settings → Manage tokens → Add token → paste address
             </div>
           </div>
@@ -375,7 +477,7 @@ export default function UnveilForm() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="rounded-xl p-4 bg-red-50 text-sm text-red-600"
+          className="rounded-xl p-4 bg-red-950/30 text-sm text-red-400 border border-red-900/30"
         >
           <div className="flex items-center gap-2">
             <AlertTriangle size={14} strokeWidth={1.5} />
@@ -387,9 +489,41 @@ export default function UnveilForm() {
         </motion.div>
       )}
 
+      {/* Relayer Toggle */}
+      {activeNotes.some((n) => n.status === "READY" && !!n.zkCommitment) && (
+        <div className="rounded-xl p-3.5 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Zap size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+              <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                Gasless withdrawal
+              </span>
+            </div>
+            <button
+              onClick={() => setUseRelayer(!useRelayer)}
+              className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${
+                useRelayer ? "bg-[var(--accent-orange)]" : "bg-[var(--bg-tertiary)]"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                  useRelayer ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+          {useRelayer && (
+            <p className="text-[10px] text-[var(--text-tertiary)]">
+              Relayer submits your withdrawal — you pay no gas.
+              Fee: <strong>{relayerFee ? `${relayerFee / 100}%` : "2%"}</strong> of your WBTC share.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Bitcoin Cross-Chain Intent */}
       {activeNotes.some((n) => n.status === "READY") && (
-        <div className="rounded-xl p-3.5 bg-orange-50/50 border border-orange-100 space-y-2">
+        <div className="rounded-xl p-3.5 bg-orange-900/10 border border-orange-800/20 space-y-2">
           <div className="flex items-center gap-1.5">
             <Bitcoin size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
             <span className="text-[11px] font-semibold text-[var(--accent-orange)] uppercase tracking-wider">
@@ -401,7 +535,7 @@ export default function UnveilForm() {
             placeholder="tb1q... or bc1q... (your Bitcoin address)"
             value={btcWithdrawAddress}
             onChange={(e) => setBtcWithdrawAddress(e.target.value)}
-            className="w-full px-3 py-2 text-xs rounded-lg bg-white border border-orange-200 text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
+            className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
           />
           <p className="text-[10px] text-[var(--text-tertiary)]">
             <strong>Optional.</strong> You always receive WBTC on Starknet. This emits a cross-chain intent event that a future bridge can fulfill to send real BTC. No bridge is active yet — this signals bridge-ready design.
@@ -419,7 +553,7 @@ export default function UnveilForm() {
         </div>
       ) : activeNotes.length === 0 && claimedNotes.length === 0 ? (
         <div className="text-center py-10">
-          <Lock size={24} className="mx-auto mb-3 text-gray-300" strokeWidth={1.5} />
+          <Lock size={24} className="mx-auto mb-3 text-[var(--text-tertiary)]" strokeWidth={1.5} />
           <p className="text-sm text-[var(--text-secondary)]">No shielded notes</p>
           <p className="text-xs text-[var(--text-tertiary)] mt-1">
             Shield assets to create your first note

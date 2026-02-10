@@ -8,7 +8,8 @@
     "deploy:live": "npx ts-node --esm deploy.ts --live",
     "keeper": "npx ts-node --esm keeper.ts",
     "keeper:loop": "npx ts-node --esm keeper.ts --loop",
-    "keeper:dry-run": "npx ts-node --esm keeper.ts --dry-run"
+    "keeper:dry-run": "npx ts-node --esm keeper.ts --dry-run",
+    "relayer": "npx ts-node --esm relayer.ts"
   },
   "dependencies": {
     "starknet": "^6.24.1",

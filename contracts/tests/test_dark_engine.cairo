@@ -67,6 +67,8 @@ fn deploy_shielded_pool(
     wbtc.serialize(ref calldata);
     owner.serialize(ref calldata);
     router.serialize(ref calldata);
+    let zero_verifier: ContractAddress = 0.try_into().unwrap();
+    zero_verifier.serialize(ref calldata);
     let (address, _) = contract.deploy(@calldata).unwrap();
     address
 }

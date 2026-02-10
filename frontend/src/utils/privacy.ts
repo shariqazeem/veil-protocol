@@ -12,6 +12,7 @@
  */
 
 import { hash, num } from "starknet";
+import { computeZKCommitment, computeZKNullifier, bigintToHex } from "./zkProver";
 
 // ========================================
 // Types
@@ -23,6 +24,8 @@ export interface GhostNote {
   amount: string;
   denomination: number; // 0=100, 1=1000, 2=10000
   commitment: string;
+  zkCommitment?: string;   // Poseidon BN254 commitment for ZK proof
+  zkNullifier?: string;    // Poseidon BN254 nullifier for ZK proof
   batchId: number;
   leafIndex: number;
   claimed: boolean;
@@ -198,6 +201,34 @@ export function generateNote(
     timestamp: Date.now(),
     btcIdentityHash: btcIdentityHash || undefined,
   };
+}
+
+/**
+ * Generate a private GhostNote with ZK commitment for deposit_private.
+ * Same as generateNote but also computes BN254 Poseidon ZK commitment
+ * and nullifier for the ZK proof system.
+ */
+export function generatePrivateNote(
+  denomination: number,
+  batchId: number = 0,
+  leafIndex: number = 0,
+  btcIdentityHash?: string,
+): GhostNote {
+  const note = generateNote(denomination, batchId, leafIndex, btcIdentityHash);
+
+  // Compute BN254 Poseidon ZK commitment and nullifier
+  const secretBigint = BigInt(note.secret);
+  const blinderBigint = BigInt(note.blinder);
+  const denominationBigint = BigInt(denomination);
+
+  const zkCommitment = bigintToHex(
+    computeZKCommitment(secretBigint, blinderBigint, denominationBigint),
+  );
+  const zkNullifier = bigintToHex(
+    computeZKNullifier(secretBigint),
+  );
+
+  return { ...note, zkCommitment, zkNullifier };
 }
 
 // ========================================

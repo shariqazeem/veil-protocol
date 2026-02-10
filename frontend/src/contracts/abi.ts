@@ -231,6 +231,70 @@ export const SHIELDED_POOL_ABI = [
     outputs: [],
     state_mutability: "external",
   },
+  {
+    name: "deposit_private",
+    type: "function",
+    inputs: [
+      { name: "commitment", type: "core::felt252" },
+      { name: "denomination", type: "core::integer::u8" },
+      { name: "btc_identity_hash", type: "core::felt252" },
+      { name: "zk_commitment", type: "core::felt252" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "withdraw_private",
+    type: "function",
+    inputs: [
+      { name: "denomination", type: "core::integer::u8" },
+      { name: "zk_nullifier", type: "core::felt252" },
+      { name: "zk_commitment", type: "core::felt252" },
+      { name: "proof", type: "core::array::Array::<core::felt252>" },
+      { name: "merkle_path", type: "core::array::Array::<core::felt252>" },
+      { name: "path_indices", type: "core::array::Array::<core::integer::u8>" },
+      { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "btc_recipient_hash", type: "core::felt252" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "withdraw_private_via_relayer",
+    type: "function",
+    inputs: [
+      { name: "denomination", type: "core::integer::u8" },
+      { name: "zk_nullifier", type: "core::felt252" },
+      { name: "zk_commitment", type: "core::felt252" },
+      { name: "proof", type: "core::array::Array::<core::felt252>" },
+      { name: "merkle_path", type: "core::array::Array::<core::felt252>" },
+      { name: "path_indices", type: "core::array::Array::<core::integer::u8>" },
+      { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "relayer", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "fee_bps", type: "core::integer::u256" },
+      { name: "btc_recipient_hash", type: "core::felt252" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "is_zk_nullifier_spent",
+    type: "function",
+    inputs: [
+      { name: "zk_nullifier", type: "core::felt252" },
+    ],
+    outputs: [{ type: "core::bool" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_zk_commitment_mapping",
+    type: "function",
+    inputs: [
+      { name: "zk_commitment", type: "core::felt252" },
+    ],
+    outputs: [{ type: "core::felt252" }],
+    state_mutability: "view",
+  },
 ] as const;
 
 export const AVNU_ROUTER_ABI = [

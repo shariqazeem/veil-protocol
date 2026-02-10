@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { useAccount, useReadContract } from "@starknet-react/core";
 import { useSendTransaction } from "@starknet-react/core";
 import { useWallet } from "@/context/WalletContext";
-import { generateNote, saveNote, DENOMINATIONS, DENOMINATION_LABELS } from "@/utils/privacy";
+import { generatePrivateNote, saveNote, DENOMINATIONS, DENOMINATION_LABELS } from "@/utils/privacy";
 import { signCommitment, computeBtcIdentityHash } from "@/utils/bitcoin";
 import { AlertTriangle, Shield, ExternalLink } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
@@ -16,6 +17,7 @@ type Phase =
   | "idle"
   | "signing_btc"
   | "generating_proof"
+  | "generating_zk"
   | "depositing"
   | "success"
   | "error";
@@ -24,6 +26,7 @@ const PHASE_LABELS: Record<Phase, string> = {
   idle: "",
   signing_btc: "Bitcoin wallet signing commitment hash...",
   generating_proof: "Computing Pedersen commitment & BTC identity...",
+  generating_zk: "Generating zero-knowledge commitment...",
   depositing: "Depositing to shielded pool & triggering batch swap...",
   success: "Shielded successfully",
   error: "Shield failed",
@@ -37,6 +40,7 @@ export default function ShieldForm() {
   const { address, isConnected } = useAccount();
   const { bitcoinAddress } = useWallet();
   const { sendAsync } = useSendTransaction({ calls: [] });
+  const { toast } = useToast();
 
   const [selectedTier, setSelectedTier] = useState<number>(1); // Default: 1000 USDC
   const [phase, setPhase] = useState<Phase>("idle");
@@ -138,7 +142,9 @@ export default function ShieldForm() {
       const batchId = currentBatchId ? Number(currentBatchId) : 0;
       const leafIdx = leafCount ? Number(leafCount) : 0;
       const btcIdHash = computeBtcIdentityHash(bitcoinAddress);
-      const note = generateNote(selectedTier, batchId, leafIdx, btcIdHash);
+
+      setPhase("generating_zk");
+      const note = generatePrivateNote(selectedTier, batchId, leafIdx, btcIdHash);
 
       setPhase("signing_btc");
       await signCommitment(bitcoinAddress, note.commitment);
@@ -155,11 +161,12 @@ export default function ShieldForm() {
         },
         {
           contractAddress: poolAddress,
-          entrypoint: "deposit",
+          entrypoint: "deposit_private",
           calldata: CallData.compile({
             commitment: note.commitment,
             denomination: selectedTier,
             btc_identity_hash: btcIdHash,
+            zk_commitment: note.zkCommitment!,
           }),
         },
         // Auto-execute batch (permissionless — anyone can trigger)
@@ -179,9 +186,20 @@ export default function ShieldForm() {
       await saveNote(note, address);
 
       setPhase("success");
+      toast("success", "USDC shielded and batch swap triggered");
     } catch (err: unknown) {
       setPhase("error");
-      setError(err instanceof Error ? err.message : "Unknown error");
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      if (msg.includes("User abort") || msg.includes("cancelled") || msg.includes("rejected")) {
+        setError("Transaction rejected in wallet");
+        toast("error", "Transaction rejected");
+      } else if (msg.includes("insufficient") || msg.includes("balance")) {
+        setError("Insufficient USDC balance");
+        toast("error", "Insufficient USDC balance");
+      } else {
+        setError(msg);
+        toast("error", "Shield failed");
+      }
     }
   }
 
@@ -204,8 +222,9 @@ export default function ShieldForm() {
             <div
               className="w-24 h-24 rounded-full animate-processing-orb"
               style={{
-                background: "radial-gradient(circle at 40% 35%, #F9FAFB 0%, #E5E7EB 50%, #D1D5DB 100%)",
-                boxShadow: "0 0 40px rgba(17, 24, 39, 0.06)",
+                background: "radial-gradient(circle at 40% 35%, #2A2A30 0%, #1A1A1F 50%, #131316 100%)",
+                boxShadow: "0 0 60px rgba(255, 90, 0, 0.1)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
               }}
             />
             <div className="text-center space-y-1.5">
@@ -243,7 +262,7 @@ export default function ShieldForm() {
                       onClick={() => setSelectedTier(tierNum)}
                       className={`relative py-4 rounded-xl text-center transition-all cursor-pointer border ${
                         isSelected
-                          ? "bg-[var(--accent-obsidian)] text-white border-[var(--accent-obsidian)]"
+                          ? "bg-[var(--accent-orange)] text-white border-[var(--accent-orange)]"
                           : "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--text-tertiary)]"
                       }`}
                       whileTap={{ scale: 0.97 }}
@@ -294,7 +313,7 @@ export default function ShieldForm() {
             <motion.button
               onClick={handleShield}
               disabled={!canShield}
-              className="w-full py-4.5 bg-[var(--accent-obsidian)] text-white rounded-2xl text-[15px] font-semibold tracking-tight
+              className="w-full py-4.5 bg-[var(--accent-orange)] text-white rounded-2xl text-[15px] font-semibold tracking-tight
                          disabled:opacity-20 disabled:cursor-not-allowed
                          cursor-pointer transition-all flex items-center justify-center gap-2"
               whileHover={canShield ? { y: -1, boxShadow: "var(--shadow-xl)" } : {}}
@@ -337,7 +356,7 @@ export default function ShieldForm() {
             <div className={`rounded-2xl p-5 ${
               phase === "success"
                 ? "bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
-                : "bg-red-50 border border-red-100"
+                : "bg-red-950/30 border border-red-900/30"
             }`}>
               <div className="flex items-center gap-2.5">
                 {phase === "success" ? (
@@ -346,7 +365,7 @@ export default function ShieldForm() {
                   <AlertTriangle size={14} strokeWidth={1.5} className="text-red-500" />
                 )}
                 <span className={`text-[13px] font-medium ${
-                  phase === "success" ? "text-[var(--text-primary)]" : "text-red-600"
+                  phase === "success" ? "text-[var(--text-primary)]" : "text-red-400"
                 }`}>
                   {PHASE_LABELS[phase]}
                 </span>
