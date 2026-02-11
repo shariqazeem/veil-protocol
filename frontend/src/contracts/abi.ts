@@ -2,6 +2,14 @@
 
 export const ERC20_ABI = [
   {
+    type: "struct",
+    name: "core::integer::u256",
+    members: [
+      { name: "low", type: "core::integer::u128" },
+      { name: "high", type: "core::integer::u128" },
+    ],
+  },
+  {
     name: "approve",
     type: "function",
     inputs: [
@@ -19,6 +27,16 @@ export const ERC20_ABI = [
     ],
     outputs: [{ type: "core::integer::u256" }],
     state_mutability: "view",
+  },
+  {
+    name: "mint",
+    type: "function",
+    inputs: [
+      { name: "to", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "amount", type: "core::integer::u256" },
+    ],
+    outputs: [],
+    state_mutability: "external",
   },
 ] as const;
 

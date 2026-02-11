@@ -6,11 +6,11 @@ import { useSendTransaction } from "@starknet-react/core";
 import { useWallet } from "@/context/WalletContext";
 import { generatePrivateNote, saveNote, DENOMINATIONS, DENOMINATION_LABELS } from "@/utils/privacy";
 import { signCommitment, computeBtcIdentityHash } from "@/utils/bitcoin";
-import { AlertTriangle, Shield, ExternalLink } from "lucide-react";
+import { AlertTriangle, Shield, ExternalLink, Droplets } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
 import addresses from "@/contracts/addresses.json";
-import { SHIELDED_POOL_ABI } from "@/contracts/abi";
+import { SHIELDED_POOL_ABI, ERC20_ABI } from "@/contracts/abi";
 import { CallData } from "starknet";
 
 type Phase =
@@ -48,8 +48,48 @@ export default function ShieldForm() {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [btcPrice, setBtcPrice] = useState<number | null>(null);
 
+  const [minting, setMinting] = useState(false);
+
   const poolAddress = addresses.contracts.shieldedPool;
   const usdcAddress = addresses.contracts.usdc;
+
+  // Read USDC balance
+  const { data: usdcBalance, refetch: refetchBalance } = useReadContract({
+    address: usdcAddress || undefined,
+    abi: ERC20_ABI,
+    functionName: "balance_of",
+    args: address ? [address] : [],
+    enabled: !!usdcAddress && !!address,
+    refetchInterval: 10_000,
+  } as unknown as Parameters<typeof useReadContract>[0]);
+
+  const balance = usdcBalance ? Number(usdcBalance) / 1_000_000 : 0;
+
+  async function handleMintUsdc() {
+    if (!address || !usdcAddress) return;
+    setMinting(true);
+    try {
+      const calls = [{
+        contractAddress: usdcAddress,
+        entrypoint: "mint",
+        calldata: CallData.compile({
+          to: address,
+          amount: { low: 100_000_000_000n, high: 0n }, // 100,000 USDC
+        }),
+      }];
+      await sendAsync(calls);
+      toast("success", "100,000 Test USDC minted to your wallet");
+      refetchBalance();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Mint failed";
+      if (msg.includes("reject") || msg.includes("abort")) {
+        toast("error", "Transaction rejected");
+      } else {
+        toast("error", "Failed to mint test USDC");
+      }
+    }
+    setMinting(false);
+  }
 
   // Fetch live BTC price
   useEffect(() => {
@@ -245,6 +285,54 @@ export default function ShieldForm() {
             transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
             className="space-y-6"
           >
+            {/* Faucet — shown when balance is low */}
+            {isConnected && balance < 100 && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl p-4 bg-orange-950/20 border border-orange-800/20"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-orange-950/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Droplets size={14} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">
+                      Get Test USDC
+                    </p>
+                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">
+                      This is a Sepolia testnet demo. Mint free test USDC to try the full Shield → Batch → Unveil flow.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <motion.button
+                        onClick={handleMintUsdc}
+                        disabled={minting || !address}
+                        className="px-4 py-2 bg-[var(--accent-orange)] text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                        whileTap={{ scale: 0.97 }}
+                        transition={spring}
+                      >
+                        <Droplets size={12} strokeWidth={2} />
+                        {minting ? "Minting..." : "Mint 100K USDC"}
+                      </motion.button>
+                      <span className="text-[10px] text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)]">
+                        Balance: {balance.toLocaleString()} USDC
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* USDC Balance indicator */}
+            {isConnected && balance >= 100 && (
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[11px] text-[var(--text-tertiary)]">Wallet Balance</span>
+                <span className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
+                  {balance.toLocaleString()} USDC
+                </span>
+              </div>
+            )}
+
             {/* Denomination Selector */}
             <div className="space-y-3">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)] block">

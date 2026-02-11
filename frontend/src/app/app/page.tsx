@@ -2,12 +2,14 @@ import WalletBar from "@/components/WalletBar";
 import Dashboard from "@/components/Dashboard";
 import TabPanel from "@/components/TabPanel";
 import TransactionHistory from "@/components/TransactionHistory";
+import OnboardingBanner from "@/components/OnboardingBanner";
 
 export default function AppPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
       <WalletBar />
       <main className="max-w-2xl mx-auto px-4 sm:px-6 pt-20 sm:pt-24 pb-16 sm:pb-20 space-y-8 sm:space-y-10">
+        <OnboardingBanner />
         <Dashboard />
         <TabPanel />
         <TransactionHistory />
