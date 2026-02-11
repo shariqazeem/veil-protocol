@@ -270,7 +270,7 @@ export default function UnveilForm() {
       if (hasZK && useRelayer) {
         // Gasless withdrawal via relayer
         setClaimPhase("generating_zk");
-        const { proof, zkNullifier } = generateWithdrawalProof({
+        const { proof, zkNullifier } = await generateWithdrawalProof({
           secret: BigInt(note.secret),
           blinder: BigInt(note.blinder),
           denomination: BigInt(denomination),
@@ -298,7 +298,7 @@ export default function UnveilForm() {
       } else if (hasZK) {
         // ZK-private withdrawal (user pays gas)
         setClaimPhase("generating_zk");
-        const { proof, zkNullifier } = generateWithdrawalProof({
+        const { proof, zkNullifier } = await generateWithdrawalProof({
           secret: BigInt(note.secret),
           blinder: BigInt(note.blinder),
           denomination: BigInt(denomination),
@@ -409,7 +409,7 @@ export default function UnveilForm() {
                 {claimPhase === "building_proof"
                   ? "Reconstructing Merkle tree & building proof..."
                   : claimPhase === "generating_zk"
-                    ? "Generating zero-knowledge proof..."
+                    ? "Generating zero-knowledge proof (10-30s)..."
                     : "Submitting withdrawal with zero-knowledge proof..."}
               </span>
             </div>
@@ -491,32 +491,49 @@ export default function UnveilForm() {
 
       {/* Relayer Toggle */}
       {activeNotes.some((n) => n.status === "READY" && !!n.zkCommitment) && (
-        <div className="rounded-xl p-3.5 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Zap size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
-              <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                Gasless withdrawal
-              </span>
-            </div>
-            <button
-              onClick={() => setUseRelayer(!useRelayer)}
-              className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${
+        <div className={`rounded-xl p-4 border transition-all ${
+          useRelayer
+            ? "bg-orange-950/20 border-orange-800/30"
+            : "bg-[var(--bg-secondary)] border-[var(--border-subtle)]"
+        }`}>
+          <button
+            onClick={() => setUseRelayer(!useRelayer)}
+            className="w-full flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
                 useRelayer ? "bg-[var(--accent-orange)]" : "bg-[var(--bg-tertiary)]"
-              }`}
-            >
+              }`}>
+                <Zap size={13} strokeWidth={1.5} className={useRelayer ? "text-white" : "text-[var(--text-tertiary)]"} />
+              </div>
+              <div className="text-left">
+                <span className="text-[12px] font-semibold text-[var(--text-primary)] block leading-tight">
+                  Gasless withdrawal
+                </span>
+                <span className="text-[10px] text-[var(--text-tertiary)]">
+                  Relayer pays gas, no wallet signature
+                </span>
+              </div>
+            </div>
+            <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
+              useRelayer ? "bg-[var(--accent-orange)]" : "bg-[var(--bg-tertiary)]"
+            }`}>
               <span
-                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                  useRelayer ? "translate-x-4" : "translate-x-0.5"
+                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  useRelayer ? "translate-x-5" : "translate-x-0"
                 }`}
               />
-            </button>
-          </div>
+            </div>
+          </button>
           {useRelayer && (
-            <p className="text-[10px] text-[var(--text-tertiary)]">
-              Relayer submits your withdrawal — you pay no gas.
-              Fee: <strong>{relayerFee ? `${relayerFee / 100}%` : "2%"}</strong> of your WBTC share.
-            </p>
+            <div className="mt-3 pt-3 border-t border-orange-800/20 flex items-center justify-between">
+              <span className="text-[10px] text-[var(--accent-orange)]">
+                Fee: <strong>{relayerFee ? `${relayerFee / 100}%` : "2%"}</strong> of WBTC
+              </span>
+              <span className="text-[10px] text-[var(--text-tertiary)]">
+                Max privacy — no on-chain link to you
+              </span>
+            </div>
           )}
         </div>
       )}

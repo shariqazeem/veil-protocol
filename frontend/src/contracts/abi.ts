@@ -295,6 +295,15 @@ export const SHIELDED_POOL_ABI = [
     outputs: [{ type: "core::felt252" }],
     state_mutability: "view",
   },
+  {
+    name: "set_zk_verifier",
+    type: "function",
+    inputs: [
+      { name: "verifier", type: "core::starknet::contract_address::ContractAddress" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
 ] as const;
 
 export const AVNU_ROUTER_ABI = [

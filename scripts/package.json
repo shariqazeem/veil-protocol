@@ -12,8 +12,9 @@
     "relayer": "npx ts-node --esm relayer.ts"
   },
   "dependencies": {
-    "starknet": "^6.24.1",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "poseidon-lite": "^0.3.0",
+    "starknet": "^6.24.1"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

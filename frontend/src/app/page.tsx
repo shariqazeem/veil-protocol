@@ -292,7 +292,7 @@ export default function LandingPage() {
       <footer className="text-center pb-10 px-4">
         <div className="h-px bg-[var(--border-subtle)] max-w-lg mx-auto mb-8" />
         <p className="text-[11px] text-[var(--text-tertiary)] tracking-widest uppercase">
-          GhostSats &middot; Re&#123;define&#125; Hackathon 2025
+          GhostSats &middot; Re&#123;define&#125; Hackathon 2026
         </p>
         <p className="text-[10px] text-[var(--text-quaternary)] mt-1">
           ZK Proofs &middot; Pedersen Commitments &middot; Merkle Proofs &middot; Nullifier Set &middot; Bitcoin Identity

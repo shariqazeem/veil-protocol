@@ -216,7 +216,6 @@ export function generatePrivateNote(
 ): GhostNote {
   const note = generateNote(denomination, batchId, leafIndex, btcIdentityHash);
 
-  // Compute BN254 Poseidon ZK commitment and nullifier
   const secretBigint = BigInt(note.secret);
   const blinderBigint = BigInt(note.blinder);
   const denominationBigint = BigInt(denomination);

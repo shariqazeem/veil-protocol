@@ -1,9 +1,5 @@
-# Test inputs for GhostSats ZK Withdrawal Proof
-# Private inputs
-secret = "12345"
-blinder = "67890"
-
-# Public inputs (Poseidon BN254 hashes of the private inputs)
-zk_commitment = "0x2c3e4b6cea90e24ccb7d548bb01060a0471b4a040b9117cdf53486d31308b5ec"
-nullifier_hash = "0x0950acb7e532ebb21176a28dee52617a5a37ce9294aab1cf603024e5b9063f9a"
-denomination = "1"
+secret = "8782697675772369463003920853468612876769422012917836971813846271746659182"
+blinder = "339984522410250791507560393113947096001098964217685961572720266273562348149"
+zk_commitment = "0x17510540b8fb3e99d4c3b85c61b0b66bde1920a762187352734239b1812d9aec"
+nullifier_hash = "0x1b2705e095bc8c41ef9a9dfa52becc551ca4a3278bb06be0169710f3c730f777"
+denomination = "2"

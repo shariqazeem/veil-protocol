@@ -151,6 +151,9 @@ pub trait IShieldedPool<TContractState> {
     /// Get the Pedersen commitment linked to a ZK commitment.
     fn get_zk_commitment_mapping(self: @TContractState, zk_commitment: felt252) -> felt252;
 
+    /// Set the ZK verifier contract address (owner only).
+    fn set_zk_verifier(ref self: TContractState, verifier: ContractAddress);
+
     // ========================================
     // Compliance
     // ========================================
@@ -760,6 +763,11 @@ pub mod ShieldedPool {
             self.zk_commitments.entry(zk_commitment).read()
         }
 
+        fn set_zk_verifier(ref self: ContractState, verifier: ContractAddress) {
+            assert(get_caller_address() == self.owner.read(), 'Only owner');
+            self.zk_verifier.write(verifier);
+        }
+
         fn register_view_key(ref self: ContractState, commitment: felt252, view_key_hash: felt252) {
             assert(self.commitments.entry(commitment).read(), 'Commitment not found');
             assert(view_key_hash != 0, 'Invalid view key');
@@ -865,6 +873,18 @@ pub mod ShieldedPool {
                 let verifier = IZKVerifierDispatcher { contract_address: verifier_addr };
                 let result = verifier.verify_ultra_keccak_zk_honk_proof(proof.span());
                 assert(result.is_ok(), 'ZK proof verification failed');
+
+                // Verify public inputs match parameters (prevents proof replay)
+                // BN254 Poseidon outputs (~2^254) are reduced % STARK_PRIME for felt252 storage.
+                // The proof's public inputs are unreduced BN254 values, so reduce before comparing.
+                let pub_inputs = result.unwrap();
+                let stark_prime: u256 = 0x800000000000011000000000000000000000000000000000000000000000001;
+                let expected_commitment: u256 = zk_commitment.into();
+                let expected_nullifier: u256 = zk_nullifier.into();
+                let expected_denom: u256 = denomination.into();
+                assert(*pub_inputs.at(0) % stark_prime == expected_commitment, 'ZK commitment mismatch');
+                assert(*pub_inputs.at(1) % stark_prime == expected_nullifier, 'ZK nullifier mismatch');
+                assert(*pub_inputs.at(2) == expected_denom, 'ZK denomination mismatch');
             }
 
             // 5. ZK Nullifier check — prevent double-spend
