@@ -18,8 +18,8 @@ export const POOL_ADDRESS = addresses.contracts.shieldedPool;
 export const FEE_BPS = 200; // 2% relayer fee
 
 export function getRelayerAccount(): Account | null {
-  const privateKey = process.env.RELAYER_PRIVATE_KEY;
-  const accountAddress = process.env.RELAYER_ACCOUNT_ADDRESS;
+  const privateKey = process.env.RELAYER_PRIVATE_KEY?.trim();
+  const accountAddress = process.env.RELAYER_ACCOUNT_ADDRESS?.trim();
 
   if (!privateKey || !accountAddress) return null;
 
