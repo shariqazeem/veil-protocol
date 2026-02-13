@@ -203,10 +203,18 @@ cd contracts && snforge test
 - Proof replay attacks (public inputs validated against parameters on-chain)
 - BN254→felt252 overflow (values reduced modulo STARK_PRIME)
 
-### Known Limitations (Hackathon Scope)
-- **Proof generation is server-side** — The prover service runs nargo/bb/garaga CLI tools. In production, this runs in-browser via `@noir-lang/noir_js` + `@aztec/bb.js` WASM. The prover sees secrets temporarily in memory (never persisted). The critical guarantee holds: secrets never appear in on-chain calldata.
-- **Mock tokens** — USDC/WBTC are MockERC20 on Sepolia.
-- **Keeper centralization** — Batch executor is currently single-owner. Decentralized keeper networks are the next step.
+### Why Fixed Denominations?
+
+This is a deliberate privacy design, not a limitation. Tornado Cash, Railgun, and Aztec Connect all use fixed denominations for the same reason: **variable amounts create fingerprints**. If User A deposits 1,337.42 USDC and someone withdraws 1,337.42 USDC worth of WBTC — the link is obvious. Fixed tiers (100 / 1K / 10K) make every deposit in a tier indistinguishable from every other deposit in that tier, which is the foundation of the anonymity set.
+
+### Design Decisions (Hackathon Scope)
+
+| Decision | Why | Production Path |
+|----------|-----|-----------------|
+| **Server-side prover** | Noir CLI toolchain (nargo → bb → garaga) generates real UltraKeccakZKHonk proofs. Secrets exist in memory only, never persisted, never in calldata. | In-browser via `@noir-lang/noir_js` + `@aztec/bb.js` WASM — eliminates server trust entirely |
+| **Mock tokens on Sepolia** | Judges can mint test USDC with one click. Contract supports real tokens — `npm run deploy:live` uses real Sepolia USDC/WBTC addresses. | Deploy with real tokens on mainnet, no contract changes needed |
+| **Trust-minimized relayer** | Relayer **cannot steal funds** — the ZK proof is the authorization, not the relayer. Relayer can only submit or refuse to submit. | Decentralized relayer network with staked operators and fee competition |
+| **Single-owner keeper** | Permissionless `execute_batch` — anyone can call it. Owner restriction is for testnet safety only. | Remove owner check, add incentive mechanism for MEV-style keepers |
 
 ## Running Locally
 
@@ -243,8 +251,27 @@ npm install && npm run dev   # http://localhost:3000
 
 ## Hackathon Tracks
 
-- **Privacy**: ZK proofs verified on-chain (Garaga), Pedersen commitments, Merkle proofs, nullifier set, gasless relayer, timing protection, anonymity sets, compliance portal
-- **Bitcoin**: Private USDC→WBTC via Avnu, dual wallet (Starknet + Bitcoin/Xverse), BTC identity binding, Bitcoin attestation (sign Merkle root), cross-chain withdrawal intents
+### Privacy Track — "Noir proof verification on Starknet"
+
+GhostSats implements the exact project idea listed in the hackathon: **Noir proof verification on Starknet via Garaga**. But it goes further — it's not a standalone verifier demo, it's a complete privacy application built on top of it.
+
+- Real UltraKeccakZKHonk proof verified on-chain (2835 felt252 calldata elements)
+- Noir circuit: `Poseidon_BN254(secret, blinder, denomination) == commitment`
+- Garaga verifier validates proof, extracts public inputs, checks against parameters
+- Pedersen commitments + 20-level Merkle tree (1M+ capacity)
+- Nullifier set prevents double-spending
+- Gasless relayer breaks sender-wallet link
+- 60s timing delay blocks deposit→withdraw correlation
+- Compliance escape hatch (optional view keys)
+
+### Bitcoin Track — "Private BTC swaps"
+
+- Private USDC→WBTC execution via Avnu DEX aggregator
+- Dual wallet: Starknet (Argent/Braavos) + Bitcoin (Xverse via sats-connect)
+- BTC identity binding: Bitcoin wallet signs each deposit commitment
+- Merkle root anchoring: BTC wallet attests to pool state
+- Cross-chain withdrawal intents (bridge-ready design for real BTC)
+- BTC price feed integration for live swap rates
 
 ## Quick Demo (For Judges)
 
