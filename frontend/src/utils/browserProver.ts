@@ -27,17 +27,30 @@ async function ensureInit(): Promise<void> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    // Fetch compiled circuit from public/
-    const circuitResp = await fetch("/circuits/ghostsats.json");
-    if (!circuitResp.ok) throw new Error("Failed to load ZK circuit");
-    const circuit = await circuitResp.json();
+    try {
+      // Fetch compiled circuit from public/
+      console.log("[zk] Loading circuit...");
+      const circuitResp = await fetch("/circuits/ghostsats.json");
+      if (!circuitResp.ok) throw new Error("Failed to load ZK circuit");
+      const circuit = await circuitResp.json();
+      console.log("[zk] Circuit loaded, importing WASM modules...");
 
-    // Dynamic imports — ensures these only load client-side (no SSR)
-    const { Noir } = await import("@noir-lang/noir_js");
-    const { UltraHonkBackend } = await import("@aztec/bb.js");
+      // Dynamic imports — ensures these only load client-side (no SSR)
+      const { Noir } = await import("@noir-lang/noir_js");
+      console.log("[zk] noir_js loaded");
+      const { UltraHonkBackend } = await import("@aztec/bb.js");
+      console.log("[zk] bb.js loaded");
 
-    noir = new Noir(circuit);
-    backend = new UltraHonkBackend(circuit.bytecode);
+      noir = new Noir(circuit);
+      backend = new UltraHonkBackend(circuit.bytecode);
+      console.log("[zk] ZK prover initialized");
+    } catch (err) {
+      // Reset so next attempt retries
+      initPromise = null;
+      noir = null;
+      backend = null;
+      throw err;
+    }
   })();
 
   return initPromise;

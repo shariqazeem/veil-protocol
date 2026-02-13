@@ -358,12 +358,15 @@ export default function UnveilForm() {
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           }
         } catch (zkErr) {
+          // Log the full error for debugging
+          console.error("[unveil] ZK proof error:", zkErr);
+          const errMsg = zkErr instanceof Error ? zkErr.message : String(zkErr);
+
           // Browser proving or calldata server unavailable — fall back to legacy
           const isInfraError = zkErr instanceof TypeError ||
             (zkErr instanceof Error && (
               zkErr.message.includes("fetch") ||
               zkErr.message.includes("network") ||
-              zkErr.message.includes("Failed") ||
               zkErr.message.includes("ECONNREFUSED") ||
               zkErr.message.includes("Calldata generation failed") ||
               zkErr.message.includes("Failed to load ZK circuit")
@@ -371,7 +374,7 @@ export default function UnveilForm() {
           if (!isInfraError) throw zkErr; // Re-throw non-infra errors
 
           console.warn("[unveil] ZK proving unavailable, falling back to Pedersen withdrawal:", zkErr);
-          toast("info", "ZK prover unavailable — using Pedersen withdrawal");
+          toast("info", `ZK prover unavailable — ${errMsg.slice(0, 80)}`);
           // Fall through to legacy path below
         }
       }
