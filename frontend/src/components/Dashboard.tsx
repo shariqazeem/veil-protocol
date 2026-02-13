@@ -11,7 +11,7 @@ import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 
 const VOYAGER_BASE = "https://sepolia.voyager.online/contract";
 
-const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "http://localhost:3001";
+const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 
 function truncateHash(h: string, chars = 6): string {
   if (h.length <= chars * 2 + 2) return h;
