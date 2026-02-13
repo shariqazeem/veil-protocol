@@ -1,2 +1,38 @@
+# Dependencies
+node_modules/
+
+# Environment
 scripts/.env
-contracts/.next/
+.env
+.env.local
+.env.*.local
+
+# Build cache (keep compiled JSON artifacts for judges)
+contracts/target/dev/.fingerprint/
+contracts/target/dev/incremental/
+contracts/target/dev/*.test.json
+contracts/target/dev/*.test.sierra.json
+contracts/target/dev/*.test.starknet_artifacts.json
+contracts/target/dev/*.test.contract_class.json
+contracts/target/release/
+circuits/ghostsats/target/*.gz
+circuits/ghostsats/target/witness.gz
+
+# Next.js
+frontend/.next/
+frontend/out/
+.vercel/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Lock files
+scripts/package-lock.json
