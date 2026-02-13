@@ -143,10 +143,10 @@ function validateRequest(body: unknown): RelayRequest {
 // ZK Proof Generation (nargo → bb → garaga)
 // ---------------------------------------------------------------------------
 
-const CIRCUITS_DIR = path.resolve(__dirname, "..", "circuits", "ghostsats");
-const NARGO_BIN = path.join(os.homedir(), ".nargo", "bin", "nargo");
-const BB_BIN = path.join(os.homedir(), ".bb", "bb");
-const GARAGA_BIN = "/opt/homebrew/bin/garaga";
+const CIRCUITS_DIR = process.env.CIRCUITS_DIR ?? path.resolve(__dirname, "..", "circuits", "ghostsats");
+const NARGO_BIN = process.env.NARGO_BIN ?? path.join(os.homedir(), ".nargo", "bin", "nargo");
+const BB_BIN = process.env.BB_BIN ?? path.join(os.homedir(), ".bb", "bb");
+const GARAGA_BIN = process.env.GARAGA_BIN ?? "/opt/homebrew/bin/garaga";
 
 // BN254 Poseidon outputs (~2^254) can exceed felt252 max (~2^251).
 // Reduce modulo STARK_PRIME so values fit in felt252 for on-chain storage.
@@ -256,26 +256,30 @@ async function generateZKProof(
 // ---------------------------------------------------------------------------
 
 async function main() {
-  if (!privateKey || !accountAddress) {
-    console.error("ERROR: PRIVATE_KEY and ACCOUNT_ADDRESS must be set in .env");
-    process.exit(1);
+  const hasRelayerCredentials = !!privateKey && !!accountAddress;
+
+  let poolAddress = "";
+  let relayerAccount: Account | null = null;
+  const RPC_URL = process.env.STARKNET_RPC_URL ?? "https://starknet-sepolia-rpc.publicnode.com";
+  const rpcProvider = new RpcProvider({ nodeUrl: RPC_URL });
+
+  if (hasRelayerCredentials) {
+    poolAddress = getPoolAddress();
+    relayerAccount = new Account(
+      rpcProvider, accountAddress!, privateKey!,
+      undefined, constants.TRANSACTION_VERSION.V3,
+    );
   }
 
-  const poolAddress = getPoolAddress();
-  const RPC_URL = process.env.STARKNET_RPC_URL ?? "https://starknet-sepolia-rpc.publicnode.com";
-
-  // Initialize starknet.js provider and account for relay submissions (V3 transactions, STRK fees)
-  const rpcProvider = new RpcProvider({ nodeUrl: RPC_URL });
-  const relayerAccount = new Account(
-    rpcProvider, accountAddress!, privateKey!,
-    undefined, constants.TRANSACTION_VERSION.V3,
-  );
-
   console.log(`\nGhostSats Relayer`);
-  console.log(`  Pool:    ${poolAddress}`);
-  console.log(`  Relayer: ${accountAddress}`);
-  console.log(`  Fee:     ${FEE_BPS} bps (${FEE_BPS / 100}%)`);
-  console.log(`  RPC:     ${RPC_URL}`);
+  if (hasRelayerCredentials) {
+    console.log(`  Pool:    ${poolAddress}`);
+    console.log(`  Relayer: ${accountAddress}`);
+    console.log(`  Fee:     ${FEE_BPS} bps (${FEE_BPS / 100}%)`);
+    console.log(`  RPC:     ${RPC_URL}`);
+  } else {
+    console.log(`  Mode:    Calldata-only (no PRIVATE_KEY set — /relay disabled)`);
+  }
   console.log();
 
   const server = http.createServer(async (req, res) => {
@@ -302,16 +306,90 @@ async function main() {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          pool: poolAddress,
-          relayer: accountAddress,
+          pool: poolAddress || null,
+          relayer: accountAddress || null,
           fee_bps: FEE_BPS,
           max_fee_bps: MAX_FEE_BPS,
+          relay_enabled: hasRelayerCredentials,
+          calldata_enabled: true,
         }),
       );
       return;
     }
 
-    // Prove endpoint — generate ZK proof via nargo → bb → garaga
+    // Calldata endpoint — convert browser-generated proof to garaga calldata
+    // Receives: { proof: number[], publicInputs: string[] }
+    // Returns: { calldata: string[] }
+    // NOTE: Server NEVER sees secret or blinder — only the proof (public data)
+    if (req.method === "POST" && req.url === "/calldata") {
+      let body = "";
+      req.on("data", (chunk: string) => (body += chunk));
+      req.on("end", async () => {
+        try {
+          const parsed = JSON.parse(body);
+          const { proof, publicInputs } = parsed;
+
+          if (!Array.isArray(proof) || !Array.isArray(publicInputs)) {
+            throw new Error("Invalid request: proof and publicInputs must be arrays");
+          }
+
+          console.log(`[calldata] Converting proof (${proof.length} bytes, ${publicInputs.length} public inputs)...`);
+
+          const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ghostsats-calldata-"));
+
+          try {
+            // Write proof binary
+            const proofBuffer = Buffer.from(proof);
+            fs.writeFileSync(path.join(tmpDir, "proof"), proofBuffer);
+
+            // Write public inputs as 32-byte big-endian values
+            const piBuffer = Buffer.alloc(publicInputs.length * 32);
+            for (let i = 0; i < publicInputs.length; i++) {
+              const val = BigInt(publicInputs[i]);
+              const bytes = [];
+              let v = val;
+              for (let j = 0; j < 32; j++) {
+                bytes.unshift(Number(v & 0xFFn));
+                v >>= 8n;
+              }
+              for (let j = 0; j < 32; j++) {
+                piBuffer[i * 32 + j] = bytes[j];
+              }
+            }
+            fs.writeFileSync(path.join(tmpDir, "public_inputs"), piBuffer);
+
+            // Run garaga calldata
+            console.log(`[calldata] Running garaga calldata...`);
+            const { stdout } = await execFileAsync(GARAGA_BIN, [
+              "calldata",
+              "--system", "ultra_keccak_zk_honk",
+              "--proof", path.join(tmpDir, "proof"),
+              "--vk", path.join(CIRCUITS_DIR, "target", "vk", "vk"),
+              "--public-inputs", path.join(tmpDir, "public_inputs"),
+              "--format", "array",
+            ], { timeout: 30000 });
+
+            const numberStrings = stdout.trim().match(/\d+/g) ?? [];
+            const calldata = numberStrings.map((s) => bigintToHex(BigInt(s)));
+
+            console.log(`[calldata] Success! ${calldata.length} felt252 elements`);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ calldata }));
+          } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[calldata] Error: ${msg}`);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: msg }));
+        }
+      });
+      return;
+    }
+
+    // Legacy prove endpoint — kept for backward compatibility
+    // WARNING: This endpoint receives secrets. Use /calldata instead.
     if (req.method === "POST" && req.url === "/prove") {
       let body = "";
       req.on("data", (chunk: string) => (body += chunk));
@@ -346,6 +424,12 @@ async function main() {
 
     // Relay endpoint
     if (req.method === "POST" && req.url === "/relay") {
+      if (!hasRelayerCredentials || !relayerAccount) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Relay not configured (no PRIVATE_KEY)" }));
+        return;
+      }
+
       let body = "";
       req.on("data", (chunk) => (body += chunk));
       req.on("end", async () => {
@@ -374,7 +458,7 @@ async function main() {
           });
 
           console.log(`[relay] Submitting via starknet.js (${calldata.length} calldata elements)...`);
-          const txResult = await relayerAccount.execute([{
+          const txResult = await relayerAccount!.execute([{
             contractAddress: poolAddress,
             entrypoint: "withdraw_private_via_relayer",
             calldata,
@@ -418,10 +502,11 @@ async function main() {
 
   server.listen(PORT, () => {
     console.log(`Relayer + Prover listening on http://localhost:${PORT}`);
-    console.log(`  POST /prove   — Generate a ZK proof (nargo → bb → garaga)`);
-    console.log(`  POST /relay   — Submit a gasless withdrawal`);
-    console.log(`  GET  /health  — Health check`);
-    console.log(`  GET  /info    — Relayer info`);
+    console.log(`  POST /calldata — Convert browser proof → garaga calldata (no secrets)`);
+    console.log(`  POST /relay    — Submit a gasless withdrawal`);
+    console.log(`  POST /prove    — [Legacy] Generate a ZK proof (nargo → bb → garaga)`);
+    console.log(`  GET  /health   — Health check`);
+    console.log(`  GET  /info     — Relayer info`);
     console.log();
   });
 }

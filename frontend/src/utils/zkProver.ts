@@ -8,17 +8,19 @@
  *   zk_commitment = Poseidon_BN254(secret, blinder, denomination)
  *   nullifier      = Poseidon_BN254(secret, 1)
  *
- * Proof generation pipeline:
+ * Proof generation pipeline (browser-side, secrets never leave the browser):
  *   1. Client computes commitment/nullifier (Poseidon BN254 via poseidon-lite)
- *   2. Prover service generates witness (nargo) → proof (bb) → calldata (garaga)
- *   3. On-chain, the Garaga verifier validates the UltraKeccakZKHonk proof
+ *   2. Client generates witness (noir_js WASM) + proof (bb.js WASM) in browser
+ *   3. Client sends ONLY the proof binary to server for garaga calldata conversion
+ *   4. On-chain, the Garaga verifier validates the UltraKeccakZKHonk proof
  *
- * Secret and blinder NEVER appear in on-chain calldata — only the proof does.
+ * Secret and blinder NEVER appear in on-chain calldata or server requests.
  */
 
 import { poseidon2, poseidon3 } from "poseidon-lite";
+import { generateProofInBrowser } from "./browserProver";
 
-const PROVER_URL = process.env.NEXT_PUBLIC_PROVER_URL ?? "http://localhost:3001";
+const CALLDATA_URL = process.env.NEXT_PUBLIC_PROVER_URL ?? "http://localhost:3001";
 
 // BN254 Poseidon outputs (~2^254) can exceed felt252 max (~2^251).
 // Reduce modulo STARK_PRIME so values fit in felt252 for on-chain storage.
@@ -46,6 +48,26 @@ export function computeZKNullifier(secret: bigint): bigint {
 }
 
 /**
+ * Compute RAW BN254 Poseidon commitment (not reduced).
+ * Used as circuit input — the Noir circuit operates on BN254 field.
+ */
+export function computeZKCommitmentRaw(
+  secret: bigint,
+  blinder: bigint,
+  denomination: bigint,
+): bigint {
+  return poseidon3([secret, blinder, denomination]);
+}
+
+/**
+ * Compute RAW BN254 Poseidon nullifier (not reduced).
+ * Used as circuit input — the Noir circuit operates on BN254 field.
+ */
+export function computeZKNullifierRaw(secret: bigint): bigint {
+  return poseidon2([secret, 1n]);
+}
+
+/**
  * Convert a bigint to a hex string (felt252-compatible).
  */
 export function bigintToHex(n: bigint): string {
@@ -53,14 +75,14 @@ export function bigintToHex(n: bigint): string {
 }
 
 /**
- * Generate a withdrawal proof via the prover service.
+ * Generate a withdrawal proof using browser-side ZK proving.
  *
- * Pipeline: nargo execute → bb prove → garaga calldata
- * Returns ~2835 felt252 calldata elements for the Garaga verifier.
+ * Pipeline:
+ *   1. Browser: noir_js generates witness from private inputs (WASM)
+ *   2. Browser: bb.js generates UltraKeccakZKHonk proof (WASM)
+ *   3. Server: receives ONLY proof binary → garaga calldata → ~2835 felt252 values
  *
- * The prover service sees the secrets temporarily (in-memory only).
- * In production, this would run entirely in the browser via noir_js + bb.js WASM.
- * The critical guarantee: secrets NEVER appear in on-chain calldata.
+ * Secrets NEVER leave the browser. The server only converts proof format.
  */
 export async function generateWithdrawalProof(params: {
   secret: bigint;
@@ -73,20 +95,43 @@ export async function generateWithdrawalProof(params: {
 }> {
   const { secret, blinder, denomination } = params;
 
-  const resp = await fetch(`${PROVER_URL}/prove`, {
+  // Compute raw BN254 values (for circuit) and reduced felt252 values (for on-chain)
+  const zkCommitmentRaw = computeZKCommitmentRaw(secret, blinder, denomination);
+  const zkNullifierRaw = computeZKNullifierRaw(secret);
+  const zkCommitment = zkCommitmentRaw % STARK_PRIME;
+  const zkNullifier = zkNullifierRaw % STARK_PRIME;
+
+  // Step 1+2: Generate proof in browser (secrets stay in WASM memory)
+  const { proofBytes, publicInputs } = await generateProofInBrowser({
+    secret,
+    blinder,
+    denomination,
+    zkCommitmentRaw,
+    zkNullifierRaw,
+  });
+
+  // Step 3: Send ONLY proof binary to server for garaga calldata conversion
+  // Note: proofBytes is the proof, publicInputs are BN254 public inputs
+  // The server NEVER sees secret or blinder
+  const resp = await fetch(`${CALLDATA_URL}/calldata`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      secret: secret.toString(),
-      blinder: blinder.toString(),
-      denomination: Number(denomination),
+      proof: Array.from(proofBytes),
+      publicInputs,
     }),
   });
 
   if (!resp.ok) {
     const errText = await resp.text();
-    throw new Error(`Proof generation failed: ${errText}`);
+    throw new Error(`Calldata generation failed: ${errText}`);
   }
 
-  return resp.json();
+  const { calldata } = await resp.json();
+
+  return {
+    proof: calldata,
+    zkCommitment: bigintToHex(zkCommitment),
+    zkNullifier: bigintToHex(zkNullifier),
+  };
 }

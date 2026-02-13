@@ -1,0 +1,16 @@
+frontend/
+contracts/
+docs/
+*.md
+.git/
+.gitignore
+.claude/
+.vercel/
+scripts/node_modules/
+frontend/node_modules/
+circuits/ghostsats/target/ghostsats.json
+circuits/ghostsats/target/ghostsats.gz
+circuits/ghostsats/target/witness.gz
+circuits/ghostsats/target/proof/
+circuits/ghostsats/target/public_inputs
+circuits/ghostsats/zk_verifier/

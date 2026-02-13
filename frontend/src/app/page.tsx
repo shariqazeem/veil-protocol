@@ -282,8 +282,8 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 sm:gap-0 mb-6">
               {[
                 { label: "Noir Circuit", sub: "Poseidon BN254", icon: "01" },
-                { label: "nargo execute", sub: "Witness gen", icon: "02" },
-                { label: "bb prove", sub: "UltraKeccakZKHonk", icon: "03" },
+                { label: "noir_js WASM", sub: "Witness (browser)", icon: "02" },
+                { label: "bb.js WASM", sub: "Proof (browser)", icon: "03" },
                 { label: "garaga calldata", sub: "2835 felt252 values", icon: "04" },
                 { label: "On-Chain Verify", sub: "Garaga Verifier", icon: "05" },
               ].map((step, i) => (
@@ -301,9 +301,9 @@ export default function LandingPage() {
             </div>
 
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-5">
-              Not a mock. Not off-chain. Every withdrawal generates a real UltraKeccakZKHonk proof that the
-              Garaga verifier validates on-chain. The proof (~2835 felt252 calldata elements) cryptographically
-              proves deposit knowledge without revealing the secret or blinder. Verify it yourself:
+              Not a mock. Not off-chain. Proofs are generated <strong>entirely in your browser</strong> using noir_js + bb.js WASM.
+              Secrets never leave the browser — not in calldata, not to any server. The Garaga verifier validates
+              each proof on-chain (~2835 felt252 calldata elements). Verify it yourself:
             </p>
 
             {/* Contract Links */}

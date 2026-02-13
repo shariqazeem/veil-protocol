@@ -40,10 +40,12 @@ Deposit:
     ZK commitment = Poseidon_BN254(secret, blinder, denomination) [BN254 field]
   → deposit_private(commitment, denomination, btc_identity, zk_commitment)
 
-Withdrawal:
-  Browser → POST /prove to prover service
-    ├── nargo execute    → witness generation
-    ├── bb prove         → UltraKeccakZKHonk proof (7KB binary)
+Withdrawal (secrets NEVER leave the browser):
+  Browser (WASM):
+    ├── noir_js execute  → witness generation (secret + blinder stay in browser)
+    ├── bb.js prove      → UltraKeccakZKHonk proof (browser WASM, ~30s)
+    └── POST /calldata   → sends ONLY proof binary to server (no secrets)
+  Server:
     └── garaga calldata  → 2835 felt252 values (proof + MSM/KZG hints)
   → withdraw_private(denomination, zk_nullifier, zk_commitment, proof[2835], ...)
     ├── Garaga verifier validates proof on-chain
@@ -52,7 +54,7 @@ Withdrawal:
     ├── Merkle proof verified for Pedersen commitment
     └── WBTC transferred to recipient
 
-Key guarantee: secret and blinder NEVER appear in on-chain calldata
+Key guarantee: secret and blinder NEVER leave the browser — not in calldata, not to any server
 ```
 
 ---
@@ -211,7 +213,7 @@ This is a deliberate privacy design, not a limitation. Tornado Cash, Railgun, an
 
 | Decision | Why | Production Path |
 |----------|-----|-----------------|
-| **Server-side prover** | Noir CLI toolchain (nargo → bb → garaga) generates real UltraKeccakZKHonk proofs. Secrets exist in memory only, never persisted, never in calldata. | In-browser via `@noir-lang/noir_js` + `@aztec/bb.js` WASM — eliminates server trust entirely |
+| **Browser-side prover** | Witness + proof generated in-browser via `@noir-lang/noir_js` + `@aztec/bb.js` WASM. Secrets never leave the browser. Server only converts proof format (garaga calldata). | Fully client-side with garaga WASM — zero server dependency |
 | **Mock tokens on Sepolia** | Judges can mint test USDC with one click. Contract supports real tokens — `npm run deploy:live` uses real Sepolia USDC/WBTC addresses. | Deploy with real tokens on mainnet, no contract changes needed |
 | **Trust-minimized relayer** | Relayer **cannot steal funds** — the ZK proof is the authorization, not the relayer. Relayer can only submit or refuse to submit. | Decentralized relayer network with staked operators and fee competition |
 | **Single-owner keeper** | Permissionless `execute_batch` — anyone can call it. Owner restriction is for testnet safety only. | Remove owner check, add incentive mechanism for MEV-style keepers |

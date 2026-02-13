@@ -358,18 +358,20 @@ export default function UnveilForm() {
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           }
         } catch (zkErr) {
-          // Prover unavailable — fall back to legacy Pedersen withdrawal
-          const isProverError = zkErr instanceof TypeError ||
+          // Browser proving or calldata server unavailable — fall back to legacy
+          const isInfraError = zkErr instanceof TypeError ||
             (zkErr instanceof Error && (
               zkErr.message.includes("fetch") ||
               zkErr.message.includes("network") ||
               zkErr.message.includes("Failed") ||
-              zkErr.message.includes("ECONNREFUSED")
+              zkErr.message.includes("ECONNREFUSED") ||
+              zkErr.message.includes("Calldata generation failed") ||
+              zkErr.message.includes("Failed to load ZK circuit")
             ));
-          if (!isProverError) throw zkErr; // Re-throw non-prover errors
+          if (!isInfraError) throw zkErr; // Re-throw non-infra errors
 
-          console.warn("[unveil] Prover unavailable, falling back to Pedersen withdrawal");
-          toast("info", "Prover offline — using Pedersen withdrawal");
+          console.warn("[unveil] ZK proving unavailable, falling back to Pedersen withdrawal:", zkErr);
+          toast("info", "ZK prover unavailable — using Pedersen withdrawal");
           // Fall through to legacy path below
         }
       }
@@ -470,12 +472,12 @@ export default function UnveilForm() {
                     {zkTimer}s
                   </span>
                 </div>
-                {/* 3-step pipeline (informational — all run server-side) */}
+                {/* 3-step pipeline: witness + proof in browser, calldata on server */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { label: "Witness", sub: "nargo execute" },
-                    { label: "Proof", sub: "bb prove" },
-                    { label: "Calldata", sub: "garaga" },
+                    { label: "Witness", sub: "browser WASM" },
+                    { label: "Proof", sub: "browser WASM" },
+                    { label: "Calldata", sub: "garaga server" },
                   ].map((step) => (
                     <div
                       key={step.label}
@@ -494,7 +496,7 @@ export default function UnveilForm() {
                   ))}
                 </div>
                 <p className="text-[10px] text-[var(--text-tertiary)] text-center">
-                  Secrets stay local — only the proof goes on-chain
+                  Secrets never leave your browser — only the proof is sent
                 </p>
               </div>
             )}

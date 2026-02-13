@@ -87,30 +87,32 @@ snforge test
 
 The test `test_verify_ultra_keccak_zk_honk_proof` forks Sepolia and verifies a real proof on-chain. Requires network access (Cartridge RPC).
 
-### 3.1 End-to-End Proof Generation (Prover Service)
+### 3.1 Browser-Side ZK Proof Generation
 
-The relayer includes a `/prove` endpoint that generates real ZK proofs:
+The frontend generates ZK proofs **entirely in the browser** using WASM:
+
+- **`@noir-lang/noir_js`** — witness generation (ACVM WASM)
+- **`@aztec/bb.js`** — UltraKeccakZKHonk proof generation (Barretenberg WASM)
+
+Secrets (secret, blinder) **never leave the browser**. Only the proof binary is sent to the server for garaga calldata conversion.
+
+**Browser pipeline**: `noir_js execute` (witness) → `bb.js prove` (UltraKeccakZKHonk proof)
+**Server pipeline**: `garaga calldata` (proof → 2835 felt252 elements with MSM/KZG hints)
 
 ```bash
-# Start the prover/relayer service
+# Start the calldata conversion server
 cd scripts
 npm run relayer
 
-# Test proof generation
-curl -X POST http://localhost:3001/prove \
-  -H "Content-Type: application/json" \
-  -d '{"secret":"12345","blinder":"67890","denomination":1}'
+# The /calldata endpoint accepts proof binary, NOT secrets
+# (Called automatically by the frontend during withdrawal)
 ```
 
-**Pipeline**: `nargo execute` (witness) → `bb prove` (UltraKeccakZKHonk proof) → `garaga calldata` (2835 felt252 elements with MSM/KZG hints)
-
-**Expected response**: JSON with `proof` (array of ~2835 hex strings), `zkCommitment`, `zkNullifier`
-
-**What this proves**: The prover knows `(secret, blinder)` such that:
+**What the proof proves**: The prover knows `(secret, blinder)` such that:
 - `Poseidon_BN254(secret, blinder, denomination) == zk_commitment`
 - `Poseidon_BN254(secret, 1) == nullifier`
 
-Secret and blinder NEVER appear in the on-chain calldata — only the proof does.
+Secret and blinder NEVER appear in on-chain calldata OR server requests — only the proof does.
 
 ---
 
@@ -141,14 +143,16 @@ Secret and blinder NEVER appear in the on-chain calldata — only the proof does
 4. Click "Claim WBTC" on a ready note
 
 **What to verify:**
-- Phase shows "Generating zero-knowledge proof (10-30s)..." (real proof generation via prover service)
-- Phase shows "Submitting withdrawal with zero-knowledge proof..."
-- Transaction calls `withdraw_private` (not old `withdraw`) — **no secret/blinder in calldata**
+- Pipeline shows 3 steps: "Witness (browser WASM)" → "Proof (browser WASM)" → "Calldata (garaga server)"
+- Phase shows "Generating Zero-Knowledge Proof" with live timer
+- Phase shows "Submitting withdrawal with ZK proof (2835 calldata elements)..."
+- Transaction calls `withdraw_private` (not old `withdraw`) — **no secret/blinder in calldata or server requests**
 - Proof calldata contains ~2835 felt252 values (the UltraKeccakZKHonk proof + Garaga hints)
 - On-chain: `is_zk_nullifier_spent()` returns true for the nullifier
 - WBTC received in wallet
 - Toast notification shows "WBTC withdrawn privately"
 - PrivateWithdrawal event emitted (check Voyager)
+- **Privacy check**: Open browser DevTools → Network tab → verify the `/calldata` request contains `proof` and `publicInputs` but NOT `secret` or `blinder`
 
 ### 4.3 Backward Compatibility
 
@@ -222,12 +226,13 @@ Deposit flow:
     ├── Stores commitment in Merkle tree
     └── Maps zk_commitment → pedersen_commitment
 
-Withdrawal flow:
-  Browser → POST /prove to prover service
-    ├── Prover: nargo execute → witness
-    ├── Prover: bb prove (UltraKeccakZKHonk) → proof binary
-    └── Prover: garaga calldata → 2835 felt252 values (proof + MSM/KZG hints)
-  Browser receives proof calldata (secret/blinder NOT in response)
+Withdrawal flow (secrets never leave the browser):
+  Browser (WASM — secrets stay here):
+    ├── noir_js: execute circuit → witness (secret + blinder in WASM memory)
+    └── bb.js: generateProof(witness, {keccakZK: true}) → UltraKeccakZKHonk proof
+  Browser → POST /calldata to server (sends ONLY proof binary, NOT secrets)
+    └── Server: garaga calldata → 2835 felt252 values (proof + MSM/KZG hints)
+  Browser receives felt252 array (secret/blinder were never sent)
   → withdraw_private(denomination, zk_nullifier, zk_commitment, proof[2835], merkle_path, ...)
     ├── Looks up pedersen_commitment from zk_commitment
     ├── Verifies ZK proof via Garaga verifier (if verifier != zero)
@@ -237,16 +242,16 @@ Withdrawal flow:
     ├── Enforces 60s timing delay
     └── Transfers WBTC to recipient
 
-Key insight: secret and blinder NEVER appear in calldata
+Key insight: secret and blinder NEVER leave the browser — not in calldata, not to any server
 ```
 
 ---
 
 ## 7. Known Limitations (Hackathon Scope)
 
-1. **ZK verifier deployed and active** — The Garaga UltraKeccakZKHonkVerifier is deployed at `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` and wired to the ShieldedPool constructor. Real proofs (~2835 felt252 calldata elements) are generated by the prover service and verified on-chain. Public inputs are reduced modulo STARK_PRIME (BN254→felt252) and validated to prevent proof replay attacks.
+1. **ZK verifier deployed and active** — The Garaga UltraKeccakZKHonkVerifier is deployed at `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` and wired to the ShieldedPool constructor. Real proofs (~2835 felt252 calldata elements) are generated by the browser and verified on-chain. Public inputs are reduced modulo STARK_PRIME (BN254→felt252) and validated to prevent proof replay attacks.
 
-2. **Proof generation is server-side** — The prover service (POST /prove) runs nargo → bb → garaga CLI tools. In production, this would run in-browser via `@noir-lang/noir_js` + `@aztec/bb.js` WASM. The prover sees secrets temporarily in-memory (never persisted). The critical guarantee: secrets never appear in on-chain calldata.
+2. **Browser-side proof generation** — Witness and proof are generated entirely in the browser using `@noir-lang/noir_js` (WASM) + `@aztec/bb.js` (WASM). Secrets never leave the browser. The server only runs `garaga calldata` to convert the proof binary to Starknet-compatible felt252 calldata. The server never sees secret or blinder.
 
 3. **Relayer/Prover requires manual startup** — No hosted service yet. Run `npm run relayer` locally for proof generation and gasless withdrawals.
 
