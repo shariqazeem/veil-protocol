@@ -34,7 +34,7 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 
-const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
+const SEPOLIA_EXPLORER = "https://sepolia.starkscan.co/tx/";
 
 export default function ShieldForm() {
   const { address, isConnected } = useAccount();
@@ -463,7 +463,7 @@ export default function ShieldForm() {
                   rel="noopener noreferrer"
                   className="mt-3 flex items-center gap-1.5 text-[11px] text-[var(--accent-orange)] hover:underline font-[family-name:var(--font-geist-mono)]"
                 >
-                  View on Voyager
+                  View on Starkscan
                   <ExternalLink size={10} strokeWidth={1.5} />
                 </a>
               )}

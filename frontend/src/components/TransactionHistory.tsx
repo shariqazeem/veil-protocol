@@ -6,7 +6,7 @@ import { ArrowDownLeft, ArrowUpRight, ExternalLink, ChevronDown, ChevronUp, Shie
 import { motion, AnimatePresence } from "framer-motion";
 import { type NoteWithStatus, checkAllNoteStatuses } from "@/utils/notesManager";
 
-const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
+const SEPOLIA_EXPLORER = "https://sepolia.starkscan.co/tx/";
 
 function truncateHash(h: string, chars = 6): string {
   if (h.length <= chars * 2 + 2) return h;

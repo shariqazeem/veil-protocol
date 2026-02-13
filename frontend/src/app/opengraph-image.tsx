@@ -49,9 +49,17 @@ export default function OGImage() {
           Bitcoin&apos;s Privacy Layer on Starknet
         </div>
 
+        {/* ZK Verified badge */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 20px", borderRadius: "24px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", marginBottom: "32px" }}>
+          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10B981" }} />
+          <span style={{ fontSize: "14px", color: "#10B981", fontWeight: 600 }}>
+            ZK Proofs Verified On-Chain via Garaga
+          </span>
+        </div>
+
         {/* Feature pills */}
         <div style={{ display: "flex", gap: "12px" }}>
-          {["Pedersen Commitments", "Merkle Proofs", "Gasless Withdrawals", "BTC Identity"].map(
+          {["Noir ZK Circuits", "Garaga Verifier", "Gasless Relayer", "BTC Identity"].map(
             (text) => (
               <div
                 key={text}
