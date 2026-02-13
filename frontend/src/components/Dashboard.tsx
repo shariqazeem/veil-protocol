@@ -9,7 +9,7 @@ import { SkeletonLine } from "./Skeleton";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 
-const STARKSCAN_BASE = "https://sepolia.starkscan.co/contract";
+const VOYAGER_BASE = "https://sepolia.voyager.online/contract";
 
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "http://localhost:3001";
 
@@ -295,7 +295,7 @@ export default function Dashboard() {
         {/* Verified On-Chain Links */}
         <div className="flex flex-wrap items-center gap-2">
           <a
-            href={`${STARKSCAN_BASE}/${addresses.contracts.shieldedPool}`}
+            href={`${VOYAGER_BASE}/${addresses.contracts.shieldedPool}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -306,7 +306,7 @@ export default function Dashboard() {
           </a>
           {(addresses.contracts as Record<string, string>).garagaVerifier && (
             <a
-              href={`${STARKSCAN_BASE}/${(addresses.contracts as Record<string, string>).garagaVerifier}`}
+              href={`${VOYAGER_BASE}/${(addresses.contracts as Record<string, string>).garagaVerifier}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-800/20 transition-colors text-[10px] font-medium text-emerald-400"
@@ -317,7 +317,7 @@ export default function Dashboard() {
             </a>
           )}
           <a
-            href={`${STARKSCAN_BASE}/${addresses.contracts.usdc}`}
+            href={`${VOYAGER_BASE}/${addresses.contracts.usdc}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -326,7 +326,7 @@ export default function Dashboard() {
             <ExternalLink size={8} strokeWidth={2} className="opacity-50" />
           </a>
           <a
-            href={`${STARKSCAN_BASE}/${addresses.contracts.wbtc}`}
+            href={`${VOYAGER_BASE}/${addresses.contracts.wbtc}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"

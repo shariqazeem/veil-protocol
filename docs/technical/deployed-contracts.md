@@ -6,11 +6,11 @@ All contracts are deployed on **Starknet Sepolia** testnet.
 
 | Contract | Address | Explorer |
 |----------|---------|----------|
-| **ShieldedPool** | `0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af` | [Starkscan](https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) |
-| **GaragaVerifier** | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` | [Starkscan](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
-| **USDC (Mock)** | `0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e` | [Starkscan](https://sepolia.starkscan.co/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
-| **WBTC (Mock)** | `0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769` | [Starkscan](https://sepolia.starkscan.co/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
-| **MockAvnuRouter** | `0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647` | [Starkscan](https://sepolia.starkscan.co/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
+| **ShieldedPool** | `0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af` | [Voyager](https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) |
+| **GaragaVerifier** | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` | [Voyager](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
+| **USDC (Mock)** | `0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e` | [Voyager](https://sepolia.voyager.online/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
+| **WBTC (Mock)** | `0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769` | [Voyager](https://sepolia.voyager.online/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
+| **MockAvnuRouter** | `0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647` | [Voyager](https://sepolia.voyager.online/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
 
 ## Deployer Account
 

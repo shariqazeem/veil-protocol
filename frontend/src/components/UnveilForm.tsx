@@ -26,7 +26,7 @@ interface ProofDetails {
 }
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
-const SEPOLIA_EXPLORER = "https://sepolia.starkscan.co/tx/";
+const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "http://localhost:3001";
 const GARAGA_VERIFIER = "0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07";
 
@@ -531,7 +531,7 @@ export default function UnveilForm() {
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-xs text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"
             >
-              View on Starkscan
+              View on Voyager
               <ExternalLink size={10} strokeWidth={1.5} />
             </a>
           )}

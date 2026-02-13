@@ -12,7 +12,7 @@
 | Deployer | `0x0501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5` |
 
 **Frontend:** https://ghostsats.vercel.app
-**Explorer:** https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af
+**Explorer:** https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af
 
 ---
 
@@ -148,7 +148,7 @@ Secret and blinder NEVER appear in the on-chain calldata — only the proof does
 - On-chain: `is_zk_nullifier_spent()` returns true for the nullifier
 - WBTC received in wallet
 - Toast notification shows "WBTC withdrawn privately"
-- PrivateWithdrawal event emitted (check Starkscan)
+- PrivateWithdrawal event emitted (check Voyager)
 
 ### 4.3 Backward Compatibility
 

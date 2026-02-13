@@ -309,23 +309,23 @@ export default function LandingPage() {
             {/* Contract Links */}
             <div className="flex flex-wrap gap-2">
               <a
-                href="https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af"
+                href="https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
                 <Shield size={12} strokeWidth={1.5} />
-                ShieldedPool on Starkscan
+                ShieldedPool on Voyager
                 <ExternalLink size={10} strokeWidth={2} className="opacity-50" />
               </a>
               <a
-                href="https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07"
+                href="https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-800/20 transition-colors text-[11px] font-medium text-emerald-400"
               >
                 <Fingerprint size={12} strokeWidth={1.5} />
-                Garaga ZK Verifier on Starkscan
+                Garaga ZK Verifier on Voyager
                 <ExternalLink size={10} strokeWidth={2} className="opacity-50" />
               </a>
             </div>

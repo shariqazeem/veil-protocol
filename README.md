@@ -4,7 +4,7 @@
 >
 > Secrets never appear in calldata. A Noir ZK circuit proves deposit knowledge. The Garaga UltraKeccakZKHonk verifier validates the proof on-chain. Gasless relayer breaks the sender-link entirely.
 
-**[Live Demo](https://ghostsats.vercel.app)** &nbsp;&middot;&nbsp; **[Explorer](https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af)** &nbsp;&middot;&nbsp; **[ZK Verifier](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07)** &nbsp;&middot;&nbsp; **[Docs](https://ghostsats-docs.vercel.app)** &nbsp;&middot;&nbsp; Built for [Re{define} Starknet Hackathon 2026](https://dorahacks.io/)
+**[Live Demo](https://ghostsats.vercel.app)** &nbsp;&middot;&nbsp; **[Explorer](https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af)** &nbsp;&middot;&nbsp; **[ZK Verifier](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07)** &nbsp;&middot;&nbsp; **[Docs](https://ghostsats-docs.vercel.app)** &nbsp;&middot;&nbsp; Built for [Re{define} Starknet Hackathon 2026](https://dorahacks.io/)
 
 ---
 
@@ -91,11 +91,11 @@ Without the relayer, your wallet signs the withdrawal tx → on-chain link betwe
 
 | Contract | Address |
 |----------|---------|
-| ShieldedPool | [`0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af`](https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) |
-| GaragaVerifier | [`0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07`](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
-| USDC (Mock) | [`0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e`](https://sepolia.starkscan.co/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
-| WBTC (Mock) | [`0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769`](https://sepolia.starkscan.co/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
-| MockAvnuRouter | [`0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647`](https://sepolia.starkscan.co/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
+| ShieldedPool | [`0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af`](https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) |
+| GaragaVerifier | [`0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07`](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
+| USDC (Mock) | [`0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e`](https://sepolia.voyager.online/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
+| WBTC (Mock) | [`0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769`](https://sepolia.voyager.online/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
+| MockAvnuRouter | [`0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647`](https://sepolia.voyager.online/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
 
 ---
 
@@ -256,9 +256,9 @@ npm install && npm run dev   # http://localhost:3000
 4. Confirm the transaction (approve + deposit + batch in one tx)
 5. Wait 60 seconds (privacy cooldown)
 6. Switch to **Unveil tab** and click **"Unveil"**
-7. Click "View on Starkscan" — see the ZK proof in calldata (2835 elements)
+7. Click "View on Voyager" — see the ZK proof in calldata (2835 elements)
 
-**Verify on-chain**: Open the ShieldedPool on [Starkscan](https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) — check the `withdraw_private` transactions to see real ZK proof calldata.
+**Verify on-chain**: Open the ShieldedPool on [Voyager](https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) — check the `withdraw_private` transactions to see real ZK proof calldata.
 
 ---
 
