@@ -19,12 +19,12 @@
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
 import {
   Account,
   RpcProvider,
   Contract,
   CallData,
+  constants,
   type Abi,
 } from "starknet";
 import "dotenv/config";
@@ -267,7 +267,10 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
 
   // Connect (use "latest" block — some RPCs don't support "pending")
   const provider = new RpcProvider({ nodeUrl: rpcUrl, blockIdentifier: "latest" as any });
-  const account = new Account(provider, accountAddress, privateKey);
+  const account = new Account(
+    provider, accountAddress, privateKey,
+    undefined, constants.TRANSACTION_VERSION.V3,
+  );
   const pool = new Contract(POOL_ABI, POOL_ADDRESS, provider);
 
   console.log("\n========================================");
@@ -315,10 +318,16 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
     const btcPrice = Math.round(priceData?.bitcoin?.usd ?? 97000);
     console.log(`  BTC price: $${btcPrice.toLocaleString()}`);
 
-    const rpcFlag = rpcUrl ? `--url ${rpcUrl}` : "";
-    const rateCmd = `sncast --account ghostsats-deployer invoke --contract-address ${ROUTER_ADDRESS} --function set_rate --calldata 0x64 0x0 0x${btcPrice.toString(16)} 0x0 ${rpcFlag}`;
     console.log(`  Updating router rate (100/${btcPrice})...`);
-    execSync(rateCmd, { encoding: "utf-8", timeout: 60_000 });
+    const rateTx = await account.execute([{
+      contractAddress: ROUTER_ADDRESS,
+      entrypoint: "set_rate",
+      calldata: CallData.compile({
+        rate_numerator: { low: 100n, high: 0n },
+        rate_denominator: { low: BigInt(btcPrice), high: 0n },
+      }),
+    }]);
+    await provider.waitForTransaction(rateTx.transaction_hash);
     console.log(`  Router rate updated to live price`);
   } catch (err: any) {
     console.log(`  Price update failed (using existing rate): ${err?.message ?? err}`);
@@ -365,12 +374,18 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
       console.log(`  Waiting for confirmation...`);
       await provider.waitForTransaction(tx.transaction_hash);
     } else {
-      // Use sncast for MockRouter mode (starknet.js has RPC compat issues)
-      const rpcFlag = rpcUrl ? `--url ${rpcUrl}` : "";
-      const cmd = `sncast --account ghostsats-deployer invoke --contract-address ${POOL_ADDRESS} --function execute_batch --calldata 0x0 0x0 0x0 ${rpcFlag}`;
-      console.log(`  $ ${cmd.slice(0, 80)}...`);
-      const output = execSync(cmd, { encoding: "utf-8", timeout: 120_000 });
-      console.log(output);
+      // MockRouter mode — execute_batch with min_wbtc_out=0, empty routes
+      const batchTx = await account.execute([{
+        contractAddress: POOL_ADDRESS,
+        entrypoint: "execute_batch",
+        calldata: CallData.compile({
+          min_wbtc_out: { low: 0n, high: 0n },
+          routes: [],
+        }),
+      }]);
+      console.log(`  tx: ${batchTx.transaction_hash}`);
+      console.log(`  Waiting for confirmation...`);
+      await provider.waitForTransaction(batchTx.transaction_hash);
     }
 
     console.log(`  Batch executed successfully!`);

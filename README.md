@@ -4,7 +4,7 @@
 >
 > Secrets never appear in calldata. A Noir ZK circuit proves deposit knowledge. The Garaga UltraKeccakZKHonk verifier validates the proof on-chain. Gasless relayer breaks the sender-link entirely.
 
-**[Live Demo](https://ghostsats.vercel.app)** &nbsp;&middot;&nbsp; **[Explorer](https://sepolia.voyager.online/contract/0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea)** &nbsp;&middot;&nbsp; Built for [Re{define} Starknet Hackathon 2026](https://dorahacks.io/)
+**[Live Demo](https://ghostsats.vercel.app)** &nbsp;&middot;&nbsp; **[Explorer](https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af)** &nbsp;&middot;&nbsp; **[ZK Verifier](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07)** &nbsp;&middot;&nbsp; **[Docs](https://ghostsats-docs.vercel.app)** &nbsp;&middot;&nbsp; Built for [Re{define} Starknet Hackathon 2026](https://dorahacks.io/)
 
 ---
 
@@ -91,11 +91,11 @@ Without the relayer, your wallet signs the withdrawal tx → on-chain link betwe
 
 | Contract | Address |
 |----------|---------|
-| ShieldedPool | [`0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea`](https://sepolia.voyager.online/contract/0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea) |
-| GaragaVerifier | [`0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07`](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
-| USDC (Mock) | [`0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e`](https://sepolia.voyager.online/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
-| WBTC (Mock) | [`0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769`](https://sepolia.voyager.online/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
-| MockAvnuRouter | [`0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647`](https://sepolia.voyager.online/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
+| ShieldedPool | [`0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af`](https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) |
+| GaragaVerifier | [`0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07`](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
+| USDC (Mock) | [`0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e`](https://sepolia.starkscan.co/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
+| WBTC (Mock) | [`0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769`](https://sepolia.starkscan.co/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
+| MockAvnuRouter | [`0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647`](https://sepolia.starkscan.co/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
 
 ---
 
@@ -136,7 +136,7 @@ cd contracts && snforge test
 │                                                              │
 │  POST /prove  → nargo execute → bb prove → garaga calldata  │
 │                  (witness)     (UltraHonk)  (2835 felt252s)  │
-│  POST /relay  → sncast invoke withdraw_private_via_relayer   │
+│  POST /relay  → starknet.js invoke withdraw_private_via_relayer│
 │  GET  /health → { status: ok, fee_bps: 200 }                │
 └────────────────────────┬────────────────────────────────────┘
                          │
@@ -245,6 +245,40 @@ npm install && npm run dev   # http://localhost:3000
 
 - **Privacy**: ZK proofs verified on-chain (Garaga), Pedersen commitments, Merkle proofs, nullifier set, gasless relayer, timing protection, anonymity sets, compliance portal
 - **Bitcoin**: Private USDC→WBTC via Avnu, dual wallet (Starknet + Bitcoin/Xverse), BTC identity binding, Bitcoin attestation (sign Merkle root), cross-chain withdrawal intents
+
+## End-to-End Verified on Sepolia
+
+The full pipeline has been verified end-to-end on Starknet Sepolia:
+
+```
+npm run e2e
+
+Shield (deposit_private)
+  ├── Pedersen commitment + BN254 Poseidon ZK commitment    [on-chain]
+  ├── Bitcoin wallet signature                               [attestation]
+  └── tx confirmed on Sepolia
+
+Batch (execute_batch)
+  ├── USDC → WBTC swap via Avnu DEX
+  ├── 100 USDC → 0.00141809 WBTC
+  └── tx confirmed on Sepolia
+
+Privacy Cooldown
+  └── 60-second minimum delay enforced
+
+ZK Proof Generation
+  ├── nargo execute    → witness
+  ├── bb prove         → UltraKeccakZKHonk (7KB binary)
+  ├── garaga calldata  → 2835 felt252 values
+  └── Generated in 5.5 seconds
+
+Withdraw (withdraw_private)
+  ├── ZK proof submitted on-chain (2835 calldata elements)
+  ├── Garaga verifier validated proof
+  ├── Nullifier marked spent (no replay possible)
+  ├── WBTC transferred to recipient
+  └── tx confirmed on Sepolia
+```
 
 ## License
 

@@ -17,7 +17,7 @@ export default defineConfig({
         text: "Links",
         items: [
           { text: "GitHub", link: "https://github.com/shariqazeem/ghostsats" },
-          { text: "Explorer", link: "https://sepolia.voyager.online/contract/0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea" },
+          { text: "Explorer", link: "https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af" },
         ],
       },
     ],

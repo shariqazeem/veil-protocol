@@ -36,14 +36,21 @@ function truncateHash(h: string, chars = 4): string {
 }
 
 function StatusBadge({ status }: { status: NoteWithStatus["status"] }) {
-  const styles = {
+  const styles: Record<string, string> = {
     PENDING: "bg-amber-900/20 text-amber-400",
     READY: "bg-emerald-900/20 text-emerald-400",
     CLAIMED: "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]",
+    STALE: "bg-red-900/20 text-red-400",
+  };
+  const labels: Record<string, string> = {
+    PENDING: "Pending",
+    READY: "Ready",
+    CLAIMED: "Claimed",
+    STALE: "Stale",
   };
   return (
-    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${styles[status]}`}>
-      {status === "PENDING" ? "Pending" : status === "READY" ? "Ready" : "Claimed"}
+    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${styles[status] ?? styles.PENDING}`}>
+      {labels[status] ?? status}
     </span>
   );
 }
@@ -276,86 +283,99 @@ export default function UnveilForm() {
         ? computeBtcIdentityHash(btcWithdrawAddress)
         : "0x0";
 
-      // Use ZK-private withdrawal if note has a ZK commitment
+      // Try ZK-private withdrawal first; fall back to legacy if prover unavailable
       const hasZK = !!note.zkCommitment;
+      let usedZK = false;
 
-      if (hasZK && useRelayer) {
-        // Gasless withdrawal via relayer — ZK proof generation
-        const zkStart = Date.now();
-        const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
-        setClaimPhase("generating_zk");
-        const { proof, zkNullifier } = await generateWithdrawalProof({
-          secret: BigInt(note.secret),
-          blinder: BigInt(note.blinder),
-          denomination: BigInt(denomination),
-        });
-        clearInterval(timer);
-        setProofDetails({
-          calldataElements: proof.length,
-          zkCommitment: note.zkCommitment!,
-          zkNullifier,
-          gasless: true,
-        });
+      if (hasZK) {
+        // Attempt ZK proof generation — requires prover service running
+        try {
+          const zkStart = Date.now();
+          const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
+          setClaimPhase("generating_zk");
+          const { proof, zkNullifier } = await generateWithdrawalProof({
+            secret: BigInt(note.secret),
+            blinder: BigInt(note.blinder),
+            denomination: BigInt(denomination),
+          });
+          clearInterval(timer);
+          usedZK = true;
 
-        setClaimPhase("withdrawing");
-        const relayRes = await fetch(`${RELAYER_URL}/relay`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            denomination,
-            zk_nullifier: zkNullifier,
-            zk_commitment: note.zkCommitment!,
-            proof,
-            merkle_path: merklePath,
-            path_indices: pathIndices.map(Number),
-            recipient: address,
-            btc_recipient_hash: btcRecipientHash,
-          }),
-        });
-        const relayData = await relayRes.json();
-        if (!relayData.success) throw new Error(relayData.error ?? "Relayer failed");
-        setClaimTxHash(relayData.txHash);
-        setClaimedWbtcAmount(note.wbtcShare ?? null);
-      } else if (hasZK) {
-        // ZK-private withdrawal (user pays gas) — ZK proof generation
-        const zkStart = Date.now();
-        const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
-        setClaimPhase("generating_zk");
-        const { proof, zkNullifier } = await generateWithdrawalProof({
-          secret: BigInt(note.secret),
-          blinder: BigInt(note.blinder),
-          denomination: BigInt(denomination),
-        });
-        clearInterval(timer);
-        setProofDetails({
-          calldataElements: proof.length,
-          zkCommitment: note.zkCommitment!,
-          zkNullifier,
-          gasless: false,
-        });
+          if (useRelayer) {
+            // Gasless via relayer
+            setProofDetails({
+              calldataElements: proof.length,
+              zkCommitment: note.zkCommitment!,
+              zkNullifier,
+              gasless: true,
+            });
+            setClaimPhase("withdrawing");
+            const relayRes = await fetch(`${RELAYER_URL}/relay`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                denomination,
+                zk_nullifier: zkNullifier,
+                zk_commitment: note.zkCommitment!,
+                proof,
+                merkle_path: merklePath,
+                path_indices: pathIndices.map(Number),
+                recipient: address,
+                btc_recipient_hash: btcRecipientHash,
+              }),
+            });
+            const relayData = await relayRes.json();
+            if (!relayData.success) throw new Error(relayData.error ?? "Relayer failed");
+            setClaimTxHash(relayData.txHash);
+            setClaimedWbtcAmount(note.wbtcShare ?? null);
+          } else {
+            // ZK-private, user pays gas
+            setProofDetails({
+              calldataElements: proof.length,
+              zkCommitment: note.zkCommitment!,
+              zkNullifier,
+              gasless: false,
+            });
+            setClaimPhase("withdrawing");
+            const withdrawCalls = [
+              {
+                contractAddress: poolAddress,
+                entrypoint: "withdraw_private",
+                calldata: CallData.compile({
+                  denomination,
+                  zk_nullifier: zkNullifier,
+                  zk_commitment: note.zkCommitment!,
+                  proof,
+                  merkle_path: merklePath,
+                  path_indices: pathIndices,
+                  recipient: address,
+                  btc_recipient_hash: btcRecipientHash,
+                }),
+              },
+            ];
+            const result = await sendAsync(withdrawCalls);
+            setClaimTxHash(result.transaction_hash);
+            setClaimedWbtcAmount(note.wbtcShare ?? null);
+          }
+        } catch (zkErr) {
+          // Prover unavailable — fall back to legacy Pedersen withdrawal
+          const isProverError = zkErr instanceof TypeError ||
+            (zkErr instanceof Error && (
+              zkErr.message.includes("fetch") ||
+              zkErr.message.includes("network") ||
+              zkErr.message.includes("Failed") ||
+              zkErr.message.includes("ECONNREFUSED")
+            ));
+          if (!isProverError) throw zkErr; // Re-throw non-prover errors
 
-        setClaimPhase("withdrawing");
-        const withdrawCalls = [
-          {
-            contractAddress: poolAddress,
-            entrypoint: "withdraw_private",
-            calldata: CallData.compile({
-              denomination,
-              zk_nullifier: zkNullifier,
-              zk_commitment: note.zkCommitment!,
-              proof,
-              merkle_path: merklePath,
-              path_indices: pathIndices,
-              recipient: address,
-              btc_recipient_hash: btcRecipientHash,
-            }),
-          },
-        ];
-        const result = await sendAsync(withdrawCalls);
-        setClaimTxHash(result.transaction_hash);
-        setClaimedWbtcAmount(note.wbtcShare ?? null);
-      } else {
-        // Legacy withdrawal for notes created before ZK integration
+          console.warn("[unveil] Prover unavailable, falling back to Pedersen withdrawal");
+          toast("info", "Prover offline — using Pedersen withdrawal");
+          // Fall through to legacy path below
+        }
+      }
+
+      if (!usedZK) {
+        // Legacy Pedersen withdrawal (prover unavailable or non-ZK note)
         const nullifier = computeNullifier(note.secret);
         setClaimPhase("withdrawing");
         const withdrawCalls = [

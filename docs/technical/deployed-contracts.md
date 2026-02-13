@@ -6,11 +6,11 @@ All contracts are deployed on **Starknet Sepolia** testnet.
 
 | Contract | Address | Explorer |
 |----------|---------|----------|
-| **ShieldedPool** | `0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea` | [Voyager](https://sepolia.voyager.online/contract/0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea) |
-| **GaragaVerifier** | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` | [Voyager](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
-| **USDC (Mock)** | `0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e` | [Voyager](https://sepolia.voyager.online/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
-| **WBTC (Mock)** | `0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769` | [Voyager](https://sepolia.voyager.online/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
-| **MockAvnuRouter** | `0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647` | [Voyager](https://sepolia.voyager.online/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
+| **ShieldedPool** | `0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af` | [Voyager](https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) |
+| **GaragaVerifier** | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` | [Voyager](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
+| **USDC (Mock)** | `0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e` | [Voyager](https://sepolia.starkscan.co/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
+| **WBTC (Mock)** | `0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769` | [Voyager](https://sepolia.starkscan.co/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
+| **MockAvnuRouter** | `0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647` | [Voyager](https://sepolia.starkscan.co/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
 
 ## Deployer Account
 
@@ -43,13 +43,13 @@ constructor(
 # Read pending USDC
 sncast --account ghostsats-deployer \
   call --url https://api.cartridge.gg/x/starknet/sepolia \
-  --contract-address 0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea \
+  --contract-address 0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af \
   --function get_pending_usdc
 
 # Read Merkle root
 sncast --account ghostsats-deployer \
   call --url https://api.cartridge.gg/x/starknet/sepolia \
-  --contract-address 0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea \
+  --contract-address 0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af \
   --function get_merkle_root
 ```
 
@@ -65,7 +65,7 @@ const provider = new RpcProvider({
 
 const pool = new Contract(
   SHIELDED_POOL_ABI,
-  "0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea",
+  "0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af",
   provider,
 );
 
@@ -80,7 +80,7 @@ Contract addresses are stored in `frontend/src/contracts/addresses.json`:
 ```json
 {
   "contracts": {
-    "shieldedPool": "0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea",
+    "shieldedPool": "0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af",
     "usdc": "0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e",
     "wbtc": "0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769"
   }

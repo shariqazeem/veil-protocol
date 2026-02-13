@@ -4,7 +4,7 @@
 
 | Contract | Address |
 |----------|---------|
-| ShieldedPool | `0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea` |
+| ShieldedPool | `0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af` |
 | GaragaVerifier | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` |
 | USDC (Mock) | `0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e` |
 | WBTC (Mock) | `0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769` |
@@ -12,7 +12,7 @@
 | Deployer | `0x0501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5` |
 
 **Frontend:** https://ghostsats.vercel.app
-**Explorer:** https://sepolia.starkscan.co/contract/0x041f449d25b2dfa8fb052ac3ab7ddaf6d92e86beb85e6a535dec7a28b31354ea
+**Explorer:** https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af
 
 ---
 

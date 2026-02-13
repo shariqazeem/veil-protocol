@@ -20,7 +20,7 @@
  */
 
 import * as http from "http";
-import { CallData } from "starknet";
+import { CallData, RpcProvider, Account, constants } from "starknet";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -262,15 +262,20 @@ async function main() {
   }
 
   const poolAddress = getPoolAddress();
-  // sncast works reliably with Cartridge RPC for transaction submission,
-  // while starknet.js has spec version mismatches with available Sepolia RPCs.
-  const SNCAST_RPC = "https://api.cartridge.gg/x/starknet/sepolia";
+  const RPC_URL = process.env.STARKNET_RPC_URL ?? "https://starknet-sepolia-rpc.publicnode.com";
+
+  // Initialize starknet.js provider and account for relay submissions (V3 transactions, STRK fees)
+  const rpcProvider = new RpcProvider({ nodeUrl: RPC_URL });
+  const relayerAccount = new Account(
+    rpcProvider, accountAddress!, privateKey!,
+    undefined, constants.TRANSACTION_VERSION.V3,
+  );
 
   console.log(`\nGhostSats Relayer`);
   console.log(`  Pool:    ${poolAddress}`);
   console.log(`  Relayer: ${accountAddress}`);
   console.log(`  Fee:     ${FEE_BPS} bps (${FEE_BPS / 100}%)`);
-  console.log(`  RPC:     ${SNCAST_RPC}`);
+  console.log(`  RPC:     ${RPC_URL}`);
   console.log();
 
   const server = http.createServer(async (req, res) => {
@@ -354,7 +359,7 @@ async function main() {
           console.log(`  recipient:    ${relayReq.recipient}`);
           console.log(`  zk_nullifier: ${relayReq.zk_nullifier.slice(0, 12)}...`);
 
-          // Build calldata for sncast (each felt252 as a separate CLI arg)
+          // Build calldata for starknet.js
           const calldata = CallData.compile({
             denomination: relayReq.denomination,
             zk_nullifier: relayReq.zk_nullifier,
@@ -368,64 +373,24 @@ async function main() {
             btc_recipient_hash: relayReq.btc_recipient_hash,
           });
 
-          // Submit via sncast (reliable with Cartridge RPC, handles signing correctly,
-          // while starknet.js has spec version mismatches with available Sepolia RPCs).
-          // --calldata takes variadic args: each felt252 as a separate CLI argument.
-          console.log(`[relay] Submitting via sncast (${calldata.length} calldata elements)...`);
-          const sncastArgs = [
-            "--account", "ghostsats-deployer",
-            "--json",
-            "invoke",
-            "--url", SNCAST_RPC,
-            "--contract-address", poolAddress,
-            "--function", "withdraw_private_via_relayer",
-            "--calldata",
-            ...calldata,  // spread each felt252 as a separate arg
-          ];
-          const { stdout } = await execFileAsync("sncast", sncastArgs, {
-            timeout: 120000,
-            maxBuffer: 10 * 1024 * 1024,  // 10MB for large calldata output
-          });
+          console.log(`[relay] Submitting via starknet.js (${calldata.length} calldata elements)...`);
+          const txResult = await relayerAccount.execute([{
+            contractAddress: poolAddress,
+            entrypoint: "withdraw_private_via_relayer",
+            calldata,
+          }]);
 
-          // Parse JSON output — sncast --json emits one JSON object per line:
-          // {"command":"invoke","transaction_hash":"0x...","type":"response"}
-          const lines = stdout.trim().split("\n");
-          let txHash: string | undefined;
-          for (const line of lines) {
-            try {
-              const obj = JSON.parse(line);
-              if (obj.transaction_hash) {
-                txHash = obj.transaction_hash;
-              }
-            } catch { /* skip non-JSON lines */ }
-          }
-          if (!txHash) {
-            throw new Error(`sncast invoke failed: ${stdout.slice(0, 500)}`);
-          }
+          const txHash = txResult.transaction_hash;
           console.log(`[relay] tx: ${txHash}`);
 
-          // Wait for confirmation via sncast tx-status (hash is positional arg)
+          // Wait for confirmation
           console.log(`[relay] Waiting for confirmation...`);
-          let confirmed = false;
-          for (let i = 0; i < 30; i++) {
-            await new Promise((r) => setTimeout(r, 5000));
-            try {
-              const { stdout: statusOut } = await execFileAsync("sncast", [
-                "--json",
-                "tx-status",
-                "--url", SNCAST_RPC,
-                txHash,
-              ], { timeout: 15000 });
-              if (statusOut.includes("AcceptedOnL2") || statusOut.includes("AcceptedOnL1")) {
-                confirmed = true;
-                break;
-              }
-              if (statusOut.includes("Rejected")) {
-                throw new Error("Transaction rejected");
-              }
-            } catch { /* retry */ }
+          try {
+            await rpcProvider.waitForTransaction(txHash, { retryInterval: 5000 });
+            console.log(`[relay] Confirmed!`);
+          } catch (waitErr) {
+            console.warn(`[relay] Confirmation wait failed: ${waitErr instanceof Error ? waitErr.message : waitErr}`);
           }
-          console.log(`[relay] ${confirmed ? "Confirmed!" : "Timed out waiting"}`);
 
           response = {
             success: true,

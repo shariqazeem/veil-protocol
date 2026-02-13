@@ -30,6 +30,7 @@ import {
   RpcProvider,
   CallData,
   json,
+  constants,
   type DeclareContractPayload,
 } from "starknet";
 import "dotenv/config";
@@ -145,7 +146,10 @@ async function main() {
   console.log(`Mode: ${isLive ? "LIVE (real tokens + Avnu)" : "DEV (mock tokens + mock router)"}\n`);
 
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
-  const account = new Account(provider, accountAddress, privateKey);
+  const account = new Account(
+    provider, accountAddress, privateKey,
+    undefined, constants.TRANSACTION_VERSION.V3,
+  );
   const chainId = await provider.getChainId();
   console.log(`Chain ID: ${chainId}\n`);
 

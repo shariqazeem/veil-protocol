@@ -9,12 +9,13 @@
     "keeper": "npx ts-node --esm keeper.ts",
     "keeper:loop": "npx ts-node --esm keeper.ts --loop",
     "keeper:dry-run": "npx ts-node --esm keeper.ts --dry-run",
-    "relayer": "npx ts-node --esm relayer.ts"
+    "relayer": "npx ts-node --esm relayer.ts",
+    "e2e": "npx ts-node --esm e2e-test.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "poseidon-lite": "^0.3.0",
-    "starknet": "^6.24.1"
+    "starknet": "^7.6.4"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

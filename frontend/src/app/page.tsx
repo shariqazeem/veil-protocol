@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Shield, Eye, Layers, Lock, Users, Zap, Bitcoin, ArrowRight, Clock, ShieldCheck, Fingerprint } from "lucide-react";
+import { Shield, Eye, Layers, Lock, Users, Zap, Bitcoin, ArrowRight, Clock, ShieldCheck, Fingerprint, ExternalLink, CheckCircle } from "lucide-react";
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 
@@ -113,9 +113,16 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
-              <span className="text-[11px] text-[var(--text-secondary)] font-medium">Live on Starknet Sepolia</span>
+            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] mb-6">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
+                <span className="text-[11px] text-[var(--text-secondary)] font-medium">Live on Starknet Sepolia</span>
+              </span>
+              <span className="w-px h-3 bg-[var(--border-subtle)]" />
+              <span className="inline-flex items-center gap-1.5">
+                <Fingerprint size={10} strokeWidth={2} className="text-emerald-400" />
+                <span className="text-[11px] text-emerald-400 font-medium">ZK Proofs Verified On-Chain</span>
+              </span>
             </div>
           </motion.div>
 
@@ -136,7 +143,7 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2, ease: [0.4, 0, 0.2, 1] }}
           >
-            Gasless private USDC-to-WBTC execution on Starknet. Zero-knowledge proofs, Pedersen commitments, and relayer-powered withdrawals.
+            Private USDC-to-WBTC execution on Starknet. Real ZK proofs verified on-chain by Garaga. Secrets never touch calldata. Gasless withdrawals break every link.
           </motion.p>
 
           <motion.div
@@ -240,6 +247,92 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Verified On-Chain — The Differentiator */}
+      <section className="px-4 sm:px-6 pb-20 sm:pb-32">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
+              Verified On-Chain
+            </span>
+          </div>
+
+          <motion.div
+            className="glass-card p-6 sm:p-8 relative overflow-hidden"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="absolute top-0 left-0 w-64 h-64 rounded-full opacity-[0.04] pointer-events-none"
+              style={{ background: "radial-gradient(circle, #10B981 0%, transparent 70%)" }}
+            />
+
+            <div className="flex items-center gap-2 mb-5">
+              <Fingerprint size={16} strokeWidth={1.5} className="text-emerald-400" />
+              <h3 className="text-[15px] font-bold text-[var(--text-primary)]">
+                Real ZK Proof Verification
+              </h3>
+              <span className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-950/30 border border-emerald-800/30 text-[10px] font-medium text-emerald-400">
+                <CheckCircle size={10} strokeWidth={2} />
+                E2E Verified
+              </span>
+            </div>
+
+            {/* ZK Pipeline */}
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 sm:gap-0 mb-6">
+              {[
+                { label: "Noir Circuit", sub: "Poseidon BN254", icon: "01" },
+                { label: "nargo execute", sub: "Witness gen", icon: "02" },
+                { label: "bb prove", sub: "UltraKeccakZKHonk", icon: "03" },
+                { label: "garaga calldata", sub: "2835 felt252 values", icon: "04" },
+                { label: "On-Chain Verify", sub: "Garaga Verifier", icon: "05" },
+              ].map((step, i) => (
+                <div key={step.label} className="flex items-center">
+                  <div className="flex-1 rounded-lg bg-emerald-950/20 border border-emerald-800/20 p-2.5 text-center">
+                    <div className="text-[9px] font-[family-name:var(--font-geist-mono)] text-emerald-400/40 mb-0.5">{step.icon}</div>
+                    <div className="text-[10px] sm:text-[11px] font-semibold text-emerald-400">{step.label}</div>
+                    <div className="text-[9px] text-emerald-400/50">{step.sub}</div>
+                  </div>
+                  {i < 4 && (
+                    <span className="hidden sm:block text-[var(--text-quaternary)] text-[10px] px-1 flex-shrink-0">&rarr;</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-5">
+              Not a mock. Not off-chain. Every withdrawal generates a real UltraKeccakZKHonk proof that the
+              Garaga verifier validates on-chain. The proof (~2835 felt252 calldata elements) cryptographically
+              proves deposit knowledge without revealing the secret or blinder. Verify it yourself:
+            </p>
+
+            {/* Contract Links */}
+            <div className="flex flex-wrap gap-2">
+              <a
+                href="https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                <Shield size={12} strokeWidth={1.5} />
+                ShieldedPool on Starkscan
+                <ExternalLink size={10} strokeWidth={2} className="opacity-50" />
+              </a>
+              <a
+                href="https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-800/20 transition-colors text-[11px] font-medium text-emerald-400"
+              >
+                <Fingerprint size={12} strokeWidth={1.5} />
+                Garaga ZK Verifier on Starkscan
+                <ExternalLink size={10} strokeWidth={2} className="opacity-50" />
+              </a>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Tech Stack Bar */}
       <section className="px-4 sm:px-6 pb-20 sm:pb-32">
         <div className="max-w-4xl mx-auto">
@@ -255,7 +348,9 @@ export default function LandingPage() {
                 "Starknet",
                 "Noir ZK",
                 "Garaga",
+                "Barretenberg",
                 "Pedersen Hash",
+                "Poseidon BN254",
                 "Merkle Trees",
                 "Avnu DEX",
                 "Next.js 16",

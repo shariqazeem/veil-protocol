@@ -166,10 +166,6 @@ export default function ShieldForm() {
       setError("Connect your Starknet wallet first");
       return;
     }
-    if (!bitcoinAddress) {
-      setError("Connect your Bitcoin wallet first");
-      return;
-    }
     if (!poolAddress || !usdcAddress) {
       setError("Contracts not deployed yet");
       return;
@@ -181,13 +177,15 @@ export default function ShieldForm() {
       setPhase("generating_proof");
       const batchId = currentBatchId ? Number(currentBatchId) : 0;
       const leafIdx = leafCount ? Number(leafCount) : 0;
-      const btcIdHash = computeBtcIdentityHash(bitcoinAddress);
+      const btcIdHash = bitcoinAddress ? computeBtcIdentityHash(bitcoinAddress) : "0x0";
 
       setPhase("generating_zk");
-      const note = generatePrivateNote(selectedTier, batchId, leafIdx, btcIdHash);
+      const note = generatePrivateNote(selectedTier, batchId, leafIdx, btcIdHash !== "0x0" ? btcIdHash : undefined);
 
-      setPhase("signing_btc");
-      await signCommitment(bitcoinAddress, note.commitment);
+      if (bitcoinAddress) {
+        setPhase("signing_btc");
+        await signCommitment(bitcoinAddress, note.commitment);
+      }
 
       setPhase("depositing");
       const calls = [
@@ -245,7 +243,7 @@ export default function ShieldForm() {
 
   const isProcessing =
     phase !== "idle" && phase !== "success" && phase !== "error";
-  const canShield = isConnected && !!bitcoinAddress && !isProcessing;
+  const canShield = isConnected && !isProcessing;
 
   return (
     <div className="relative">
@@ -420,7 +418,7 @@ export default function ShieldForm() {
             )}
             {isConnected && !bitcoinAddress && (
               <p className="text-[12px] text-[var(--text-tertiary)] text-center">
-                Connect Bitcoin wallet to authorize deposits
+                Bitcoin wallet optional — connect for BTC identity linking
               </p>
             )}
 

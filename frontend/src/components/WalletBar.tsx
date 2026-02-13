@@ -202,7 +202,7 @@ export default function WalletBar() {
                   <div className="flex items-center gap-2 mb-2.5">
                     <Bitcoin size={13} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                      Bitcoin
+                      Bitcoin <span className="text-[var(--text-quaternary)] normal-case tracking-normal">(optional)</span>
                     </span>
                     {bitcoinAddress && (
                       <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />

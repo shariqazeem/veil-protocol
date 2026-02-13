@@ -1,12 +1,17 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useReadContract } from "@starknet-react/core";
 import { motion } from "framer-motion";
-import { Activity, Shield, Layers, TrendingUp, Users, Bitcoin, Fingerprint, Zap } from "lucide-react";
+import { Activity, Shield, Layers, TrendingUp, Users, Bitcoin, Fingerprint, Zap, ExternalLink } from "lucide-react";
 import PrivacyScore from "./PrivacyScore";
 import { SkeletonLine } from "./Skeleton";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
+
+const STARKSCAN_BASE = "https://sepolia.starkscan.co/contract";
+
+const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "http://localhost:3001";
 
 function truncateHash(h: string, chars = 6): string {
   if (h.length <= chars * 2 + 2) return h;
@@ -111,6 +116,22 @@ export default function Dashboard() {
   const anon1 = safe(anonSet1);
   const anon2 = safe(anonSet2);
 
+  // Prover/relayer health check
+  const [proverStatus, setProverStatus] = useState<"checking" | "online" | "offline">("checking");
+  useEffect(() => {
+    async function checkProver() {
+      try {
+        const res = await fetch(`${RELAYER_URL}/info`, { signal: AbortSignal.timeout(5000) });
+        setProverStatus(res.ok ? "online" : "offline");
+      } catch {
+        setProverStatus("offline");
+      }
+    }
+    checkProver();
+    const interval = setInterval(checkProver, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const { data: btcLinkedCount } = useReadContract({
     address: poolAddress || undefined,
     abi: SHIELDED_POOL_ABI,
@@ -137,9 +158,13 @@ export default function Dashboard() {
             <Fingerprint size={10} strokeWidth={2} />
             ZK Verified On-Chain
           </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-950/30 border border-orange-800/30 text-[10px] font-medium text-[var(--accent-orange)]">
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium ${
+            proverStatus === "online"
+              ? "bg-orange-950/30 border border-orange-800/30 text-[var(--accent-orange)]"
+              : "bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-tertiary)]"
+          }`}>
             <Zap size={10} strokeWidth={2} />
-            Gasless Relayer Active
+            {proverStatus === "online" ? "Relayer Online" : proverStatus === "checking" ? "Checking Relayer..." : "Relayer Offline"}
           </span>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10px] font-medium text-[var(--text-secondary)]">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
@@ -263,6 +288,53 @@ export default function Dashboard() {
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
             <span className="text-[11px] text-[var(--text-tertiary)]">Live on Sepolia</span>
           </div>
+        </div>
+
+        <div className="h-px bg-[var(--border-subtle)] my-4" />
+
+        {/* Verified On-Chain Links */}
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`${STARKSCAN_BASE}/${addresses.contracts.shieldedPool}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            <Shield size={10} strokeWidth={1.5} />
+            Pool
+            <ExternalLink size={8} strokeWidth={2} className="opacity-50" />
+          </a>
+          {(addresses.contracts as Record<string, string>).garagaVerifier && (
+            <a
+              href={`${STARKSCAN_BASE}/${(addresses.contracts as Record<string, string>).garagaVerifier}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-800/20 transition-colors text-[10px] font-medium text-emerald-400"
+            >
+              <Fingerprint size={10} strokeWidth={1.5} />
+              ZK Verifier
+              <ExternalLink size={8} strokeWidth={2} className="opacity-50" />
+            </a>
+          )}
+          <a
+            href={`${STARKSCAN_BASE}/${addresses.contracts.usdc}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            USDC
+            <ExternalLink size={8} strokeWidth={2} className="opacity-50" />
+          </a>
+          <a
+            href={`${STARKSCAN_BASE}/${addresses.contracts.wbtc}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            <Bitcoin size={10} strokeWidth={1.5} />
+            WBTC
+            <ExternalLink size={8} strokeWidth={2} className="opacity-50" />
+          </a>
         </div>
       </div>
 

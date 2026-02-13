@@ -24,7 +24,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 500): P
   throw new Error("Retry exhausted");
 }
 
-export type NoteStatus = "PENDING" | "READY" | "CLAIMED";
+export type NoteStatus = "PENDING" | "READY" | "CLAIMED" | "STALE";
 
 export interface NoteWithStatus extends GhostNote {
   status: NoteStatus;
@@ -64,7 +64,8 @@ export async function checkNoteStatus(
     // Verify commitment exists on-chain (with retry)
     const isValid = await withRetry(() => pool.call("is_commitment_valid", [note.commitment]));
     if (!isValid) {
-      return { ...note, status: "PENDING" };
+      // Commitment not found on-chain — stale note from a previous deployment
+      return { ...note, status: "STALE" };
     }
 
     const batch = await withRetry(() => pool.call("get_batch_result", [note.batchId]));
@@ -113,12 +114,5 @@ export async function checkAllNoteStatuses(
     : loadNotes();
   const withStatuses = await Promise.all(notes.map((n) => checkNoteStatus(n, provider)));
   // Filter out stale notes whose commitments don't exist on-chain (e.g. from old contract deployments)
-  // Keep claimed notes regardless (historical record)
-  return withStatuses.filter((n) => {
-    if (n.claimed) return true;
-    // Notes with valid on-chain commitments are kept
-    // Notes stuck as PENDING with amount "1" or "0" are stale artifacts
-    if (n.status === "PENDING" && (n.amount === "1" || n.amount === "0")) return false;
-    return true;
-  });
+  return withStatuses.filter((n) => n.status !== "STALE");
 }
