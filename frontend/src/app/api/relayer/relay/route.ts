@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       btc_recipient_hash,
     } = body;
 
-    if (!denomination || !zk_nullifier || !zk_commitment || !proof || !merkle_path || !path_indices || !recipient) {
+    if (denomination == null || !zk_nullifier || !zk_commitment || !proof || !merkle_path || !path_indices || !recipient) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 },
