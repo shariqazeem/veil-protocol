@@ -1,5 +1,5 @@
 /**
- * ZK Prover utilities for GhostSats.
+ * ZK Prover utilities for Veil Protocol.
  *
  * Computes BN254 Poseidon commitments and nullifiers that match
  * the Noir circuit (circuits/ghostsats/src/main.nr).

@@ -1,6 +1,6 @@
 # How It Works
 
-GhostSats operates in three phases: **Shield**, **Batch**, and **Unveil**.
+Veil Protocol operates in three phases: **Shield**, **Batch**, and **Unveil**.
 
 ## Phase 1: Shield (Deposit)
 

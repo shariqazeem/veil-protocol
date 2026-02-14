@@ -1,5 +1,5 @@
 /**
- * GhostSats Keeper — Automated Batch Executor
+ * Veil Protocol Keeper — Automated Batch Executor
  *
  * This script monitors the ShieldedPool contract and executes batches
  * when sufficient USDC has accumulated. It fetches optimal swap routes
@@ -183,7 +183,7 @@ async function fetchAvnuQuote(
     sellAmount: `0x${sellAmount.toString(16)}`,
     takerAddress,
     size: "1",
-    integratorName: "GhostSats",
+    integratorName: "VeilProtocol",
   });
 
   const url = `${AVNU_API_BASE}/swap/v2/quotes?${params}`;
@@ -290,7 +290,7 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
   const pool = new Contract(POOL_ABI, POOL_ADDRESS, provider);
 
   console.log("\n========================================");
-  console.log("  GhostSats Keeper");
+  console.log("  Veil Protocol Keeper");
   console.log("========================================");
   console.log(`  Pool:    ${POOL_ADDRESS}`);
   console.log(`  Keeper:  ${accountAddress}`);

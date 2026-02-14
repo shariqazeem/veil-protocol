@@ -1,4 +1,4 @@
-# GhostSats Relayer + Calldata Server
+# Veil Protocol Relayer + Calldata Server
 #
 # Browser generates ZK proof (noir_js + bb.js WASM).
 # This server only converts proof binary → garaga calldata.

@@ -1,5 +1,5 @@
 /**
- * Notes Manager for GhostSats.
+ * Notes Manager for Veil Protocol.
  *
  * Reads notes from encrypted/plaintext storage and checks their on-chain status
  * by querying the ShieldedPool contract's batch results.

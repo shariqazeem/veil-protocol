@@ -1,4 +1,4 @@
-/// GhostSats — Bitcoin's Privacy Layer on Starknet
+/// Veil Protocol — Bitcoin's Privacy Layer on Starknet
 ///
 /// Privacy-preserving batch execution with Pedersen commitments, Merkle proofs,
 /// relayer-powered gasless withdrawals, and timing-attack protection.

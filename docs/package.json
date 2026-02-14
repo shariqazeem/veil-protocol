@@ -1,5 +1,5 @@
 {
-  "name": "ghostsats-docs",
+  "name": "veil-protocol-docs",
   "private": true,
   "scripts": {
     "dev": "vitepress dev",

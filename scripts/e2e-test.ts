@@ -1,5 +1,5 @@
 /**
- * GhostSats E2E Test — Full Shield → Batch → Unveil flow
+ * Veil Protocol E2E Test — Full Shield → Batch → Unveil flow
  *
  * Tests the complete lifecycle on Sepolia testnet:
  *   1. Mint test USDC
@@ -323,9 +323,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("\n╔══════════════════════════════════════╗");
-  console.log("║     GhostSats E2E Test (Sepolia)     ║");
-  console.log("╚══════════════════════════════════════╝\n");
+  console.log("\n╔════════════════════════════════════════════╗");
+  console.log("║     Veil Protocol E2E Test (Sepolia)       ║");
+  console.log("╚════════════════════════════════════════════╝\n");
 
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
   const account = new Account(

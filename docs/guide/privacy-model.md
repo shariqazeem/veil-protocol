@@ -1,6 +1,6 @@
 # Privacy Model
 
-GhostSats provides multiple layers of privacy protection, each addressing a specific attack vector.
+Veil Protocol provides multiple layers of privacy protection, each addressing a specific attack vector.
 
 ## Privacy Guarantees
 

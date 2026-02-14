@@ -2,7 +2,7 @@
 
 Confidential Bitcoin accumulation infrastructure on Starknet.
 
-[Live Demo](https://ghostsats.vercel.app) · [Docs](https://ghostsats-docs.vercel.app) · [Pool Contract](https://sepolia.starkscan.co/contract/0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210) · [ZK Verifier](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) · Re{define} Hackathon 2026
+[Live Demo](https://theveilprotocol.vercel.app) · [Docs](https://veilprotocol-docs.vercel.app) · [Pool Contract](https://sepolia.starkscan.co/contract/0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210) · [ZK Verifier](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) · Re{define} Hackathon 2026
 
 ---
 

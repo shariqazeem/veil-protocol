@@ -1,7 +1,7 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
-  title: "GhostSats",
+  title: "Veil Protocol",
   description: "Bitcoin's Privacy Layer on Starknet — ZK proofs, Pedersen commitments, gasless withdrawals",
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: "/logo.svg" }],
@@ -10,13 +10,13 @@ export default defineConfig({
   themeConfig: {
     logo: "/logo.svg",
     nav: [
-      { text: "Guide", link: "/guide/what-is-ghostsats" },
+      { text: "Guide", link: "/guide/what-is-veil-protocol" },
       { text: "Technical", link: "/technical/zk-integration" },
-      { text: "App", link: "https://ghostsats.vercel.app/app" },
+      { text: "App", link: "https://theveilprotocol.vercel.app/app" },
       {
         text: "Links",
         items: [
-          { text: "GitHub", link: "https://github.com/shariqazeem/ghostsats" },
+          { text: "GitHub", link: "https://github.com/shariqazeem/veil-protocol" },
           { text: "Explorer", link: "https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af" },
         ],
       },
@@ -25,7 +25,7 @@ export default defineConfig({
       {
         text: "Guide",
         items: [
-          { text: "What is GhostSats?", link: "/guide/what-is-ghostsats" },
+          { text: "What is Veil Protocol?", link: "/guide/what-is-veil-protocol" },
           { text: "How It Works", link: "/guide/how-it-works" },
           { text: "Privacy Model", link: "/guide/privacy-model" },
           { text: "Getting Started", link: "/guide/getting-started" },
@@ -49,7 +49,7 @@ export default defineConfig({
       },
     ],
     socialLinks: [
-      { icon: "github", link: "https://github.com/shariqazeem/ghostsats" },
+      { icon: "github", link: "https://github.com/shariqazeem/veil-protocol" },
     ],
     footer: {
       message: "Built for Re{define} Starknet Hackathon 2026",

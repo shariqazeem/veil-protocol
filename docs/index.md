@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: GhostSats
+  name: Veil Protocol
   text: Bitcoin's Privacy Layer
   tagline: Gasless private USDC-to-WBTC execution on Starknet. ZK proofs verified on-chain. Secrets never touch calldata.
   actions:
@@ -14,7 +14,7 @@ hero:
       link: /technical/zk-integration
     - theme: alt
       text: Launch App
-      link: https://ghostsats.vercel.app/app
+      link: https://theveilprotocol.vercel.app/app
 
 features:
   - icon: 🔐

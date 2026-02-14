@@ -57,7 +57,7 @@ Submits a gasless withdrawal transaction via `sncast`.
 
 **Execution**:
 ```bash
-sncast --account ghostsats-deployer --json invoke \
+sncast --account veil-deployer --json invoke \
   --url https://api.cartridge.gg/x/starknet/sepolia \
   --contract-address <POOL_ADDRESS> \
   --function withdraw_private_via_relayer \

@@ -17,7 +17,7 @@ All contracts are deployed on **Starknet Sepolia** testnet.
 | Field | Value |
 |-------|-------|
 | Address | `0x0501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5` |
-| Account Name | `ghostsats-deployer` |
+| Account Name | `veil-deployer` |
 | Type | OpenZeppelin |
 | Network | Starknet Sepolia |
 
@@ -41,13 +41,13 @@ constructor(
 
 ```bash
 # Read pending USDC
-sncast --account ghostsats-deployer \
+sncast --account veil-deployer \
   call --url https://api.cartridge.gg/x/starknet/sepolia \
   --contract-address 0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af \
   --function get_pending_usdc
 
 # Read Merkle root
-sncast --account ghostsats-deployer \
+sncast --account veil-deployer \
   call --url https://api.cartridge.gg/x/starknet/sepolia \
   --contract-address 0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af \
   --function get_merkle_root

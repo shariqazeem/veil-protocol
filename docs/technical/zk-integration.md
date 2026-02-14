@@ -1,6 +1,6 @@
 # ZK Integration
 
-This is the core differentiator of GhostSats — a complete end-to-end ZK proof pipeline with **real on-chain verification** via the Garaga UltraKeccakZKHonk verifier.
+This is the core differentiator of Veil Protocol — a complete end-to-end ZK proof pipeline with **real on-chain verification** via the Garaga UltraKeccakZKHonk verifier.
 
 ## Overview
 

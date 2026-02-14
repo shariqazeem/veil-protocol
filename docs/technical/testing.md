@@ -1,6 +1,6 @@
 # Testing
 
-GhostSats has 40 passing tests covering the full protocol.
+Veil Protocol has 40 passing tests covering the full protocol.
 
 ```bash
 cd contracts && snforge test

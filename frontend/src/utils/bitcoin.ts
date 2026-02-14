@@ -1,5 +1,5 @@
 /**
- * Bitcoin wallet utilities for GhostSats.
+ * Bitcoin wallet utilities for Veil Protocol.
  * Uses sats-connect (Xverse) to request message signatures
  * that cryptographically bind a Bitcoin identity to shielded deposits.
  */

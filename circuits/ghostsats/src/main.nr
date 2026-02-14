@@ -1,6 +1,6 @@
 use dep::poseidon::poseidon::bn254;
 
-/// GhostSats ZK Withdrawal Proof Circuit
+/// Veil Protocol ZK Withdrawal Proof Circuit
 ///
 /// Proves knowledge of (secret, blinder) that hash to a public commitment
 /// and that the nullifier is correctly derived from the secret.

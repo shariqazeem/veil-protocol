@@ -1,6 +1,6 @@
-# What is GhostSats?
+# What is Veil Protocol?
 
-GhostSats is a privacy protocol on Starknet that enables private USDC-to-WBTC execution with **real on-chain ZK proof verification**.
+Veil Protocol is a privacy protocol on Starknet that enables private USDC-to-WBTC execution with **real on-chain ZK proof verification**.
 
 ## The Problem
 
@@ -12,11 +12,11 @@ Most "privacy" protocols either:
 - **Claim ZK proofs but skip on-chain verification** — the proof exists but nobody checks it
 - **Require gas payments** that deanonymize the withdrawer
 
-GhostSats solves all three.
+Veil Protocol solves all three.
 
 ## What Makes This Different
 
-| Feature | GhostSats | Typical Privacy Pool |
+| Feature | Veil Protocol | Typical Privacy Pool |
 |---------|-----------|---------------------|
 | **ZK proof verified on-chain** | Garaga UltraKeccakZKHonk verifier (2835 felt252 calldata) | Mock verifier or off-chain only |
 | **Secrets in calldata** | Never — only the ZK proof | Secret + blinder posted as calldata |

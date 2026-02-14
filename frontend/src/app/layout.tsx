@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Veil Protocol | Confidential Bitcoin Accumulation on Starknet",
   description: "Institutional-grade confidential Bitcoin accumulation infrastructure. STARK-verified ZK proofs, tranche-based privacy pools, and intent-based BTC settlement on Starknet.",
-  metadataBase: new URL("https://ghostsats.vercel.app"),
+  metadataBase: new URL("https://theveilprotocol.vercel.app"),
   icons: {
     icon: "/icon.svg",
   },

@@ -1,5 +1,5 @@
 /**
- * Privacy utilities for GhostSats.
+ * Privacy utilities for Veil Protocol.
  *
  * Mirrors the Cairo contract's Pedersen commitment exactly:
  *   commitment = pedersen(pedersen(0, amount_hash), secret_hash)

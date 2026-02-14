@@ -1,4 +1,4 @@
-# GhostSats Phase 2 — Testing Guide
+# Veil Protocol Phase 2 — Testing Guide
 
 ## Deployed Addresses (Starknet Sepolia)
 
@@ -11,7 +11,7 @@
 | MockAvnuRouter | `0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647` |
 | Deployer | `0x0501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5` |
 
-**Frontend:** https://ghostsats.vercel.app
+**Frontend:** https://theveilprotocol.vercel.app
 **Explorer:** https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af
 
 ---
@@ -120,7 +120,7 @@ Secret and blinder NEVER appear in on-chain calldata OR server requests — only
 
 ### 4.1 ZK-Private Deposit (Shield tab)
 
-1. Go to https://ghostsats.vercel.app/app
+1. Go to https://theveilprotocol.vercel.app/app
 2. Connect Starknet wallet (Argent/Braavos on Sepolia)
 3. Connect Bitcoin wallet (Xverse on Testnet4)
 4. Select a denomination tier (100 / 1,000 / 10,000 USDC)
@@ -206,7 +206,7 @@ The relayer runs on port 3001 with endpoints:
 
 ## 5. Landing Page
 
-Visit https://ghostsats.vercel.app and verify:
+Visit https://theveilprotocol.vercel.app and verify:
 - "Zero-Knowledge Proofs" feature card in Privacy Guarantees grid
 - "Noir ZK" and "Garaga" badges in the "Built With" tech stack
 - Step 3 (Unveil) mentions "zero-knowledge proof"

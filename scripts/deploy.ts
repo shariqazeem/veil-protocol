@@ -1,5 +1,5 @@
 /**
- * Ghost Sats - Starknet Sepolia Deployment Script
+ * Veil Protocol - Starknet Sepolia Deployment Script
  *
  * Modes:
  *   npm run deploy          — Deploy with mock tokens + mock Avnu router (dev/test)

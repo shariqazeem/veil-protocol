@@ -1,5 +1,5 @@
 /**
- * Browser-side ZK proof generation for GhostSats.
+ * Browser-side ZK proof generation for Veil Protocol.
  *
  * Uses @noir-lang/noir_js (WASM) for witness generation and
  * @aztec/bb.js (WASM) for UltraKeccakZKHonk proof generation.

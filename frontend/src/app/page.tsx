@@ -35,7 +35,7 @@ export default function LandingPage() {
           </span>
           <div className="flex items-center gap-4">
             <a
-              href="https://ghostsats-docs.vercel.app"
+              href="https://theveilprotocol-docs.vercel.app"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
@@ -136,7 +136,7 @@ export default function LandingPage() {
               </motion.button>
             </Link>
             <a
-              href="https://github.com/shariqazeem/ghostsats"
+              href="https://github.com/shariqazeem/veil-protocol"
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[15px] font-medium transition-colors"

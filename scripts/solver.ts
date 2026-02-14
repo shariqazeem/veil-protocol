@@ -1,5 +1,5 @@
 /**
- * GhostSats Solver — Bitcoin Intent Settlement Bot
+ * Veil Protocol Solver — Bitcoin Intent Settlement Bot
  *
  * Watches for IntentCreated events on the ShieldedPool contract,
  * auto-claims intents as solver, and auto-confirms as oracle.
@@ -197,7 +197,7 @@ async function runSolver(dryRun: boolean): Promise<boolean> {
   const pool = new Contract([...POOL_ABI, INTENT_LOCK_TYPE], POOL_ADDRESS, provider);
 
   console.log("\n========================================");
-  console.log("  GhostSats Solver");
+  console.log("  Veil Protocol Solver");
   console.log("========================================");
   console.log(`  Pool:    ${POOL_ADDRESS}`);
   console.log(`  Solver:  ${accountAddress}`);
