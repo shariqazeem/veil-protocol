@@ -90,12 +90,13 @@ export async function generateWithdrawalProof(params: {
   secret: bigint;
   blinder: bigint;
   denomination: bigint;
+  recipient: bigint;
 }): Promise<{
   proof: string[];
   zkCommitment: string;
   zkNullifier: string;
 }> {
-  const { secret, blinder, denomination } = params;
+  const { secret, blinder, denomination, recipient } = params;
 
   // Compute raw BN254 values (for circuit) and reduced felt252 values (for on-chain)
   const zkCommitmentRaw = computeZKCommitmentRaw(secret, blinder, denomination);
@@ -104,12 +105,14 @@ export async function generateWithdrawalProof(params: {
   const zkNullifier = zkNullifierRaw % STARK_PRIME;
 
   // Step 1+2: Generate proof in browser (secrets stay in WASM memory)
+  // Recipient is bound in the proof to prevent mempool front-running
   const { proofBytes, publicInputs } = await generateProofInBrowser({
     secret,
     blinder,
     denomination,
     zkCommitmentRaw,
     zkNullifierRaw,
+    recipient,
   });
 
   // Step 3: Send ONLY proof binary to server for garaga calldata conversion

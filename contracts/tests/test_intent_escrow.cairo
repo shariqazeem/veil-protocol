@@ -140,7 +140,7 @@ fn do_deposit_private(
 fn do_execute_batch(pool_addr: ContractAddress, owner: ContractAddress) {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
     start_cheat_caller_address(pool_addr, owner);
-    pool.execute_batch(0, array![]);
+    pool.execute_batch(1, array![]);
     stop_cheat_caller_address(pool_addr);
 }
 
@@ -167,10 +167,12 @@ fn setup_intent(
 
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
     let (merkle_path, path_indices) = build_single_leaf_proof();
+    let recipient = addr('recipient');
+    let recipient_felt: felt252 = recipient.into();
 
     pool.withdraw_with_btc_intent(
-        1, 0xABC1, zk_commitment, array![zk_commitment, 0xABC1, 1],
-        merkle_path, path_indices, addr('recipient'), 0xBBCC,
+        1, 0xABC1, zk_commitment, array![zk_commitment, 0xABC1, 1, recipient_felt],
+        merkle_path, path_indices, recipient, 0xBBCC,
     );
 
     (pool_addr, usdc_addr, wbtc_addr, router_addr, owner)
@@ -191,6 +193,7 @@ fn test_withdraw_with_btc_intent_creates_lock() {
 
     let depositor = addr('depositor');
     let recipient = addr('recipient');
+    let recipient_felt: felt252 = recipient.into();
 
     let amount: u256 = 10_000_000;
     let secret: felt252 = 0xE1E1;
@@ -212,7 +215,7 @@ fn test_withdraw_with_btc_intent_creates_lock() {
 
     // Withdraw with BTC intent — WBTC stays in pool
     pool.withdraw_with_btc_intent(
-        1, 0xAA01, zk_commitment, array![zk_commitment, 0xAA01, 1],
+        1, 0xAA01, zk_commitment, array![zk_commitment, 0xAA01, 1, recipient_felt],
         merkle_path, path_indices, recipient, btc_addr_hash,
     );
 

@@ -61,9 +61,10 @@ async function ensureInit(): Promise<void> {
  *
  * @param secret - Private: the note secret (BN254 field element)
  * @param blinder - Private: the note blinder (BN254 field element)
- * @param denomination - Public: denomination tier (0, 1, or 2)
+ * @param denomination - Public: denomination tier (0, 1, 2, or 3)
  * @param zkCommitmentRaw - Public: raw BN254 Poseidon commitment (NOT reduced)
  * @param zkNullifierRaw - Public: raw BN254 Poseidon nullifier (NOT reduced)
+ * @param recipient - Public: recipient Starknet address (prevents front-running)
  * @returns proof bytes and public inputs (hex strings)
  */
 export async function generateProofInBrowser(params: {
@@ -72,6 +73,7 @@ export async function generateProofInBrowser(params: {
   denomination: bigint;
   zkCommitmentRaw: bigint;
   zkNullifierRaw: bigint;
+  recipient: bigint;
 }): Promise<{
   proofBytes: Uint8Array;
   publicInputs: string[];
@@ -86,6 +88,7 @@ export async function generateProofInBrowser(params: {
     zk_commitment: "0x" + params.zkCommitmentRaw.toString(16),
     nullifier_hash: "0x" + params.zkNullifierRaw.toString(16),
     denomination: "0x" + params.denomination.toString(16),
+    recipient: "0x" + params.recipient.toString(16),
   };
 
   // Step 1: Generate witness (secret + blinder stay in WASM memory)

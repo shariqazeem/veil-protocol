@@ -1,17 +1,19 @@
 {
   "network": "sepolia",
-  "mode": "live",
+  "mode": "dev",
   "chainId": "0x534e5f5345504f4c4941",
-  "deployer": "0x501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5",
+  "deployer": "0x0501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5",
   "contracts": {
-    "usdc": "0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080",
-    "wbtc": "0x00452bd5c0512a61df7c7be8cfea5e4f893cb40e126bdc40aee6054db955129e",
-    "avnuRouter": "0x02c56e8b00dbe2a71e57472685378fc8988bba947e9a99b26a00fade2b4fe7c2",
-    "shieldedPool": "0x36d381583268dc5730735a9359d467ae5094d1b8c11fad53d72497c0a3fde77",
-    "garagaVerifier": "0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07"
+    "usdc": "0x0198447d1240e4ef0c9cc03ea0836b72fc5ac1cb0e4d0afefb3479f4ca241c12",
+    "wbtc": "0x01f7fc6da44597a24fcd99d78add8916df76f21be32c25f5cfef2bcafb924682",
+    "avnuRouter": "0x065a9734bcc567d47314db4a878e4511f380339b610ca5b76163abc099ec12da",
+    "shieldedPool": "0x016a5a273ed72f25aee029c9466de336dbf63931772405c176568dda2b921816",
+    "garagaVerifier": "0x03945bef7851845427f301e61d1eb7dec332763479f6867afdd9e3bcc19eff9f"
   },
   "classHashes": {
-    "ShieldedPool": "0x35e6bbdf99eea680bb4ec1f028605cc6e3ca5b19cd949ecda86f00306289f7d"
+    "ShieldedPool": "0x075ed27a27e6acd46734ce8f66463d76066029aa5f9d6c62f3c46c8ee4c982c9",
+    "MockERC20": "0x06f3e7e7a6293ea1d027c730d8487335420b2f519f65375338990d4503f36f35",
+    "MockAvnuRouter": "0x018f0070c5840824330f7cb436f01abc8144540e94e550eb50cff09d99b15bd4"
   },
-  "deployedAt": "2026-02-14T20:22:55.803Z"
+  "deployedAt": "2026-02-20T21:16:23.760Z"
 }

@@ -30,36 +30,6 @@ pub trait IShieldedPool<TContractState> {
     /// Execute the current batch: swap pooled USDC -> WBTC via Avnu.
     fn execute_batch(ref self: TContractState, min_wbtc_out: u256, routes: Array<Route>);
 
-    /// Withdraw WBTC by proving Merkle membership. Caller pays own gas.
-    /// btc_recipient_hash: Pedersen hash of a Bitcoin withdrawal address (0 if none).
-    fn withdraw(
-        ref self: TContractState,
-        denomination: u8,
-        secret: felt252,
-        blinder: felt252,
-        nullifier: felt252,
-        merkle_path: Array<felt252>,
-        path_indices: Array<u8>,
-        recipient: ContractAddress,
-        btc_recipient_hash: felt252,
-    );
-
-    /// Withdraw via relayer — relayer pays gas, takes a fee. Maximum privacy.
-    /// The relayer (caller) submits the tx. Recipient gets (share - fee).
-    fn withdraw_via_relayer(
-        ref self: TContractState,
-        denomination: u8,
-        secret: felt252,
-        blinder: felt252,
-        nullifier: felt252,
-        merkle_path: Array<felt252>,
-        path_indices: Array<u8>,
-        recipient: ContractAddress,
-        relayer: ContractAddress,
-        fee_bps: u256,
-        btc_recipient_hash: felt252,
-    );
-
     // ========================================
     // ZK-Private Protocol (no secret/blinder in calldata)
     // ========================================
@@ -240,7 +210,7 @@ pub mod ShieldedPool {
     const ZERO_VALUE: felt252 = 0;
 
     /// Minimum withdrawal delay: 60 seconds after batch finalization.
-    /// Prevents trivial timing-attack: deposit + immediate withdraw = anonymity set of 1.
+    /// Prevents timing-attack: deposit + immediate withdraw = anonymity set of 1.
     const MIN_WITHDRAWAL_DELAY: u64 = 60;
 
     /// Maximum relayer fee: 500 bps (5%). Protects users from predatory relayers.
@@ -568,6 +538,9 @@ pub mod ShieldedPool {
             // Owner-only: prevents sandwich attacks with attacker-controlled routes
             assert(get_caller_address() == self.owner.read(), 'Only owner can execute');
 
+            // Minimum output guard — prevents draining via zero slippage
+            assert(min_wbtc_out > 0, 'min_wbtc_out must be > 0');
+
             let pool = get_contract_address();
             let usdc_addr = self.usdc_token.read();
             let wbtc_addr = self.wbtc_token.read();
@@ -590,6 +563,9 @@ pub mod ShieldedPool {
             let wbtc_after = wbtc.balance_of(pool);
             let wbtc_received = wbtc_after - wbtc_before;
 
+            // Explicit slippage protection — AVNU may have its own, but enforce ours too
+            assert(wbtc_received >= min_wbtc_out, 'Slippage exceeded');
+
             let current_batch = self.current_batch_id.read();
             let result = BatchResult {
                 total_usdc_in: pending,
@@ -611,80 +587,8 @@ pub mod ShieldedPool {
             });
         }
 
-        fn withdraw(
-            ref self: ContractState,
-            denomination: u8,
-            secret: felt252,
-            blinder: felt252,
-            nullifier: felt252,
-            merkle_path: Array<felt252>,
-            path_indices: Array<u8>,
-            recipient: ContractAddress,
-            btc_recipient_hash: felt252,
-        ) {
-            let (user_share, batch_id) = InternalImpl::verify_and_nullify(
-                ref self, denomination, secret, blinder, nullifier, merkle_path, path_indices,
-            );
-
-            if btc_recipient_hash != 0 {
-                // Bitcoin bridge: lock WBTC in intent escrow (stays in pool)
-                InternalImpl::create_intent(ref self, user_share, btc_recipient_hash, recipient);
-            } else {
-                // Starknet withdrawal: transfer WBTC directly to recipient
-                let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
-                let success = wbtc.transfer(recipient, user_share);
-                assert(success, 'WBTC transfer failed');
-                self.emit(Withdrawal { nullifier, recipient, wbtc_amount: user_share, batch_id });
-            }
-        }
-
-        fn withdraw_via_relayer(
-            ref self: ContractState,
-            denomination: u8,
-            secret: felt252,
-            blinder: felt252,
-            nullifier: felt252,
-            merkle_path: Array<felt252>,
-            path_indices: Array<u8>,
-            recipient: ContractAddress,
-            relayer: ContractAddress,
-            fee_bps: u256,
-            btc_recipient_hash: felt252,
-        ) {
-            // Validate relayer fee isn't predatory
-            assert(fee_bps <= MAX_RELAYER_FEE_BPS, 'Relayer fee too high');
-
-            let (user_share, batch_id) = InternalImpl::verify_and_nullify(
-                ref self, denomination, secret, blinder, nullifier, merkle_path, path_indices,
-            );
-
-            let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
-
-            // Calculate and send relayer fee
-            let relayer_fee = (user_share * fee_bps) / 10000;
-            let recipient_amount = user_share - relayer_fee;
-
-            // Pay relayer fee regardless of bridge mode
-            if relayer_fee > 0 {
-                let fee_success = wbtc.transfer(relayer, relayer_fee);
-                assert(fee_success, 'Relayer fee transfer failed');
-            }
-
-            if btc_recipient_hash != 0 {
-                // Bitcoin bridge: lock remainder in intent escrow
-                InternalImpl::create_intent(ref self, recipient_amount, btc_recipient_hash, recipient);
-            } else {
-                // Starknet withdrawal: transfer remainder to recipient
-                let success = wbtc.transfer(recipient, recipient_amount);
-                assert(success, 'WBTC transfer failed');
-                self.emit(Withdrawal {
-                    nullifier, recipient, wbtc_amount: recipient_amount, batch_id,
-                });
-            }
-        }
-
         // ========================================
-        // ZK-Private Protocol
+        // ZK-Private Protocol (all withdrawals are ZK-private)
         // ========================================
 
         fn deposit_private(
@@ -769,7 +673,7 @@ pub mod ShieldedPool {
             btc_recipient_hash: felt252,
         ) {
             let (user_share, batch_id) = InternalImpl::verify_zk_and_nullify(
-                ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices,
+                ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices, recipient,
             );
 
             if btc_recipient_hash != 0 {
@@ -800,7 +704,7 @@ pub mod ShieldedPool {
             assert(fee_bps <= MAX_RELAYER_FEE_BPS, 'Relayer fee too high');
 
             let (user_share, batch_id) = InternalImpl::verify_zk_and_nullify(
-                ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices,
+                ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices, recipient,
             );
 
             let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
@@ -959,7 +863,7 @@ pub mod ShieldedPool {
 
             // ZK verify + nullify (same as withdraw_private, but don't transfer WBTC)
             let (user_share, _batch_id) = InternalImpl::verify_zk_and_nullify(
-                ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices,
+                ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices, recipient,
             );
 
             // Lock WBTC in intent escrow (stays in pool contract)
@@ -1087,7 +991,7 @@ pub mod ShieldedPool {
         }
 
         fn get_protocol_version(self: @ContractState) -> u32 {
-            3
+            4
         }
     }
 
@@ -1097,68 +1001,6 @@ pub mod ShieldedPool {
 
     #[generate_trait]
     pub impl InternalImpl of InternalTrait {
-        /// Shared verification logic for both withdraw() and withdraw_via_relayer().
-        /// Returns (user_share, batch_id).
-        fn verify_and_nullify(
-            ref self: ContractState,
-            denomination: u8,
-            secret: felt252,
-            blinder: felt252,
-            nullifier: felt252,
-            merkle_path: Array<felt252>,
-            path_indices: Array<u8>,
-        ) -> (u256, u64) {
-            // 1. Validate denomination
-            let amount = Self::denomination_to_amount(denomination);
-            assert(amount > 0, 'Invalid denomination tier');
-
-            // 2. Recompute commitment
-            let amount_low: felt252 = amount.low.into();
-            let amount_high: felt252 = amount.high.into();
-            let commitment = Self::compute_commitment(
-                amount_low, amount_high, secret, blinder,
-            );
-
-            // 3. Verify commitment exists
-            assert(self.commitments.entry(commitment).read(), 'Invalid commitment');
-
-            // 4. Verify nullifier derivation
-            let expected_nullifier = PedersenTrait::new(0)
-                .update(secret)
-                .update(1)
-                .finalize();
-            assert(nullifier == expected_nullifier, 'Invalid nullifier');
-
-            // 5. Nullifier check — prevent double-spend
-            assert(!self.nullifiers.entry(nullifier).read(), 'Note already spent');
-            self.nullifiers.entry(nullifier).write(true);
-
-            // 6. Verify Merkle proof against any historical root
-            // This allows proofs generated before new deposits to remain valid.
-            let computed_root = Self::compute_merkle_root_from_proof(
-                commitment, merkle_path, path_indices,
-            );
-            assert(
-                self.merkle_root_history.entry(computed_root).read(),
-                'Invalid Merkle proof',
-            );
-
-            // 7. Get batch and verify finalized
-            let batch_id = self.commitment_to_batch.entry(commitment).read();
-            let batch = self.batch_results.entry(batch_id).read();
-            assert(batch.is_finalized, 'Batch not finalized');
-
-            // 8. Enforce minimum withdrawal delay (timing-attack protection)
-            let now = get_block_timestamp();
-            assert(now >= batch.timestamp + MIN_WITHDRAWAL_DELAY, 'Withdrawal too early');
-
-            // 9. Calculate pro-rata WBTC share
-            let user_share = (amount * batch.total_wbtc_out) / batch.total_usdc_in;
-            assert(user_share > 0, 'Share rounds to zero');
-
-            (user_share, batch_id)
-        }
-
         /// ZK-private verification: verifies proof via Garaga verifier, no secret/blinder needed.
         /// Returns (user_share, batch_id).
         fn verify_zk_and_nullify(
@@ -1169,6 +1011,7 @@ pub mod ShieldedPool {
             proof: Array<felt252>,
             merkle_path: Array<felt252>,
             path_indices: Array<u8>,
+            recipient: ContractAddress,
         ) -> (u256, u64) {
             // 1. Validate denomination
             let amount = Self::denomination_to_amount(denomination);
@@ -1197,6 +1040,11 @@ pub mod ShieldedPool {
             assert(*pub_inputs.at(0) % stark_prime == expected_commitment, 'ZK commitment mismatch');
             assert(*pub_inputs.at(1) % stark_prime == expected_nullifier, 'ZK nullifier mismatch');
             assert(*pub_inputs.at(2) == expected_denom, 'ZK denomination mismatch');
+
+            // 4b. Verify recipient binding — prevents mempool front-running attacks
+            let recipient_felt: felt252 = recipient.into();
+            let expected_recipient: u256 = recipient_felt.into();
+            assert(*pub_inputs.at(3) == expected_recipient, 'ZK recipient mismatch');
 
             // 5. ZK Nullifier check — prevent double-spend
             assert(!self.zk_nullifiers.entry(zk_nullifier).read(), 'Note already spent');
@@ -1249,6 +1097,8 @@ pub mod ShieldedPool {
                 10_000_000_u256 // $10 USDC
             } else if tier == 2 {
                 100_000_000_u256 // $100 USDC
+            } else if tier == 3 {
+                1_000_000_000_u256 // $1,000 USDC
             } else {
                 0_u256
             }

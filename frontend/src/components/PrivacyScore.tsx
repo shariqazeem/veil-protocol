@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ShieldCheck } from "lucide-react";
 
 interface PrivacyScoreProps {
   anonSet: number;
@@ -21,89 +20,64 @@ function computeBreakdown(props: PrivacyScoreProps) {
   return {
     total,
     items: [
-      { label: "Anonymity Set", value: Math.round(anonPts), max: 40 },
-      { label: "Batch Activity", value: Math.round(batchPts), max: 20 },
-      { label: "BTC Binding", value: Math.round(btcPts), max: 15 },
-      { label: "Protocol Usage", value: Math.round(usagePts), max: 25 },
+      { label: "Anonymity", value: Math.round(anonPts), max: 40 },
+      { label: "Batches", value: Math.round(batchPts), max: 20 },
+      { label: "BTC Link", value: Math.round(btcPts), max: 15 },
+      { label: "Usage", value: Math.round(usagePts), max: 25 },
     ],
   };
 }
 
 export default function PrivacyScore(props: PrivacyScoreProps) {
   const { total: score, items } = computeBreakdown(props);
-  const color = score >= 60 ? "#10B981" : score >= 30 ? "#F59E0B" : "#EF4444";
+  const color = score >= 60 ? "var(--accent-emerald)" : score >= 30 ? "var(--accent-amber)" : "var(--text-quaternary)";
   const label = score >= 80 ? "Excellent" : score >= 60 ? "Strong" : score >= 30 ? "Moderate" : "Building";
 
-  // SVG arc calculation
-  const radius = 42;
+  const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
 
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-4">
-        <ShieldCheck size={12} strokeWidth={1.5} className="text-gray-400" />
-        <span className="text-xs font-semibold text-gray-500">
-          Privacy Score
-        </span>
-      </div>
+      <span className="text-xs text-[var(--text-tertiary)] font-medium">Privacy Score</span>
 
-      <div className="flex flex-col items-center gap-3">
-        {/* Circular Progress */}
-        <div className="relative flex-shrink-0">
-          <svg width="100" height="100" viewBox="0 0 100 100">
-            <circle
-              cx="50"
-              cy="50"
-              r={radius}
-              fill="none"
-              stroke="#F3F4F6"
-              strokeWidth="6"
-            />
+      <div className="flex flex-col items-center mt-4 gap-3">
+        <div className="relative">
+          <svg width="96" height="96" viewBox="0 0 96 96">
+            <circle cx="48" cy="48" r={radius} fill="none" stroke="var(--bg-elevated)" strokeWidth="5" />
             <motion.circle
-              cx="50"
-              cy="50"
-              r={radius}
-              fill="none"
-              stroke={color}
-              strokeWidth="6"
-              strokeLinecap="round"
+              cx="48" cy="48" r={radius}
+              fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
               strokeDasharray={circumference}
               initial={{ strokeDashoffset: circumference }}
               animate={{ strokeDashoffset: offset }}
-              transition={{ duration: 1.5, ease: [0.4, 0, 0.2, 1] }}
-              transform="rotate(-90 50 50)"
+              transition={{ duration: 1.2, ease: [0.4, 0, 0.2, 1] }}
+              transform="rotate(-90 48 48)"
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <motion.span
-              className="text-2xl font-[family-name:var(--font-geist-mono)] font-bold font-tabular"
+              className="text-xl font-[family-name:var(--font-geist-mono)] font-bold font-tabular"
               style={{ color }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: 0.4 }}
             >
               {score}
             </motion.span>
-            <span className="text-[10px] text-gray-400 font-medium">/ 100</span>
+            <span className="text-[10px] text-[var(--text-quaternary)]">{label}</span>
           </div>
         </div>
 
-        {/* Label + Breakdown */}
-        <div className="w-full space-y-2">
-          <div className="text-sm font-semibold text-center" style={{ color }}>
-            {label}
-          </div>
-          <div className="space-y-1">
-            {items.map(({ label, value, max }) => (
-              <div key={label} className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">{label}</span>
-                <span className="text-xs font-[family-name:var(--font-geist-mono)] text-gray-600 font-tabular">
-                  {value}/{max}
-                </span>
-              </div>
-            ))}
-          </div>
+        <div className="w-full space-y-1">
+          {items.map(({ label, value, max }) => (
+            <div key={label} className="flex items-center justify-between">
+              <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
+              <span className="text-[11px] font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)] font-tabular">
+                {value}<span className="text-[var(--text-quaternary)]">/{max}</span>
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

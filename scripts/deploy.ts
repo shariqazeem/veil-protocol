@@ -295,7 +295,7 @@ async function main() {
     const usdcConstructor = erc20CallData.compile("constructor", {
       name: "USD Coin",
       symbol: "USDC",
-      decimals: 0,
+      decimals: 6,
     });
     usdcAddress = await deployContract(account, provider, mockERC20ClassHash, usdcConstructor);
 
@@ -305,7 +305,7 @@ async function main() {
     const wbtcConstructor = erc20CallData.compile("constructor", {
       name: "Wrapped BTC",
       symbol: "WBTC",
-      decimals: 0,
+      decimals: 8,
     });
     wbtcAddress = await deployContract(account, provider, mockERC20ClassHash, wbtcConstructor);
 

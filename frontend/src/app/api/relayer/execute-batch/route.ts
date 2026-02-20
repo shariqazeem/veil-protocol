@@ -216,6 +216,8 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.warn("[execute-batch] Rate update failed, using existing rate:", err);
       }
+      // Contract requires min_wbtc_out > 0
+      minOut = 1n;
     }
 
     // Execute batch

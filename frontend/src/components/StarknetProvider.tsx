@@ -1,7 +1,12 @@
 "use client";
 
 import { sepolia, mainnet } from "@starknet-react/chains";
-import { StarknetConfig, jsonRpcProvider, argent, braavos } from "@starknet-react/core";
+import {
+  StarknetConfig,
+  jsonRpcProvider,
+  argent,
+  braavos,
+} from "@starknet-react/core";
 import { ReactNode } from "react";
 import { isMainnet, RPC_URL } from "@/utils/network";
 

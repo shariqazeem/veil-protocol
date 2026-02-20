@@ -145,26 +145,26 @@ export default function ComplianceTab() {
       {/* Header */}
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
-          <ShieldCheck size={14} strokeWidth={1.5} className="text-gray-500" />
-          <span className="text-[13px] font-semibold text-gray-900">
+          <ShieldCheck size={14} strokeWidth={1.5} className="text-[var(--accent-emerald)]" />
+          <span className="text-[13px] font-semibold text-[var(--text-primary)]">
             Compliance Portal
           </span>
         </div>
-        <p className="text-xs text-gray-500 leading-relaxed">
+        <p className="text-xs text-[var(--text-tertiary)] leading-relaxed">
           Voluntarily prove your transaction history to regulators without compromising other users&apos; privacy.
           Register a view key against your commitment, or export a cryptographic proof of your deposit.
         </p>
       </div>
 
       {/* View Key Explainer */}
-      <div className="rounded-xl p-4 bg-gray-50 border border-gray-200">
+      <div className="rounded-xl p-4 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)]">
         <div className="flex items-center gap-1.5 mb-2">
-          <FileText size={12} strokeWidth={1.5} className="text-gray-500" />
-          <span className="text-xs font-semibold text-gray-500">
+          <FileText size={12} strokeWidth={1.5} className="text-[var(--text-tertiary)]" />
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">
             How View Keys Work
           </span>
         </div>
-        <p className="text-xs text-gray-500 leading-relaxed">
+        <p className="text-xs text-[var(--text-tertiary)] leading-relaxed">
           A view key hash is registered on-chain against your commitment. You can share the view key
           with a regulator, who can then verify it matches the on-chain hash — proving you made that specific
           deposit. Other users&apos; deposits remain completely private.
@@ -173,9 +173,9 @@ export default function ComplianceTab() {
 
       {/* Error Banner */}
       {error && (
-        <div className="rounded-xl p-3 bg-red-50 border border-red-200 flex items-center justify-between">
-          <span className="text-xs text-red-700">{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 text-xs cursor-pointer">
+        <div className="rounded-xl p-3 bg-[var(--accent-red)]/10 border border-[var(--accent-red)]/20 flex items-center justify-between">
+          <span className="text-xs text-[var(--accent-red)]">{error}</span>
+          <button onClick={() => setError(null)} className="text-[var(--accent-red)]/60 hover:text-[var(--accent-red)] text-xs cursor-pointer">
             Dismiss
           </button>
         </div>
@@ -184,14 +184,14 @@ export default function ComplianceTab() {
       {/* Notes List */}
       {loading ? (
         <div className="text-center py-10">
-          <Loader size={20} className="animate-spin mx-auto text-gray-400" strokeWidth={1.5} />
-          <p className="text-xs text-gray-400 mt-3">Loading notes...</p>
+          <Loader size={20} className="animate-spin mx-auto text-[var(--text-quaternary)]" strokeWidth={1.5} />
+          <p className="text-xs text-[var(--text-quaternary)] mt-3">Loading notes...</p>
         </div>
       ) : notes.length === 0 ? (
         <div className="text-center py-10">
-          <ShieldCheck size={24} className="mx-auto mb-3 text-gray-400" strokeWidth={1.5} />
-          <p className="text-sm text-gray-600">No deposits found</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <ShieldCheck size={24} className="mx-auto mb-3 text-[var(--text-quaternary)]" strokeWidth={1.5} />
+          <p className="text-sm text-[var(--text-secondary)]">No deposits found</p>
+          <p className="text-xs text-[var(--text-tertiary)] mt-1">
             Make a deposit first, then register view keys here
           </p>
         </div>
@@ -204,24 +204,24 @@ export default function ComplianceTab() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={spring}
-              className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3"
+              className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-4 space-y-3"
             >
               {/* Note Header */}
               <div className="flex items-center justify-between">
-                <span className="text-xs font-[family-name:var(--font-geist-mono)] text-gray-600">
+                <span className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)]">
                   {truncateHash(note.commitment)}
                 </span>
                 <div className="flex items-center gap-1.5">
                   {note.hasBtcIdentity && (
-                    <span className="flex items-center gap-1 text-xs bg-orange-50 text-[#FF5A00] px-2 py-0.5 rounded-full font-medium border border-orange-200">
+                    <span className="flex items-center gap-1 text-xs bg-[var(--accent-orange-dim)] text-[var(--accent-orange)] px-2 py-0.5 rounded-full font-medium border border-[var(--accent-orange)]/20">
                       <Bitcoin size={10} strokeWidth={1.5} />
                       BTC
                     </span>
                   )}
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                     note.claimed
-                      ? "bg-gray-100 text-gray-500"
-                      : "bg-emerald-50 text-emerald-700"
+                      ? "bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"
+                      : "bg-[var(--accent-emerald-dim)] text-[var(--accent-emerald)]"
                   }`}>
                     {note.claimed ? "Claimed" : "Active"}
                   </span>
@@ -231,20 +231,20 @@ export default function ComplianceTab() {
               {/* Note Info */}
               <div className="flex items-center gap-4 text-sm">
                 <div>
-                  <span className="text-xs text-gray-400">Amount</span>
-                  <div className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-gray-900 font-tabular">
+                  <span className="text-xs text-[var(--text-tertiary)]">Amount</span>
+                  <div className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
                     {(Number(note.amount) / 1_000_000).toLocaleString()} USDC
                   </div>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-400">Batch</span>
-                  <div className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-gray-900 font-tabular">
+                  <span className="text-xs text-[var(--text-tertiary)]">Batch</span>
+                  <div className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
                     #{note.batchId}
                   </div>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-400">Date</span>
-                  <div className="text-[12px] text-gray-900">
+                  <span className="text-xs text-[var(--text-tertiary)]">Date</span>
+                  <div className="text-[12px] text-[var(--text-primary)]">
                     {new Date(note.timestamp).toLocaleDateString()}
                   </div>
                 </div>
@@ -255,7 +255,7 @@ export default function ComplianceTab() {
                 <motion.button
                   onClick={() => handleRegisterViewKey(note)}
                   disabled={registering === note.commitment}
-                  className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-white text-gray-600 hover:text-gray-900 border border-gray-200 shadow-sm transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-emerald)]/30 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
                   whileTap={{ scale: 0.98 }}
                 >
                   {registering === note.commitment ? (
@@ -267,7 +267,7 @@ export default function ComplianceTab() {
                 </motion.button>
                 <motion.button
                   onClick={() => exportProof(note)}
-                  className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-white text-gray-600 hover:text-gray-900 border border-gray-200 shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-orange)]/30 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                   whileTap={{ scale: 0.98 }}
                 >
                   <Download size={11} strokeWidth={1.5} />
@@ -280,7 +280,7 @@ export default function ComplianceTab() {
       )}
 
       {!isConnected && (
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-[var(--text-quaternary)] text-center">
           Connect Starknet wallet to manage compliance
         </p>
       )}

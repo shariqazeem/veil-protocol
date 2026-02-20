@@ -4,26 +4,26 @@
 
 | Contract | Address |
 |----------|---------|
-| ShieldedPool | `0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af` |
+| ShieldedPool | `0x36d381583268dc5730735a9359d467ae5094d1b8c11fad53d72497c0a3fde77` |
 | GaragaVerifier | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` |
-| USDC (Mock) | `0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e` |
-| WBTC (Mock) | `0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769` |
-| MockAvnuRouter | `0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647` |
+| USDC (Mock) | `0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080` |
+| WBTC (Mock) | `0x00452bd5c0512a61df7c7be8cfea5e4f893cb40e126bdc40aee6054db955129e` |
+| MockAvnuRouter | `0x02c56e8b00dbe2a71e57472685378fc8988bba947e9a99b26a00fade2b4fe7c2` |
 | Deployer | `0x0501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5` |
 
 **Frontend:** https://theveilprotocol.vercel.app
-**Explorer:** https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af
+**Explorer:** https://sepolia.voyager.online/contract/0x36d381583268dc5730735a9359d467ae5094d1b8c11fad53d72497c0a3fde77
 
 ---
 
-## 1. Contract Tests (40 passing)
+## 1. Contract Tests (52 passing)
 
 ```bash
 cd contracts
 snforge test
 ```
 
-Expected output: `Tests: 40 passed, 0 failed, 0 ignored, 0 filtered out`
+Expected output: `Tests: 52 passed, 0 failed, 0 ignored, 0 filtered out`
 
 ### Test breakdown
 
@@ -54,6 +54,12 @@ Expected output: `Tests: 40 passed, 0 failed, 0 ignored, 0 filtered out`
 - `test_deposit_private_with_btc_identity` — BTC identity linked + events emitted
 - `test_zero_zk_commitment_rejected` — zero ZK commitment invalid
 - `test_zk_withdrawal_with_btc_intent` — Bitcoin withdrawal intent event with ZK
+
+**Intent escrow (12 tests)** — `test_intent_escrow.cairo`
+- BTC intent withdrawal creates escrow lock
+- Escrow settlement and timeout handling
+- Solver registration and dispute resolution
+- Cross-chain intent bridge flow with ZK proofs
 
 ---
 
@@ -235,7 +241,7 @@ Withdrawal flow (secrets never leave the browser):
   Browser receives felt252 array (secret/blinder were never sent)
   → withdraw_private(denomination, zk_nullifier, zk_commitment, proof[2835], merkle_path, ...)
     ├── Looks up pedersen_commitment from zk_commitment
-    ├── Verifies ZK proof via Garaga verifier (if verifier != zero)
+    ├── Verifies ZK proof via Garaga verifier (always enforced)
     ├── Validates public inputs match parameters (anti-replay)
     ├── Checks zk_nullifier not spent → marks spent
     ├── Verifies Merkle proof for pedersen_commitment

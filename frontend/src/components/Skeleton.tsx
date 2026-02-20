@@ -16,7 +16,7 @@ export function SkeletonLine({ width = "100%", height = "16px" }: { width?: stri
 
 export function SkeletonCard() {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+    <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-subtle)] p-6 space-y-4">
       <SkeletonLine width="40%" height="12px" />
       <SkeletonLine width="60%" height="28px" />
       <div className="flex gap-4">

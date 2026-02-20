@@ -10,7 +10,7 @@ export default function OGImage() {
     (
       <div
         style={{
-          background: "#FFFFFF",
+          background: "linear-gradient(135deg, #08080C 0%, #0F0F14 40%, #16161E 100%)",
           width: "100%",
           height: "100%",
           display: "flex",
@@ -18,27 +18,53 @@ export default function OGImage() {
           alignItems: "center",
           justifyContent: "center",
           fontFamily: "system-ui, sans-serif",
+          position: "relative",
         }}
       >
+        {/* Ambient glow */}
+        <div
+          style={{
+            position: "absolute",
+            top: "-100px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "600px",
+            height: "400px",
+            background: "radial-gradient(ellipse, rgba(255,90,0,0.12) 0%, transparent 70%)",
+            display: "flex",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: "-50px",
+            right: "100px",
+            width: "400px",
+            height: "300px",
+            background: "radial-gradient(ellipse, rgba(167,139,250,0.08) 0%, transparent 70%)",
+            display: "flex",
+          }}
+        />
+
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "24px" }}>
-          <span style={{ fontSize: "48px", fontWeight: 800, color: "#18181B", letterSpacing: "-0.02em" }}>
+          <span style={{ fontSize: "56px", fontWeight: 800, color: "#FAFAFA", letterSpacing: "-0.02em" }}>
             Veil
           </span>
-          <span style={{ fontSize: "48px", fontWeight: 800, color: "#FF5A00", letterSpacing: "-0.02em" }}>
+          <span style={{ fontSize: "56px", fontWeight: 800, color: "#FF5A00", letterSpacing: "-0.02em" }}>
             {" "}Protocol
           </span>
         </div>
 
         {/* Tagline */}
-        <div style={{ fontSize: "28px", color: "#52525B", fontWeight: 500, marginBottom: "40px" }}>
+        <div style={{ fontSize: "28px", color: "#A1A1AA", fontWeight: 500, marginBottom: "40px" }}>
           Confidential Bitcoin Accumulation on Starknet
         </div>
 
         {/* ZK Verified badge */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 20px", borderRadius: "24px", background: "#F0FDF4", border: "1px solid #BBF7D0", marginBottom: "32px" }}>
-          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10B981" }} />
-          <span style={{ fontSize: "14px", color: "#059669", fontWeight: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 20px", borderRadius: "24px", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", marginBottom: "32px" }}>
+          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#34D399" }} />
+          <span style={{ fontSize: "14px", color: "#34D399", fontWeight: 600 }}>
             ZK Proofs Verified On-Chain via Garaga
           </span>
         </div>
@@ -52,9 +78,9 @@ export default function OGImage() {
                 style={{
                   padding: "8px 16px",
                   borderRadius: "8px",
-                  background: "#F3F4F6",
-                  border: "1px solid #E5E7EB",
-                  color: "#374151",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#A1A1AA",
                   fontSize: "14px",
                   fontWeight: 500,
                 }}

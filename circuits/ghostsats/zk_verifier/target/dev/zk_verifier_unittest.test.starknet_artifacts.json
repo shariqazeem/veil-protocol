@@ -1,1 +1,0 @@
-{"version":1,"contracts":[{"id":"7hmnganaosllm","package_name":"zk_verifier","contract_name":"UltraKeccakZKHonkVerifier","module_path":"zk_verifier::honk_verifier::UltraKeccakZKHonkVerifier","artifacts":{"sierra":"zk_verifier_unittest_UltraKeccakZKHonkVerifier.test.contract_class.json","casm":null}}]}

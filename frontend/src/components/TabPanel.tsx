@@ -11,12 +11,17 @@ import AgentTab from "./AgentTab";
 
 type Step = 1 | 2 | "agent";
 
+const tabs = [
+  { key: 1 as Step, label: "Shield", icon: Shield, color: "var(--accent-orange)", glow: "rgba(255,90,0,0.15)" },
+  { key: 2 as Step, label: "Unveil", icon: Unlock, color: "var(--accent-emerald)", glow: "rgba(52,211,153,0.15)" },
+  { key: "agent" as Step, label: "Strategist", icon: Brain, color: "var(--accent-violet)", glow: "rgba(167,139,250,0.15)" },
+];
+
 export default function TabPanel() {
   const [step, setStep] = useState<Step>(1);
   const [showCompliance, setShowCompliance] = useState(false);
   const searchParams = useSearchParams();
 
-  // Auto-switch to agent tab when deep link strategy param is present
   useEffect(() => {
     if (searchParams.get("strategy")) {
       setStep("agent");
@@ -29,11 +34,11 @@ export default function TabPanel() {
 
   if (showCompliance) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden">
         <div className="p-4 sm:p-6">
           <button
             onClick={() => setShowCompliance(false)}
-            className="text-[12px] text-gray-400 hover:text-gray-700 transition-colors cursor-pointer mb-4 flex items-center gap-1"
+            className="text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer mb-4 flex items-center gap-1"
           >
             &larr; Back
           </button>
@@ -43,52 +48,51 @@ export default function TabPanel() {
     );
   }
 
+  const activeTab = tabs.find((t) => t.key === step)!;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden">
       {/* Tab Bar */}
-      <div className="px-4 sm:px-6 pt-4 sm:pt-6">
+      <div className="px-4 sm:px-6 pt-4 sm:pt-5">
         <div className="flex items-center gap-3">
           {/* Segmented Control */}
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl flex-1">
-            <button
-              onClick={() => setStep(1)}
-              className={`flex-1 py-2.5 text-sm text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                step === 1
-                  ? "bg-[#FF5A00] text-white rounded-lg font-semibold"
-                  : "text-gray-600 hover:bg-gray-200 rounded-lg font-medium"
-              }`}
-            >
-              <Shield size={14} strokeWidth={1.5} />
-              Shield
-            </button>
-            <button
-              onClick={() => setStep(2)}
-              className={`flex-1 py-2.5 text-sm text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                step === 2
-                  ? "bg-[#FF5A00] text-white rounded-lg font-semibold"
-                  : "text-gray-600 hover:bg-gray-200 rounded-lg font-medium"
-              }`}
-            >
-              <Unlock size={14} strokeWidth={1.5} />
-              Unveil
-            </button>
-            <button
-              onClick={() => setStep("agent")}
-              className={`flex-1 py-2.5 text-sm text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                step === "agent"
-                  ? "bg-[#FF5A00] text-white rounded-lg font-semibold"
-                  : "text-gray-600 hover:bg-gray-200 rounded-lg font-medium"
-              }`}
-            >
-              <Brain size={14} strokeWidth={1.5} />
-              Strategist
-            </button>
+          <div className="flex gap-1 p-1 bg-[var(--bg-primary)] rounded-xl flex-1 border border-[var(--border-subtle)]">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = step === tab.key;
+              return (
+                <motion.button
+                  key={String(tab.key)}
+                  onClick={() => setStep(tab.key)}
+                  className={`flex-1 py-2.5 text-sm text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 rounded-lg font-medium relative ${
+                    isActive ? "text-white" : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                  }`}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-0 rounded-lg"
+                      style={{
+                        background: tab.color,
+                        boxShadow: `0 0 20px ${tab.glow}`,
+                      }}
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <Icon size={14} strokeWidth={1.5} />
+                    {tab.label}
+                  </span>
+                </motion.button>
+              );
+            })}
           </div>
 
           {/* Compliance icon button */}
           <button
             onClick={() => setShowCompliance(true)}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
+            className="p-2.5 rounded-xl text-[var(--text-quaternary)] hover:text-[var(--accent-emerald)] hover:bg-[var(--accent-emerald-dim)] transition-all cursor-pointer border border-transparent hover:border-[var(--accent-emerald)]/20"
             title="Compliance"
           >
             <ShieldCheck size={18} strokeWidth={1.5} />

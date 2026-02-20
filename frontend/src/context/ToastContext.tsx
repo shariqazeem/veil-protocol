@@ -42,15 +42,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const icons = {
-    success: <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-600 flex-shrink-0" />,
-    error: <AlertTriangle size={14} strokeWidth={1.5} className="text-red-600 flex-shrink-0" />,
-    info: <Info size={14} strokeWidth={1.5} className="text-gray-600 flex-shrink-0" />,
+    success: <CheckCircle size={14} strokeWidth={1.5} className="text-[var(--accent-emerald)] flex-shrink-0" />,
+    error: <AlertTriangle size={14} strokeWidth={1.5} className="text-[var(--accent-red)] flex-shrink-0" />,
+    info: <Info size={14} strokeWidth={1.5} className="text-[var(--text-secondary)] flex-shrink-0" />,
   };
 
   const styles = {
-    success: "bg-emerald-50 border-emerald-200 text-emerald-700",
-    error: "bg-red-50 border-red-200 text-red-700",
-    info: "bg-gray-50 border-gray-200 text-gray-700",
+    success: "bg-[var(--bg-secondary)] border-[var(--accent-emerald)]/30 text-[var(--accent-emerald)]",
+    error: "bg-[var(--bg-secondary)] border-[var(--accent-red)]/30 text-[var(--accent-red)]",
+    info: "bg-[var(--bg-secondary)] border-[var(--border-medium)] text-[var(--text-primary)]",
+  };
+
+  const glows = {
+    success: "shadow-[0_0_30px_rgba(52,211,153,0.15)]",
+    error: "shadow-[0_0_30px_rgba(239,68,68,0.15)]",
+    info: "shadow-xl",
   };
 
   return (
@@ -65,13 +71,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg ${styles[t.type]}`}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border backdrop-blur-xl ${styles[t.type]} ${glows[t.type]}`}
             >
               {icons[t.type]}
               <span className="text-[12px] font-medium flex-1">{t.message}</span>
               <button
                 onClick={() => dismiss(t.id)}
-                className="text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0"
+                className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] cursor-pointer flex-shrink-0"
               >
                 <X size={12} strokeWidth={1.5} />
               </button>

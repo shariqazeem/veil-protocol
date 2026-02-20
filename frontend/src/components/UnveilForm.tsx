@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAccount, useSendTransaction } from "@starknet-react/core";
-import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin, Clock, Zap, ShieldCheck, Fingerprint } from "lucide-react";
+import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin, Clock, Zap, ShieldCheck, Fingerprint, Download, Upload } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { computeBtcIdentityHash } from "@/utils/bitcoin";
 import { motion, AnimatePresence } from "framer-motion";
-import { markNoteClaimed, computeNullifier, buildMerkleProof } from "@/utils/privacy";
+import { markNoteClaimed, buildMerkleProof, loadNotes, type GhostNote } from "@/utils/privacy";
 import { generateWithdrawalProof, preloadZKProver } from "@/utils/zkProver";
 import {
   type NoteWithStatus,
@@ -39,10 +39,10 @@ function truncateHash(h: string, chars = 4): string {
 
 function StatusBadge({ status }: { status: NoteWithStatus["status"] }) {
   const styles: Record<string, string> = {
-    PENDING: "bg-amber-50 text-amber-700",
-    READY: "bg-emerald-50 text-emerald-700",
-    CLAIMED: "bg-gray-100 text-gray-400",
-    STALE: "bg-red-50 text-red-700",
+    PENDING: "bg-[var(--accent-amber)]/15 text-[var(--accent-amber)] border border-[var(--accent-amber)]/20",
+    READY: "bg-[var(--accent-emerald-dim)] text-[var(--accent-emerald)] border border-[var(--accent-emerald)]/20",
+    CLAIMED: "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]",
+    STALE: "bg-[var(--accent-red)]/15 text-[var(--accent-red)] border border-[var(--accent-red)]/20",
   };
   const labels: Record<string, string> = {
     PENDING: "Pending",
@@ -79,7 +79,7 @@ function CountdownTimer({ withdrawableAt, onReady }: { withdrawableAt: number; o
   if (remaining <= 0) return null;
 
   return (
-    <div className="w-full py-3 rounded-xl text-sm font-medium text-center bg-amber-50 text-amber-600 flex items-center justify-center gap-2">
+    <div className="w-full py-3 rounded-xl text-sm font-medium text-center bg-[var(--accent-amber)]/10 text-[var(--accent-amber)] border border-[var(--accent-amber)]/20 flex items-center justify-center gap-2">
       <Clock size={14} strokeWidth={1.5} />
       <span>Privacy cooldown: {remaining}s remaining</span>
     </div>
@@ -98,7 +98,6 @@ function NoteCard({
   const isClaiming = claimingCommitment === note.commitment;
   const [cooldownDone, setCooldownDone] = useState(false);
 
-  // Check if cooldown already passed on mount
   const now = Math.floor(Date.now() / 1000);
   const isCooldownActive = note.status === "READY" && note.withdrawableAt && note.withdrawableAt > now && !cooldownDone;
   const canClaim = note.status === "READY" && !isCooldownActive;
@@ -109,22 +108,26 @@ function NoteCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring}
-      className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3"
+      className={`bg-[var(--bg-tertiary)] border rounded-xl p-4 space-y-3 transition-all ${
+        note.status === "READY"
+          ? "border-[var(--accent-emerald)]/20 hover:border-[var(--accent-emerald)]/40"
+          : "border-[var(--border-subtle)]"
+      }`}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {note.status === "CLAIMED" ? (
-            <Unlock size={14} strokeWidth={1.5} className="text-gray-400" />
+            <Unlock size={14} strokeWidth={1.5} className="text-[var(--text-tertiary)]" />
           ) : (
-            <Lock size={14} strokeWidth={1.5} className="text-gray-900" />
+            <Lock size={14} strokeWidth={1.5} className={note.status === "READY" ? "text-[var(--accent-emerald)]" : "text-[var(--text-primary)]"} />
           )}
-          <span className="text-xs font-[family-name:var(--font-geist-mono)] text-gray-600">
+          <span className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)]">
             {truncateHash(note.commitment)}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           {note.hasBtcIdentity && (
-            <span className="flex items-center gap-1 text-xs bg-orange-50 text-[#FF5A00] px-2 py-0.5 rounded-full font-medium">
+            <span className="flex items-center gap-1 text-xs bg-[var(--accent-orange-dim)] text-[var(--accent-orange)] px-2 py-0.5 rounded-full font-medium border border-[var(--accent-orange)]/20">
               <Bitcoin size={10} strokeWidth={1.5} />
               BTC
             </span>
@@ -135,21 +138,21 @@ function NoteCard({
 
       <div className="flex items-center gap-6 text-sm">
         <div>
-          <span className="text-xs text-gray-400">Amount</span>
-          <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-gray-900 font-tabular">
+          <span className="text-xs text-[var(--text-tertiary)]">Amount</span>
+          <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
             {(Number(note.amount) / 1_000_000).toLocaleString()} USDC
           </div>
         </div>
         <div>
-          <span className="text-xs text-gray-400">Batch</span>
-          <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-gray-900 font-tabular">
+          <span className="text-xs text-[var(--text-tertiary)]">Batch</span>
+          <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
             #{note.batchId}
           </div>
         </div>
         {note.wbtcShare && (
           <div>
-            <span className="text-xs text-gray-400">BTC Share</span>
-            <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-[#FF5A00] font-tabular">
+            <span className="text-xs text-[var(--text-tertiary)]">BTC Share</span>
+            <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--accent-orange)] font-tabular">
               {(Number(note.wbtcShare) / 1e8).toFixed(8)} BTC
             </div>
           </div>
@@ -167,10 +170,11 @@ function NoteCard({
         <motion.button
           onClick={() => onClaim(note)}
           disabled={isClaiming}
-          className="w-full py-3 bg-[#FF5A00] text-white rounded-xl text-sm font-semibold
+          className="w-full py-3 bg-[var(--accent-orange)] text-white rounded-xl text-sm font-semibold
                      disabled:opacity-50 disabled:cursor-not-allowed
-                     flex items-center justify-center gap-2 cursor-pointer"
-          whileHover={{ y: -1, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                     flex items-center justify-center gap-2 cursor-pointer
+                     shadow-[var(--glow-orange)]"
+          whileHover={{ y: -1, boxShadow: "0 0 40px rgba(255,90,0,0.35)" }}
           whileTap={{ scale: 0.98 }}
           transition={spring}
         >
@@ -225,12 +229,10 @@ export default function UnveilForm() {
     refreshNotes();
   }, [refreshNotes]);
 
-  // Pre-load ZK WASM modules so proof generation starts faster
   useEffect(() => {
     preloadZKProver();
   }, []);
 
-  // Fetch relayer fee info
   useEffect(() => {
     if (!useRelayer) return;
     async function fetchRelayerInfo() {
@@ -239,13 +241,12 @@ export default function UnveilForm() {
         const data = await res.json();
         setRelayerFee(data.fee_bps ?? 200);
       } catch {
-        setRelayerFee(200); // Default 2%
+        setRelayerFee(200);
       }
     }
     fetchRelayerInfo();
   }, [useRelayer]);
 
-  // Poll for intent settlement status
   useEffect(() => {
     if (intentId === null || !poolAddress) return;
     let cancelled = false;
@@ -260,7 +261,7 @@ export default function UnveilForm() {
           const status = Number((intent as any).status ?? 0);
           const labels: Record<number, string> = { 0: "CREATED", 1: "CLAIMED", 2: "SETTLED", 3: "EXPIRED" };
           setIntentStatus(labels[status] ?? "UNKNOWN");
-          if (status >= 2) break; // Terminal state
+          if (status >= 2) break;
         } catch { /* ignore */ }
         await new Promise((r) => setTimeout(r, 10_000));
       }
@@ -301,7 +302,6 @@ export default function UnveilForm() {
 
       const leafIndex = note.leafIndex ?? 0;
 
-      // Validate leaf index matches on-chain commitment
       if (leafIndex >= allCommitments.length || allCommitments[leafIndex] !== note.commitment) {
         const found = allCommitments.indexOf(note.commitment);
         if (found === -1) {
@@ -321,7 +321,6 @@ export default function UnveilForm() {
         ? computeBtcIdentityHash(btcWithdrawAddress)
         : "0x0";
 
-      // Try ZK-private withdrawal first; fall back to legacy if prover unavailable
       const hasZK = !!note.zkCommitment;
       let usedZK = false;
 
@@ -334,12 +333,12 @@ export default function UnveilForm() {
             secret: BigInt(note.secret),
             blinder: BigInt(note.blinder),
             denomination: BigInt(denomination),
+            recipient: BigInt(address),
           });
           clearInterval(timer);
           usedZK = true;
 
           if (isBtcIntent) {
-            // BTC Intent path — lock WBTC in escrow for solver settlement
             setProofDetails({
               calldataElements: proof.length,
               zkCommitment: note.zkCommitment!,
@@ -349,7 +348,6 @@ export default function UnveilForm() {
             setClaimPhase("withdrawing");
 
             if (useRelayer) {
-              // Gasless BTC intent via relayer
               const relayRes = await fetch(`${RELAYER_URL}/relay-intent`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -368,7 +366,6 @@ export default function UnveilForm() {
               if (!relayData.success) throw new Error(relayData.error ?? "Relayer failed");
               setClaimTxHash(relayData.txHash);
             } else {
-              // BTC intent, user pays gas
               const intentCalls = [
                 {
                   contractAddress: poolAddress,
@@ -389,7 +386,6 @@ export default function UnveilForm() {
               setClaimTxHash(result.transaction_hash);
             }
 
-            // Get intent ID (current count before our tx = our intent ID)
             try {
               const countAfter = Number(await pool.call("get_intent_count", []));
               setIntentId(countAfter - 1);
@@ -398,7 +394,6 @@ export default function UnveilForm() {
 
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           } else if (useRelayer) {
-            // Gasless WBTC withdrawal via relayer
             setProofDetails({
               calldataElements: proof.length,
               zkCommitment: note.zkCommitment!,
@@ -425,7 +420,6 @@ export default function UnveilForm() {
             setClaimTxHash(relayData.txHash);
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           } else {
-            // ZK-private, user pays gas
             setProofDetails({
               calldataElements: proof.length,
               zkCommitment: note.zkCommitment!,
@@ -456,45 +450,12 @@ export default function UnveilForm() {
         } catch (zkErr) {
           console.error("[unveil] ZK proof error:", zkErr);
           const errMsg = zkErr instanceof Error ? zkErr.message : String(zkErr);
-
-          const isInfraError = zkErr instanceof TypeError ||
-            (zkErr instanceof Error && (
-              zkErr.message.includes("fetch") ||
-              zkErr.message.includes("network") ||
-              zkErr.message.includes("ECONNREFUSED") ||
-              zkErr.message.includes("Calldata generation failed") ||
-              zkErr.message.includes("Failed to load ZK circuit")
-            ));
-          if (!isInfraError) throw zkErr;
-
-          console.warn("[unveil] ZK proving unavailable, falling back to Pedersen withdrawal:", zkErr);
-          toast("info", `ZK prover unavailable — ${errMsg.slice(0, 80)}`);
+          throw new Error(`ZK proof generation failed: ${errMsg.slice(0, 120)}. Please try again or check that the relayer is running.`);
         }
       }
 
       if (!usedZK) {
-        // Legacy Pedersen withdrawal (prover unavailable or non-ZK note)
-        const nullifier = computeNullifier(note.secret);
-        setClaimPhase("withdrawing");
-        const withdrawCalls = [
-          {
-            contractAddress: poolAddress,
-            entrypoint: "withdraw",
-            calldata: CallData.compile({
-              denomination,
-              secret: note.secret,
-              blinder: note.blinder,
-              nullifier,
-              merkle_path: merklePath,
-              path_indices: pathIndices,
-              recipient: address,
-              btc_recipient_hash: btcRecipientHash,
-            }),
-          },
-        ];
-        const result = await sendAsync(withdrawCalls);
-        setClaimTxHash(result.transaction_hash);
-        setClaimedWbtcAmount(note.wbtcShare ?? null);
+        throw new Error("This note does not have a ZK commitment. Only ZK-private withdrawals are supported.");
       }
 
       await markNoteClaimed(note.commitment, address);
@@ -530,29 +491,29 @@ export default function UnveilForm() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-400">
+        <span className="text-xs font-medium text-[var(--text-tertiary)]">
           Active Allocations
         </span>
         <button
           onClick={refreshNotes}
           disabled={loading}
-          className="text-xs text-gray-400 hover:text-gray-900 transition-colors cursor-pointer"
+          className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
         >
           {loading ? "Scanning..." : "Refresh"}
         </button>
       </div>
 
-      {/* Status Banner — ZK Pipeline Visualization */}
+      {/* ZK Pipeline Visualization — the cinematic moment */}
       <AnimatePresence>
         {claimPhase !== "idle" && claimPhase !== "success" && claimPhase !== "error" && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="rounded-xl p-4 bg-gray-50 border border-gray-200 space-y-3"
+            className="rounded-xl p-4 bg-[var(--bg-tertiary)] border border-[var(--border-medium)] space-y-3"
           >
             {claimPhase === "building_proof" && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                 <Loader size={14} className="animate-spin" strokeWidth={1.5} />
                 <span>Reconstructing Merkle tree & building proof...</span>
               </div>
@@ -560,45 +521,48 @@ export default function UnveilForm() {
             {claimPhase === "generating_zk" && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-gray-900">
-                    <Fingerprint size={14} strokeWidth={1.5} className="text-emerald-600" />
+                  <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                    <Fingerprint size={14} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
                     <span className="font-medium">Generating Zero-Knowledge Proof</span>
                   </div>
-                  <span className="text-xs font-[family-name:var(--font-geist-mono)] text-gray-400 font-tabular">
+                  <span className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--accent-orange)] font-tabular animate-pulse">
                     {zkTimer}s
                   </span>
                 </div>
-                {/* 3-step pipeline: witness + proof in browser, calldata on server */}
+                {/* 3-step ZK pipeline — cinematic visualization */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { label: "Witness", sub: "browser WASM" },
-                    { label: "Proof", sub: "browser WASM" },
-                    { label: "Calldata", sub: "garaga server" },
-                  ].map((step) => (
-                    <div
+                    { label: "Witness", sub: "browser WASM", icon: "W" },
+                    { label: "Proof", sub: "browser WASM", icon: "P" },
+                    { label: "Calldata", sub: "garaga server", icon: "C" },
+                  ].map((step, i) => (
+                    <motion.div
                       key={step.label}
-                      className="rounded-lg p-2 text-center border bg-orange-50 border-orange-200"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.15 }}
+                      className="rounded-lg p-3 text-center border bg-[var(--accent-orange-dim)] border-[var(--accent-orange)]/20 animate-glow-pulse"
                     >
-                      <div className="flex items-center justify-center gap-1 mb-0.5">
-                        <Loader size={10} className="animate-spin text-[#FF5A00]" strokeWidth={2} />
-                        <span className="text-xs font-semibold text-[#FF5A00]">
+                      <div className="flex items-center justify-center gap-1 mb-1">
+                        <Loader size={10} className="animate-spin text-[var(--accent-orange)]" strokeWidth={2} />
+                        <span className="text-xs font-bold text-[var(--accent-orange)]">
                           {step.label}
                         </span>
                       </div>
-                      <div className="text-xs font-[family-name:var(--font-geist-mono)] text-gray-400">
+                      <div className="text-[11px] font-[family-name:var(--font-geist-mono)] text-[var(--text-tertiary)]">
                         {step.sub}
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 text-center">
+                <p className="text-[11px] text-[var(--text-tertiary)] text-center">
                   Secrets never leave your browser — only the proof is sent
                 </p>
               </div>
             )}
             {claimPhase === "withdrawing" && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Loader size={14} className="animate-spin" strokeWidth={1.5} />
+              <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <Loader size={14} className="animate-spin text-[var(--accent-orange)]" strokeWidth={1.5} />
                 <span>Executing confidential exit ({proofDetails?.calldataElements ?? "~2835"} calldata elements)...</span>
               </div>
             )}
@@ -611,14 +575,18 @@ export default function UnveilForm() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="rounded-xl p-5 bg-emerald-50 text-sm text-emerald-600 space-y-4 border border-emerald-200"
+          className="rounded-xl p-5 bg-[var(--accent-emerald-dim)] text-sm space-y-4 border border-[var(--accent-emerald)]/20 shadow-[var(--glow-emerald)]"
         >
-          {/* Privacy Guarantees — emotional closure */}
           <div className="text-center space-y-3 py-2">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto">
-              <CheckCircle size={24} strokeWidth={1.5} className="text-emerald-600" />
-            </div>
-            <div className="text-[15px] font-bold text-emerald-600">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="w-14 h-14 rounded-full bg-[var(--accent-emerald-dim)] border border-[var(--accent-emerald)]/30 flex items-center justify-center mx-auto animate-glow-pulse-emerald"
+            >
+              <CheckCircle size={24} strokeWidth={1.5} className="text-[var(--accent-emerald)]" />
+            </motion.div>
+            <div className="text-[15px] font-bold text-[var(--accent-emerald)]">
               Confidential Exit Complete
             </div>
             <div className="flex items-center justify-center gap-4">
@@ -627,18 +595,18 @@ export default function UnveilForm() {
                 { label: "Position Size Obfuscated", icon: ShieldCheck },
               ].map(({ label, icon: Icon }) => (
                 <div key={label} className="flex items-center gap-1.5">
-                  <Icon size={10} strokeWidth={2} className="text-emerald-600" />
-                  <span className="text-xs font-medium text-emerald-600/80">{label}</span>
+                  <Icon size={10} strokeWidth={2} className="text-[var(--accent-emerald)]" />
+                  <span className="text-xs font-medium text-[var(--accent-emerald)]/80">{label}</span>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-emerald-600/60 font-medium">
+            <p className="text-xs text-[var(--accent-emerald)]/60 font-medium">
               No on-chain observer can link this exit to your deposit.
             </p>
           </div>
 
           {claimedWbtcAmount && (
-            <div className="text-center text-xs text-emerald-600">
+            <div className="text-center text-xs text-[var(--accent-emerald)]">
               Amount: <span className="font-[family-name:var(--font-geist-mono)] font-semibold text-[14px]">{(Number(claimedWbtcAmount) / 1e8).toFixed(8)}</span> BTC
             </div>
           )}
@@ -648,40 +616,39 @@ export default function UnveilForm() {
               href={`${TX_EXPLORER}${claimTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 text-xs text-emerald-600 hover:underline font-[family-name:var(--font-geist-mono)]"
+              className="flex items-center justify-center gap-1.5 text-xs text-[var(--accent-emerald)] hover:underline font-[family-name:var(--font-geist-mono)]"
             >
               View on Voyager
               <ExternalLink size={10} strokeWidth={1.5} />
             </a>
           )}
 
-          {/* ZK Proof Details */}
           {proofDetails && (
-            <div className="rounded-lg bg-emerald-50 p-3 space-y-2 border border-emerald-200">
+            <div className="rounded-lg bg-[var(--bg-tertiary)] p-3 space-y-2 border border-[var(--border-subtle)]">
               <div className="flex items-center gap-1.5">
-                <Fingerprint size={11} strokeWidth={2} className="text-emerald-600" />
-                <span className="text-xs font-semibold text-emerald-600">ZK Proof Verified On-Chain</span>
+                <Fingerprint size={11} strokeWidth={2} className="text-[var(--accent-emerald)]" />
+                <span className="text-xs font-semibold text-[var(--accent-emerald)]">ZK Proof Verified On-Chain</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <div className="text-xs text-emerald-600/60">Proof size</div>
-                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-emerald-600">{proofDetails.calldataElements} felt252 values</div>
-                <div className="text-xs text-emerald-600/60">Verifier</div>
-                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-emerald-600">Garaga UltraKeccakZKHonk</div>
-                <div className="text-xs text-emerald-600/60">Method</div>
-                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-emerald-600">{proofDetails.gasless ? "Gasless relayer" : "Direct"}</div>
+                <div className="text-xs text-[var(--text-tertiary)]">Proof size</div>
+                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-primary)]">{proofDetails.calldataElements} felt252</div>
+                <div className="text-xs text-[var(--text-tertiary)]">Verifier</div>
+                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-primary)]">Garaga UltraKeccakZKHonk</div>
+                <div className="text-xs text-[var(--text-tertiary)]">Method</div>
+                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-primary)]">{proofDetails.gasless ? "Gasless relayer" : "Direct"}</div>
               </div>
-              <div className="pt-1.5 border-t border-emerald-200">
-                <div className="text-xs text-emerald-600/70 font-medium">
+              <div className="pt-1.5 border-t border-[var(--border-subtle)]">
+                <div className="text-[11px] text-[var(--accent-emerald)]/70 font-medium">
                   Your secret and blinder did NOT appear in this transaction. Only the ZK proof was submitted.
                 </div>
               </div>
             </div>
           )}
 
-          <div className="rounded-lg bg-emerald-50 p-2.5 space-y-1.5 border border-emerald-200">
-            <div className="text-xs text-emerald-600 font-medium">Add BTC token to your wallet:</div>
+          <div className="rounded-lg bg-[var(--bg-tertiary)] p-2.5 space-y-1.5 border border-[var(--border-subtle)]">
+            <div className="text-xs text-[var(--text-secondary)] font-medium">Add BTC token to your wallet:</div>
             <div className="flex items-center gap-2">
-              <code className="text-xs font-[family-name:var(--font-geist-mono)] text-emerald-700 bg-emerald-100 px-2 py-1 rounded flex-1 truncate">
+              <code className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--accent-orange)] bg-[var(--bg-elevated)] px-2 py-1 rounded flex-1 truncate">
                 {addresses.contracts.wbtc}
               </code>
               <button
@@ -689,12 +656,12 @@ export default function UnveilForm() {
                   navigator.clipboard.writeText(addresses.contracts.wbtc);
                   setTokenAdded(true);
                 }}
-                className="text-xs font-medium text-emerald-600 hover:text-emerald-700 px-2 py-1 bg-emerald-100 rounded cursor-pointer whitespace-nowrap"
+                className="text-xs font-medium text-[var(--accent-orange)] hover:text-[var(--accent-orange)]/80 px-2 py-1 bg-[var(--bg-elevated)] rounded cursor-pointer whitespace-nowrap border border-[var(--border-subtle)]"
               >
                 {tokenAdded ? "Copied" : "Copy"}
               </button>
             </div>
-            <div className="text-xs text-emerald-600">
+            <div className="text-[11px] text-[var(--text-tertiary)]">
               In Argent/Braavos: Settings &rarr; Manage tokens &rarr; Add token &rarr; paste address
             </div>
           </div>
@@ -706,7 +673,7 @@ export default function UnveilForm() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="rounded-xl p-4 bg-red-50 text-sm text-red-600 border border-red-200"
+          className="rounded-xl p-4 bg-[var(--accent-red)]/10 text-sm text-[var(--accent-red)] border border-[var(--accent-red)]/20"
         >
           <div className="flex items-center gap-2">
             <AlertTriangle size={14} strokeWidth={1.5} />
@@ -722,8 +689,8 @@ export default function UnveilForm() {
       {activeNotes.some((n) => n.status === "READY" && !!n.zkCommitment) && (
         <div className={`rounded-xl p-4 border transition-all ${
           useRelayer
-            ? "bg-orange-50 border-orange-200"
-            : "bg-gray-50 border-gray-200"
+            ? "bg-[var(--accent-orange-dim)] border-[var(--accent-orange)]/20"
+            : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)]"
         }`}>
           <button
             onClick={() => setUseRelayer(!useRelayer)}
@@ -731,21 +698,21 @@ export default function UnveilForm() {
           >
             <div className="flex items-center gap-2.5">
               <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                useRelayer ? "bg-[#FF5A00]" : "bg-gray-100"
+                useRelayer ? "bg-[var(--accent-orange)]" : "bg-[var(--bg-elevated)]"
               }`}>
-                <Zap size={13} strokeWidth={1.5} className={useRelayer ? "text-white" : "text-gray-400"} />
+                <Zap size={13} strokeWidth={1.5} className={useRelayer ? "text-white" : "text-[var(--text-tertiary)]"} />
               </div>
               <div className="text-left">
-                <span className="text-[12px] font-semibold text-gray-900 block leading-tight">
+                <span className="text-[12px] font-semibold text-[var(--text-primary)] block leading-tight">
                   Gasless withdrawal
                 </span>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-[var(--text-tertiary)]">
                   Relayer pays gas, no wallet signature
                 </span>
               </div>
             </div>
             <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-              useRelayer ? "bg-[#FF5A00]" : "bg-gray-100"
+              useRelayer ? "bg-[var(--accent-orange)]" : "bg-[var(--bg-elevated)]"
             }`}>
               <span
                 className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
@@ -755,11 +722,11 @@ export default function UnveilForm() {
             </div>
           </button>
           {useRelayer && (
-            <div className="mt-3 pt-3 border-t border-orange-200 flex items-center justify-between">
-              <span className="text-xs text-[#FF5A00]">
+            <div className="mt-3 pt-3 border-t border-[var(--accent-orange)]/20 flex items-center justify-between">
+              <span className="text-xs text-[var(--accent-orange)]">
                 Fee: <strong>{relayerFee ? `${relayerFee / 100}%` : "2%"}</strong> of WBTC
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-[var(--text-tertiary)]">
                 Max privacy — no on-chain link to you
               </span>
             </div>
@@ -775,19 +742,19 @@ export default function UnveilForm() {
               onClick={() => setWithdrawMode("wbtc")}
               className={`rounded-xl p-3 text-left transition-all cursor-pointer border ${
                 withdrawMode === "wbtc"
-                  ? "bg-emerald-50 border-emerald-200"
-                  : "bg-gray-50 border-gray-200 hover:border-gray-400"
+                  ? "bg-[var(--accent-emerald-dim)] border-[var(--accent-emerald)]/20"
+                  : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]"
               }`}
             >
               <div className="flex items-center gap-1.5 mb-1">
-                <Unlock size={12} strokeWidth={1.5} className={withdrawMode === "wbtc" ? "text-emerald-600" : "text-gray-400"} />
+                <Unlock size={12} strokeWidth={1.5} className={withdrawMode === "wbtc" ? "text-[var(--accent-emerald)]" : "text-[var(--text-tertiary)]"} />
                 <span className={`text-xs font-semibold ${
-                  withdrawMode === "wbtc" ? "text-emerald-600" : "text-gray-400"
+                  withdrawMode === "wbtc" ? "text-[var(--accent-emerald)]" : "text-[var(--text-tertiary)]"
                 }`}>
                   Starknet Settlement
                 </span>
               </div>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-[var(--text-tertiary)]">
                 Receive BTC on Starknet
               </p>
             </button>
@@ -795,30 +762,29 @@ export default function UnveilForm() {
               onClick={() => setWithdrawMode("btc_intent")}
               className={`rounded-xl p-3 text-left transition-all cursor-pointer border ${
                 withdrawMode === "btc_intent"
-                  ? "bg-orange-50 border-orange-200"
-                  : "bg-gray-50 border-gray-200 hover:border-gray-400"
+                  ? "bg-[var(--accent-orange-dim)] border-[var(--accent-orange)]/20"
+                  : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]"
               }`}
             >
               <div className="flex items-center gap-1.5 mb-1">
-                <Bitcoin size={12} strokeWidth={1.5} className={withdrawMode === "btc_intent" ? "text-[#FF5A00]" : "text-gray-400"} />
+                <Bitcoin size={12} strokeWidth={1.5} className={withdrawMode === "btc_intent" ? "text-[var(--accent-orange)]" : "text-[var(--text-tertiary)]"} />
                 <span className={`text-xs font-semibold ${
-                  withdrawMode === "btc_intent" ? "text-[#FF5A00]" : "text-gray-400"
+                  withdrawMode === "btc_intent" ? "text-[var(--accent-orange)]" : "text-[var(--text-tertiary)]"
                 }`}>
                   Bitcoin Settlement
                 </span>
               </div>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-[var(--text-tertiary)]">
                 Settle to native Bitcoin
               </p>
             </button>
           </div>
 
-          {/* BTC Intent Address Input */}
           {withdrawMode === "btc_intent" && (
-            <div className="rounded-xl p-3.5 bg-orange-50 border border-orange-200 space-y-2">
+            <div className="rounded-xl p-3.5 bg-[var(--accent-orange-dim)] border border-[var(--accent-orange)]/20 space-y-2">
               <div className="flex items-center gap-1.5">
-                <Bitcoin size={12} strokeWidth={1.5} className="text-[#FF5A00]" />
-                <span className="text-xs font-semibold text-[#FF5A00]">
+                <Bitcoin size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                <span className="text-xs font-semibold text-[var(--accent-orange)]">
                   Bitcoin Address
                 </span>
               </div>
@@ -827,20 +793,19 @@ export default function UnveilForm() {
                 placeholder="tb1q... or bc1q... (your Bitcoin address)"
                 value={btcWithdrawAddress}
                 onChange={(e) => setBtcWithdrawAddress(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg bg-gray-100 border border-gray-200 text-gray-900 placeholder:text-gray-400 font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[#FF5A00]"
+                className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-primary)] border border-[var(--border-medium)] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
               />
-              <p className="text-xs text-gray-400">
-                Your BTC is locked in escrow. A solver sends native Bitcoin to this address, an oracle confirms settlement, and the solver receives the escrowed BTC. If no one fills, you get refunded after timeout.
+              <p className="text-[11px] text-[var(--text-tertiary)]">
+                Your BTC is locked in escrow. A solver sends native Bitcoin to this address, an oracle confirms settlement, and the solver receives the escrowed BTC.
               </p>
             </div>
           )}
 
-          {/* Intent Settlement Tracker */}
           {intentStatus && (
-            <div className="rounded-xl p-3.5 bg-orange-50 border border-orange-200 space-y-2">
+            <div className="rounded-xl p-3.5 bg-[var(--accent-orange-dim)] border border-[var(--accent-orange)]/20 space-y-2">
               <div className="flex items-center gap-1.5">
-                <Zap size={12} strokeWidth={1.5} className="text-[#FF5A00]" />
-                <span className="text-xs font-semibold text-[#FF5A00]">
+                <Zap size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                <span className="text-xs font-semibold text-[var(--accent-orange)]">
                   Intent #{intentId} Settlement
                 </span>
               </div>
@@ -856,20 +821,20 @@ export default function UnveilForm() {
                       key={step}
                       className={`rounded-lg p-2 text-center border transition-all ${
                         isCurrent
-                          ? "bg-orange-50 border-orange-300"
+                          ? "bg-[var(--accent-orange-dim)] border-[var(--accent-orange)]/30"
                           : isActive
-                          ? "bg-emerald-50 border-emerald-200"
-                          : "bg-gray-100 border-gray-200"
+                          ? "bg-[var(--accent-emerald-dim)] border-[var(--accent-emerald)]/20"
+                          : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)]"
                       }`}
                     >
                       <div className="flex items-center justify-center gap-1 mb-0.5">
                         {isCurrent && intentStatus !== "SETTLED" ? (
-                          <Loader size={9} className="animate-spin text-[#FF5A00]" strokeWidth={2} />
+                          <Loader size={9} className="animate-spin text-[var(--accent-orange)]" strokeWidth={2} />
                         ) : isActive ? (
-                          <CheckCircle size={9} className="text-emerald-600" strokeWidth={2} />
+                          <CheckCircle size={9} className="text-[var(--accent-emerald)]" strokeWidth={2} />
                         ) : null}
                         <span className={`text-xs font-semibold ${
-                          isCurrent ? "text-[#FF5A00]" : isActive ? "text-emerald-600" : "text-gray-400"
+                          isCurrent ? "text-[var(--accent-orange)]" : isActive ? "text-[var(--accent-emerald)]" : "text-[var(--text-tertiary)]"
                         }`}>
                           {step}
                         </span>
@@ -879,28 +844,28 @@ export default function UnveilForm() {
                 })}
                 <div className={`rounded-lg p-2 text-center border transition-all ${
                   intentStatus === "EXPIRED"
-                    ? "bg-red-50 border-red-200"
-                    : "bg-gray-100 border-gray-200"
+                    ? "bg-[var(--accent-red)]/10 border-[var(--accent-red)]/20"
+                    : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)]"
                 }`}>
                   <span className={`text-xs font-semibold ${
-                    intentStatus === "EXPIRED" ? "text-red-600" : "text-gray-400"
+                    intentStatus === "EXPIRED" ? "text-[var(--accent-red)]" : "text-[var(--text-tertiary)]"
                   }`}>
                     {intentStatus === "EXPIRED" ? "EXPIRED" : "TIMEOUT"}
                   </span>
                 </div>
               </div>
               {intentStatus === "SETTLED" && (
-                <p className="text-xs text-emerald-600 font-medium">
+                <p className="text-xs text-[var(--accent-emerald)] font-medium">
                   Bitcoin sent! Settlement complete.
                 </p>
               )}
               {intentStatus === "EXPIRED" && (
-                <p className="text-xs text-red-600 font-medium">
+                <p className="text-xs text-[var(--accent-red)] font-medium">
                   No solver filled the intent. BTC refunded to your address.
                 </p>
               )}
               {(intentStatus === "CREATED" || intentStatus === "CLAIMED") && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-[var(--text-tertiary)]">
                   {intentStatus === "CREATED"
                     ? "Waiting for a solver to claim and send BTC..."
                     : "Solver claimed — waiting for BTC confirmation..."}
@@ -914,16 +879,16 @@ export default function UnveilForm() {
       {/* Notes */}
       {loading ? (
         <div className="text-center py-10">
-          <Loader size={20} className="animate-spin mx-auto text-gray-400" strokeWidth={1.5} />
-          <p className="text-xs text-gray-400 mt-3">
+          <Loader size={20} className="animate-spin mx-auto text-[var(--text-tertiary)]" strokeWidth={1.5} />
+          <p className="text-xs text-[var(--text-tertiary)] mt-3">
             Loading allocations...
           </p>
         </div>
       ) : activeNotes.length === 0 && claimedNotes.length === 0 ? (
         <div className="text-center py-10">
-          <Lock size={24} className="mx-auto mb-3 text-gray-400" strokeWidth={1.5} />
-          <p className="text-sm text-gray-600">No allocations found</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <Lock size={24} className="mx-auto mb-3 text-[var(--text-tertiary)]" strokeWidth={1.5} />
+          <p className="text-sm text-[var(--text-secondary)]">No allocations found</p>
+          <p className="text-xs text-[var(--text-tertiary)] mt-1">
             Allocate capital first to create positions
           </p>
         </div>
@@ -939,8 +904,8 @@ export default function UnveilForm() {
           ))}
 
           {claimedNotes.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <p className="text-xs text-gray-400 mb-2">
+            <div className="mt-4 pt-4 border-t border-[var(--border-subtle)]">
+              <p className="text-xs text-[var(--text-tertiary)] mb-2">
                 Previously claimed ({claimedNotes.length})
               </p>
               {claimedNotes.map((note) => (
@@ -956,8 +921,78 @@ export default function UnveilForm() {
         </div>
       )}
 
+      {/* Note Export / Import */}
+      {isConnected && (activeNotes.length > 0 || claimedNotes.length > 0) && (
+        <div className="rounded-xl p-4 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] space-y-3">
+          <span className="text-xs font-semibold text-[var(--text-secondary)] block">
+            Note Backup
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const allNotes = loadNotes();
+                if (allNotes.length === 0) {
+                  toast("error", "No notes to export");
+                  return;
+                }
+                const blob = new Blob([JSON.stringify(allNotes, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `veil-notes-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast("success", `Exported ${allNotes.length} notes`);
+              }}
+              className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-emerald)]/30 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Download size={11} strokeWidth={1.5} />
+              Export Notes
+            </button>
+            <label className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-orange)]/30 transition-colors cursor-pointer flex items-center justify-center gap-1.5">
+              <Upload size={11} strokeWidth={1.5} />
+              Import Notes
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    const text = await file.text();
+                    const imported: GhostNote[] = JSON.parse(text);
+                    if (!Array.isArray(imported) || imported.length === 0) {
+                      toast("error", "Invalid note file");
+                      return;
+                    }
+                    const existing = loadNotes();
+                    const existingCommitments = new Set(existing.map(n => n.commitment));
+                    const newNotes = imported.filter(n => n.commitment && !existingCommitments.has(n.commitment));
+                    if (newNotes.length === 0) {
+                      toast("info", "All notes already exist locally");
+                      return;
+                    }
+                    const merged = [...existing, ...newNotes];
+                    localStorage.setItem("ghost-notes", JSON.stringify(merged));
+                    toast("success", `Imported ${newNotes.length} new notes`);
+                    refreshNotes();
+                  } catch {
+                    toast("error", "Failed to parse note file");
+                  }
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
+          <p className="text-[11px] text-[var(--text-tertiary)]">
+            Export your notes before clearing browser data. You need them to withdraw.
+          </p>
+        </div>
+      )}
+
       {!isConnected && (
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-[var(--text-tertiary)] text-center">
           Connect wallet to execute confidential exit
         </p>
       )}

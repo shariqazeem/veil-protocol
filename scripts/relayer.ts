@@ -443,40 +443,6 @@ async function main() {
       return;
     }
 
-    // Legacy prove endpoint — kept for backward compatibility
-    // WARNING: This endpoint receives secrets. Use /calldata instead.
-    if (req.method === "POST" && req.url === "/prove") {
-      let body = "";
-      req.on("data", (chunk: string) => (body += chunk));
-      req.on("end", async () => {
-        try {
-          const parsed = JSON.parse(body);
-          const { secret, blinder, denomination } = parsed;
-
-          if (!secret || !blinder || denomination === undefined) {
-            throw new Error("Missing required fields: secret, blinder, denomination");
-          }
-
-          console.log(`[prove] Generating ZK proof for denomination=${denomination}...`);
-          const result = await generateZKProof(
-            BigInt(secret),
-            BigInt(blinder),
-            BigInt(denomination),
-          );
-
-          console.log(`[prove] Proof generated: ${result.proof.length} calldata elements`);
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(result));
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[prove] Error: ${msg}`);
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: msg }));
-        }
-      });
-      return;
-    }
-
     // Relay endpoint
     if (req.method === "POST" && req.url === "/relay") {
       if (!hasRelayerCredentials || !relayerAccount) {

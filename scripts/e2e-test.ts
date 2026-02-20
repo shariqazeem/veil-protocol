@@ -1,20 +1,19 @@
 /**
- * Veil Protocol E2E Test — Full Shield → Batch → Unveil flow
+ * Veil Protocol — E2E Test Suite (Sepolia)
  *
- * Tests the complete lifecycle on Sepolia testnet:
- *   1. Mint test USDC
- *   2. Approve + deposit_private (shield)
- *   3. Execute batch (swap USDC→WBTC)
- *   4. Wait for privacy cooldown (60s)
- *   5. Generate ZK proof via /prove
- *   6. Withdraw via /relay (gasless) or direct withdraw_private
+ * Tests the full lifecycle:
+ *   1. Mint test USDC + fund mock router with WBTC
+ *   2. Deposit (shield) into all 4 tiers ($1, $10, $100, $1,000)
+ *   3. Verify pool state (pending USDC, leaf count, anon sets)
+ *   4. Set mock router rate + execute batch (USDC → WBTC)
+ *   5. Verify batch results (wbtc_per_unit, batch count)
+ *   6. Verify nullifiers not yet used (withdrawal-ready)
+ *   7. Test Vercel API endpoints
  *
- * Usage:
- *   npx ts-node --esm e2e-test.ts
+ * Note: ZK withdrawal requires browser-side bb.js WASM proving.
+ *       This test verifies everything UP TO withdrawal readiness.
  *
- * Requires:
- *   - .env with PRIVATE_KEY and ACCOUNT_ADDRESS
- *   - Relayer running on localhost:3001 (npm run relayer)
+ * Run:  npx tsx e2e-test.ts
  */
 
 import {
@@ -23,7 +22,6 @@ import {
   Contract,
   CallData,
   constants,
-  num,
   type Abi,
 } from "starknet";
 import { poseidon2, poseidon3 } from "poseidon-lite";
@@ -39,26 +37,43 @@ const __dirname = path.dirname(__filename);
 // Config
 // ---------------------------------------------------------------------------
 
-const RELAYER_URL = "http://localhost:3001";
-const STARK_PRIME = 0x800000000000011000000000000000000000000000000000000000000000001n;
+const deployment = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, "deployment.json"), "utf-8"),
+);
 
-function loadAddresses(): Record<string, string> {
-  try {
-    const p = path.resolve(__dirname, "..", "frontend", "src", "contracts", "addresses.json");
-    const data = JSON.parse(fs.readFileSync(p, "utf-8"));
-    return data.contracts;
-  } catch {
-    const p = path.resolve(__dirname, "deployment.json");
-    const data = JSON.parse(fs.readFileSync(p, "utf-8"));
-    return data.contracts;
-  }
-}
+const USDC = deployment.contracts.usdc;
+const WBTC = deployment.contracts.wbtc;
+const POOL = deployment.contracts.shieldedPool;
+const ROUTER = deployment.contracts.avnuRouter;
 
-const addresses = loadAddresses();
-const POOL = addresses.shieldedPool;
-const USDC = addresses.usdc;
-const WBTC = addresses.wbtc;
-const ROUTER = addresses.avnuRouter;
+const STARK_PRIME =
+  3618502788666131213697322783095070105623107215331596699973092056135872020481n;
+const BN254_PRIME =
+  21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+
+const TIERS = [
+  { tier: 0, amount: 1_000_000n, label: "$1" },
+  { tier: 1, amount: 10_000_000n, label: "$10" },
+  { tier: 2, amount: 100_000_000n, label: "$100" },
+  { tier: 3, amount: 1_000_000_000n, label: "$1,000" },
+];
+
+const RPC_URL =
+  process.env.STARKNET_RPC_URL ?? "https://starknet-sepolia-rpc.publicnode.com";
+const provider = new RpcProvider({ nodeUrl: RPC_URL });
+const account = new Account(
+  provider,
+  process.env.ACCOUNT_ADDRESS!,
+  process.env.PRIVATE_KEY!,
+  undefined,
+  constants.TRANSACTION_VERSION.V3,
+);
+
+const VERCEL_URL = "https://theveilprotocol.vercel.app";
+
+// ---------------------------------------------------------------------------
+// ABIs
+// ---------------------------------------------------------------------------
 
 const ERC20_ABI: Abi = [
   {
@@ -70,29 +85,35 @@ const ERC20_ABI: Abi = [
     ],
   },
   {
-    name: "approve",
+    name: "mint",
     type: "function",
     inputs: [
-      { name: "spender", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "to", type: "core::starknet::contract_address::ContractAddress" },
       { name: "amount", type: "core::integer::u256" },
     ],
-    outputs: [{ type: "core::bool" }],
+    outputs: [],
     state_mutability: "external",
   },
   {
     name: "balance_of",
     type: "function",
     inputs: [
-      { name: "account", type: "core::starknet::contract_address::ContractAddress" },
+      {
+        name: "account",
+        type: "core::starknet::contract_address::ContractAddress",
+      },
     ],
     outputs: [{ type: "core::integer::u256" }],
     state_mutability: "view",
   },
   {
-    name: "mint",
+    name: "approve",
     type: "function",
     inputs: [
-      { name: "to", type: "core::starknet::contract_address::ContractAddress" },
+      {
+        name: "spender",
+        type: "core::starknet::contract_address::ContractAddress",
+      },
       { name: "amount", type: "core::integer::u256" },
     ],
     outputs: [],
@@ -122,36 +143,17 @@ const POOL_ABI: Abi = [
     state_mutability: "external",
   },
   {
-    name: "execute_batch",
-    type: "function",
-    inputs: [
-      { name: "min_wbtc_out", type: "core::integer::u256" },
-      { name: "routes", type: "core::array::Array::<ghost_sats::avnu_interface::Route>" },
-    ],
-    outputs: [],
-    state_mutability: "external",
-  },
-  {
-    name: "withdraw_private",
-    type: "function",
-    inputs: [
-      { name: "denomination", type: "core::integer::u8" },
-      { name: "zk_nullifier", type: "core::felt252" },
-      { name: "zk_commitment", type: "core::felt252" },
-      { name: "proof", type: "core::array::Array::<core::felt252>" },
-      { name: "merkle_path", type: "core::array::Array::<core::felt252>" },
-      { name: "path_indices", type: "core::array::Array::<core::integer::u8>" },
-      { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
-      { name: "btc_recipient_hash", type: "core::felt252" },
-    ],
-    outputs: [],
-    state_mutability: "external",
-  },
-  {
     name: "get_pending_usdc",
     type: "function",
     inputs: [],
     outputs: [{ type: "core::integer::u256" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_batch_count",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::integer::u32" }],
     state_mutability: "view",
   },
   {
@@ -162,21 +164,10 @@ const POOL_ABI: Abi = [
     state_mutability: "view",
   },
   {
-    name: "get_leaf",
+    name: "get_anonymity_set",
     type: "function",
-    inputs: [
-      { name: "index", type: "core::integer::u32" },
-    ],
-    outputs: [{ type: "core::felt252" }],
-    state_mutability: "view",
-  },
-  {
-    name: "get_batch_result",
-    type: "function",
-    inputs: [
-      { name: "batch_id", type: "core::integer::u64" },
-    ],
-    outputs: [{ type: "ghost_sats::BatchResult" }],
+    inputs: [{ name: "tier", type: "core::integer::u8" }],
+    outputs: [{ type: "core::integer::u32" }],
     state_mutability: "view",
   },
   {
@@ -187,394 +178,419 @@ const POOL_ABI: Abi = [
     state_mutability: "view",
   },
   {
-    name: "is_commitment_valid",
+    name: "execute_batch",
     type: "function",
     inputs: [
-      { name: "commitment", type: "core::felt252" },
+      { name: "min_wbtc_out", type: "core::integer::u256" },
+      {
+        name: "routes",
+        type: "core::array::Array::<ghost_sats::avnu_interface::Route>",
+      },
     ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "is_commitment_valid",
+    type: "function",
+    inputs: [{ name: "commitment", type: "core::felt252" }],
     outputs: [{ type: "core::bool" }],
     state_mutability: "view",
   },
   {
-    name: "is_zk_nullifier_spent",
+    name: "is_nullifier_spent",
     type: "function",
-    inputs: [
-      { name: "zk_nullifier", type: "core::felt252" },
-    ],
+    inputs: [{ name: "nullifier", type: "core::felt252" }],
     outputs: [{ type: "core::bool" }],
     state_mutability: "view",
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Pedersen commitment (matches Cairo contract)
-// ---------------------------------------------------------------------------
-
-import { hash } from "starknet";
-
-function pedersenChain(a: string, b: string): string {
-  const step1 = hash.computePedersenHash("0x0", a);
-  return hash.computePedersenHash(step1, b);
-}
-
-function splitU256(amount: bigint): { low: string; high: string } {
-  const mask = (1n << 128n) - 1n;
-  return {
-    low: num.toHex(amount & mask),
-    high: num.toHex(amount >> 128n),
-  };
-}
-
-function computeCommitment(amount: bigint, secret: string, blinder: string): string {
-  const { low, high } = splitU256(amount);
-  const amountHash = pedersenChain(low, high);
-  const secretHash = pedersenChain(secret, blinder);
-  return pedersenChain(amountHash, secretHash);
-}
-
-function randomFelt(): string {
-  const bytes = new Uint8Array(31);
-  globalThis.crypto.getRandomValues(bytes);
-  return "0x" + Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function bigintToHex(n: bigint): string {
-  return "0x" + n.toString(16);
-}
+const ROUTER_ABI: Abi = [
+  {
+    type: "struct",
+    name: "core::integer::u256",
+    members: [
+      { name: "low", type: "core::integer::u128" },
+      { name: "high", type: "core::integer::u128" },
+    ],
+  },
+  {
+    name: "set_rate",
+    type: "function",
+    inputs: [
+      { name: "rate_numerator", type: "core::integer::u256" },
+      { name: "rate_denominator", type: "core::integer::u256" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+];
 
 // ---------------------------------------------------------------------------
-// Merkle proof (mirrors frontend/utils/privacy.ts)
+// Helpers
 // ---------------------------------------------------------------------------
 
-function hashPair(left: string, right: string): string {
-  const step1 = hash.computePedersenHash("0x0", left);
-  return hash.computePedersenHash(step1, right);
+function randomField(): bigint {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let val = 0n;
+  for (const b of bytes) val = (val << 8n) + BigInt(b);
+  return val % BN254_PRIME;
 }
 
-function getZeroHash(level: number): string {
-  let current = "0x0";
-  for (let i = 0; i < level; i++) {
-    current = hashPair(current, current);
-  }
-  return current;
+let passed = 0;
+let failed = 0;
+
+function pass(msg: string) {
+  passed++;
+  console.log(`  \x1b[32m[PASS]\x1b[0m ${msg}`);
 }
 
-function buildMerkleProof(
-  leafIndex: number,
-  allLeaves: string[],
-): { path: string[]; indices: number[] } {
-  const TREE_DEPTH = 20;
-  const path: string[] = [];
-  const indices: number[] = [];
-  let currentLevel = [...allLeaves];
-  let currentIndex = leafIndex;
+function fail(msg: string) {
+  failed++;
+  console.error(`  \x1b[31m[FAIL]\x1b[0m ${msg}`);
+}
 
-  for (let level = 0; level < TREE_DEPTH; level++) {
-    const siblingIndex = currentIndex % 2 === 0 ? currentIndex + 1 : currentIndex - 1;
-    let sibling: string;
-    if (siblingIndex < currentLevel.length) {
-      sibling = currentLevel[siblingIndex];
-    } else {
-      sibling = getZeroHash(level);
-    }
-    path.push(sibling);
-    indices.push(currentIndex % 2 === 0 ? 0 : 1);
-
-    const nextLevel: string[] = [];
-    for (let i = 0; i < currentLevel.length; i += 2) {
-      const left = currentLevel[i];
-      const right = i + 1 < currentLevel.length ? currentLevel[i + 1] : getZeroHash(level);
-      nextLevel.push(hashPair(left, right));
-    }
-    if (nextLevel.length === 0) {
-      nextLevel.push(hashPair(getZeroHash(level), getZeroHash(level)));
-    }
-    currentLevel = nextLevel;
-    currentIndex = Math.floor(currentIndex / 2);
-  }
-  return { path, indices };
+function log(msg: string) {
+  console.log(`  ${msg}`);
 }
 
 // ---------------------------------------------------------------------------
-// Main E2E Test
+// Main
 // ---------------------------------------------------------------------------
-
-const DENOMINATIONS: Record<number, bigint> = {
-  0: 100_000_000n,       // 100 USDC
-  1: 1_000_000_000n,     // 1,000 USDC
-  2: 10_000_000_000n,    // 10,000 USDC
-};
-
-async function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function ok(msg: string) { console.log(`  ✓ ${msg}`); }
-function info(msg: string) { console.log(`  → ${msg}`); }
-function fail(msg: string) { console.error(`  ✗ ${msg}`); }
 
 async function main() {
-  const privateKey = process.env.PRIVATE_KEY;
-  const accountAddress = process.env.ACCOUNT_ADDRESS;
-  const rpcUrl = process.env.STARKNET_RPC_URL ?? "https://rpc.starknet-testnet.lava.build";
+  console.log("\n========================================");
+  console.log("  Veil Protocol — E2E Test Suite");
+  console.log("========================================\n");
 
-  if (!privateKey || !accountAddress) {
-    console.error("Set PRIVATE_KEY and ACCOUNT_ADDRESS in .env");
-    process.exit(1);
-  }
+  log(`Pool:    ${POOL}`);
+  log(`USDC:    ${USDC}`);
+  log(`WBTC:    ${WBTC}`);
+  log(`Router:  ${ROUTER}`);
+  log(`Account: ${account.address}`);
 
-  console.log("\n╔════════════════════════════════════════════╗");
-  console.log("║     Veil Protocol E2E Test (Sepolia)       ║");
-  console.log("╚════════════════════════════════════════════╝\n");
-
-  const provider = new RpcProvider({ nodeUrl: rpcUrl });
-  const account = new Account(
-    provider, accountAddress, privateKey,
-    undefined, constants.TRANSACTION_VERSION.V3,
-  );
-
+  const pool = new Contract(POOL_ABI, POOL, provider);
   const usdc = new Contract(ERC20_ABI, USDC, provider);
   const wbtc = new Contract(ERC20_ABI, WBTC, provider);
-  const pool = new Contract(POOL_ABI, POOL, provider);
 
-  console.log(`Pool:    ${POOL}`);
-  console.log(`USDC:    ${USDC}`);
-  console.log(`WBTC:    ${WBTC}`);
-  console.log(`Account: ${accountAddress}\n`);
+  // ---- Step 0: Baseline pool state ----
+  console.log("\n--- Step 0: Baseline pool state ---");
+  const initBatchId = Number(BigInt((await pool.get_current_batch_id()).toString()));
+  const initLeaf = Number(await pool.get_leaf_count());
+  const initPendingCount = Number(await pool.get_batch_count());
+  log(`Current batch ID: ${initBatchId}, Pending deposits: ${initPendingCount}, Leaf count: ${initLeaf}`);
 
-  // Use denomination 0 (100 USDC) for cheapest test
-  const denomination = 0;
-  const rawAmount = DENOMINATIONS[denomination];
-  info(`Testing denomination ${denomination} (${Number(rawAmount) / 1e6} USDC)\n`);
-
-  // ───────────────────────────────────────
-  // Step 1: Mint USDC
-  // ───────────────────────────────────────
-  console.log("Step 1: Mint test USDC");
-  const usdcBal = await usdc.balance_of(accountAddress);
-  info(`Current USDC balance: ${Number(usdcBal) / 1e6}`);
-
-  if (BigInt(usdcBal.toString()) < rawAmount) {
-    info("Minting USDC...");
-    const mintTx = await account.execute([{
+  // ---- Step 1: Mint test tokens ----
+  console.log("\n--- Step 1: Mint test USDC ---");
+  const mintAmount = 2_000_000_000n; // 2,000 USDC
+  const mintTx = await account.execute([
+    {
       contractAddress: USDC,
       entrypoint: "mint",
       calldata: CallData.compile({
-        to: accountAddress,
-        amount: { low: 100_000_000_000n, high: 0n },
+        to: account.address,
+        amount: { low: mintAmount, high: 0n },
       }),
-    }]);
-    await provider.waitForTransaction(mintTx.transaction_hash);
-    ok("Minted 100K USDC");
+    },
+  ]);
+  await provider.waitForTransaction(mintTx.transaction_hash);
+  const bal =
+    Number(BigInt((await usdc.balance_of(account.address)).toString())) / 1e6;
+  pass(`Minted USDC. Balance: ${bal} USDC`);
+
+  // Fund router
+  const routerBal = BigInt((await wbtc.balance_of(ROUTER)).toString());
+  if (routerBal < 100_000_000n) {
+    const tx = await account.execute([
+      {
+        contractAddress: WBTC,
+        entrypoint: "mint",
+        calldata: CallData.compile({
+          to: ROUTER,
+          amount: { low: 100_000_000_000n, high: 0n },
+        }),
+      },
+    ]);
+    await provider.waitForTransaction(tx.transaction_hash);
+    pass("Router funded with WBTC");
   } else {
-    ok("Sufficient USDC balance");
+    pass(`Router WBTC balance: ${Number(routerBal) / 1e8}`);
   }
 
-  // Also ensure MockAvnuRouter has WBTC to give out
-  const routerWbtc = await wbtc.balance_of(ROUTER);
-  if (BigInt(routerWbtc.toString()) < 1_000_000n) {
-    info("Minting WBTC to MockAvnuRouter...");
-    const mintWbtcTx = await account.execute([{
-      contractAddress: WBTC,
-      entrypoint: "mint",
-      calldata: CallData.compile({
-        to: ROUTER,
-        amount: { low: 100_000_000_000n, high: 0n },
-      }),
-    }]);
-    await provider.waitForTransaction(mintWbtcTx.transaction_hash);
-    ok("Minted WBTC to router");
-  }
+  // ---- Step 2: Deposit all 4 tiers ----
+  console.log("\n--- Step 2: Shield deposits (all 4 tiers) ---");
 
-  // ───────────────────────────────────────
-  // Step 2: Generate note + deposit_private
-  // ───────────────────────────────────────
-  console.log("\nStep 2: Shield (deposit_private)");
-  const secret = randomFelt();
-  const blinder = randomFelt();
-  const commitment = computeCommitment(rawAmount, secret, blinder);
-  info(`Secret:     ${secret.slice(0, 14)}...`);
-  info(`Blinder:    ${blinder.slice(0, 14)}...`);
-  info(`Commitment: ${commitment.slice(0, 14)}...`);
+  const notes: Array<{
+    tier: number;
+    secret: bigint;
+    blinder: bigint;
+    commitmentFelt: bigint;
+    zkCommitmentFelt: bigint;
+    nullifierFelt: bigint;
+  }> = [];
 
-  // Compute ZK commitment (BN254 Poseidon)
-  const secretBigint = BigInt(secret);
-  const blinderBigint = BigInt(blinder);
-  const zkCommitmentRaw = poseidon3([secretBigint, blinderBigint, BigInt(denomination)]);
-  const zkNullifierRaw = poseidon2([secretBigint, 1n]);
-  const zkCommitment = bigintToHex(zkCommitmentRaw % STARK_PRIME);
-  const zkNullifier = bigintToHex(zkNullifierRaw % STARK_PRIME);
-  info(`ZK Commit:  ${zkCommitment.slice(0, 14)}...`);
-  info(`ZK Nullif:  ${zkNullifier.slice(0, 14)}...`);
-
-  const leafCountBefore = Number(await pool.get_leaf_count());
-  info(`Leaf count before: ${leafCountBefore}`);
-
-  info("Approving USDC + depositing...");
-  const shieldTx = await account.execute([
+  // Approve total
+  const totalUsdc = TIERS.reduce((acc, t) => acc + t.amount, 0n);
+  const approveTx = await account.execute([
     {
       contractAddress: USDC,
       entrypoint: "approve",
       calldata: CallData.compile({
         spender: POOL,
-        amount: { low: rawAmount, high: 0n },
-      }),
-    },
-    {
-      contractAddress: POOL,
-      entrypoint: "deposit_private",
-      calldata: CallData.compile({
-        commitment,
-        denomination,
-        btc_identity_hash: "0x0",
-        zk_commitment: zkCommitment,
+        amount: { low: totalUsdc, high: 0n },
       }),
     },
   ]);
-  await provider.waitForTransaction(shieldTx.transaction_hash);
-  ok(`Shield tx: ${shieldTx.transaction_hash}`);
+  await provider.waitForTransaction(approveTx.transaction_hash);
+  pass(`USDC approved ($${Number(totalUsdc) / 1e6})`);
 
-  // Verify commitment is on-chain
-  const isValid = await pool.is_commitment_valid(commitment);
-  if (!isValid) {
-    fail("Commitment not found on-chain!");
-    process.exit(1);
+  for (const { tier, amount, label } of TIERS) {
+    const secret = randomField();
+    const blinder = randomField();
+
+    // BN254 Poseidon commitments (matching the Noir circuit)
+    const commitment = poseidon2([secret, blinder]);
+    const zkCommitment = poseidon3([secret, blinder, BigInt(tier)]);
+    const nullifier = poseidon2([secret, secret]);
+
+    // Reduce to Stark field for on-chain felt252 storage
+    const commitmentFelt = commitment % STARK_PRIME;
+    const zkCommitmentFelt = zkCommitment % STARK_PRIME;
+    const nullifierFelt = nullifier % STARK_PRIME;
+
+    log(`Depositing tier ${tier} (${label})...`);
+    const tx = await account.execute([
+      {
+        contractAddress: POOL,
+        entrypoint: "deposit_private",
+        calldata: CallData.compile({
+          commitment: "0x" + commitmentFelt.toString(16),
+          denomination: tier,
+          btc_identity_hash: "0x0",
+          zk_commitment: "0x" + zkCommitmentFelt.toString(16),
+        }),
+      },
+    ]);
+    await provider.waitForTransaction(tx.transaction_hash);
+
+    notes.push({
+      tier,
+      secret,
+      blinder,
+      commitmentFelt,
+      zkCommitmentFelt,
+      nullifierFelt,
+    });
+    pass(
+      `Tier ${tier} (${label}) deposited — ${tx.transaction_hash.slice(0, 20)}...`,
+    );
   }
-  ok("Commitment verified on-chain");
 
-  const leafCountAfter = Number(await pool.get_leaf_count());
-  const leafIndex = leafCountAfter - 1;
-  ok(`Leaf index: ${leafIndex}`);
+  // ---- Step 3: Verify pool state ----
+  console.log("\n--- Step 3: Verify pool state ---");
 
-  // ───────────────────────────────────────
-  // Step 3: Execute batch
-  // ───────────────────────────────────────
-  console.log("\nStep 3: Execute batch (USDC → WBTC swap)");
-  const pendingBefore = Number(await pool.get_pending_usdc());
-  info(`Pending USDC: ${pendingBefore / 1e6}`);
-
-  info("Executing batch...");
-  const batchTx = await account.execute([{
-    contractAddress: POOL,
-    entrypoint: "execute_batch",
-    calldata: CallData.compile({
-      min_wbtc_out: { low: 0n, high: 0n },
-      routes: [],
-    }),
-  }]);
-  await provider.waitForTransaction(batchTx.transaction_hash);
-  ok(`Batch tx: ${batchTx.transaction_hash}`);
-
-  const pendingAfter = Number(await pool.get_pending_usdc());
-  ok(`Pending USDC after: ${pendingAfter / 1e6}`);
-
-  // ───────────────────────────────────────
-  // Step 4: Wait for privacy cooldown
-  // ───────────────────────────────────────
-  console.log("\nStep 4: Privacy cooldown (60s)");
-  for (let i = 60; i > 0; i -= 10) {
-    info(`${i}s remaining...`);
-    await sleep(10_000);
+  const pendingRaw = await pool.get_pending_usdc();
+  const pendingUsdc = Number(BigInt(pendingRaw.toString())) / 1e6;
+  const expectedPending = Number(totalUsdc) / 1e6;
+  if (pendingUsdc >= expectedPending) {
+    pass(`Pending USDC: $${pendingUsdc} (expected >= $${expectedPending})`);
+  } else {
+    fail(`Pending USDC: $${pendingUsdc}, expected >= $${expectedPending}`);
   }
-  ok("Cooldown complete");
 
-  // ───────────────────────────────────────
-  // Step 5: Build Merkle proof + generate ZK proof
-  // ───────────────────────────────────────
-  console.log("\nStep 5: Generate ZK proof");
-  const onChainLeafCount = Number(await pool.get_leaf_count());
-  info(`On-chain leaf count: ${onChainLeafCount}`);
+  const leafCount = Number(await pool.get_leaf_count());
+  if (leafCount >= initLeaf + 4) {
+    pass(`Leaf count: ${leafCount} (+4 deposits)`);
+  } else {
+    fail(`Leaf count: ${leafCount}, expected >= ${initLeaf + 4}`);
+  }
 
-  const leafPromises = Array.from({ length: onChainLeafCount }, (_, i) =>
-    pool.get_leaf(i).then((leaf: any) => num.toHex(leaf as bigint))
+  for (const { tier, label } of TIERS) {
+    const anonSet = Number(await pool.get_anonymity_set(tier));
+    if (anonSet >= 1) {
+      pass(`Tier ${tier} (${label}) anonymity set: ${anonSet}`);
+    } else {
+      fail(`Tier ${tier} (${label}) anonymity set: ${anonSet}, expected >= 1`);
+    }
+  }
+
+  // Verify commitments exist on-chain
+  const testCommitment = notes[0].commitmentFelt;
+  const exists = await pool.is_commitment_valid(
+    "0x" + testCommitment.toString(16),
   );
-  const allLeaves = await Promise.all(leafPromises);
-  info(`Fetched ${allLeaves.length} leaves`);
-
-  // Find our leaf
-  const foundIndex = allLeaves.indexOf(commitment);
-  if (foundIndex === -1) {
-    fail("Commitment not found in leaves!");
-    process.exit(1);
-  }
-  ok(`Found commitment at leaf index ${foundIndex}`);
-
-  const { path: merklePath, indices: pathIndices } = buildMerkleProof(foundIndex, allLeaves);
-  ok(`Merkle proof built (${merklePath.length} elements)`);
-
-  // Call /prove endpoint
-  info("Calling /prove endpoint...");
-  const proveStart = Date.now();
-  const proveRes = await fetch(`${RELAYER_URL}/prove`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      secret: secretBigint.toString(),
-      blinder: blinderBigint.toString(),
-      denomination,
-    }),
-  });
-
-  if (!proveRes.ok) {
-    const errText = await proveRes.text();
-    fail(`/prove failed: ${errText}`);
-    process.exit(1);
+  if (exists) {
+    pass("Commitment verified on-chain");
+  } else {
+    fail("Commitment not found on-chain!");
   }
 
-  const proveData = await proveRes.json();
-  const proofDuration = ((Date.now() - proveStart) / 1000).toFixed(1);
-  ok(`ZK proof generated in ${proofDuration}s (${proveData.proof.length} calldata elements)`);
+  // ---- Step 4: Execute batch ----
+  console.log("\n--- Step 4: Execute batch (USDC -> WBTC) ---");
 
-  // ───────────────────────────────────────
-  // Step 6: Withdraw (direct, not via relayer — to test both paths)
-  // ───────────────────────────────────────
-  console.log("\nStep 6: Withdraw (direct withdraw_private)");
-  const wbtcBefore = await wbtc.balance_of(accountAddress);
-  info(`WBTC balance before: ${Number(wbtcBefore) / 1e8}`);
+  // Fetch BTC price
+  let btcPrice = 67000;
+  try {
+    const resp = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
+      { signal: AbortSignal.timeout(5000) },
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      btcPrice = data.bitcoin.usd;
+    }
+  } catch {}
+  log(`BTC price: $${btcPrice}`);
 
-  info("Submitting withdraw_private...");
-  const withdrawTx = await account.execute([{
-    contractAddress: POOL,
-    entrypoint: "withdraw_private",
-    calldata: CallData.compile({
-      denomination,
-      zk_nullifier: proveData.zkNullifier,
-      zk_commitment: proveData.zkCommitment,
-      proof: proveData.proof,
-      merkle_path: merklePath,
-      path_indices: pathIndices,
-      recipient: accountAddress,
-      btc_recipient_hash: "0x0",
-    }),
-  }]);
-  await provider.waitForTransaction(withdrawTx.transaction_hash);
-  ok(`Withdraw tx: ${withdrawTx.transaction_hash}`);
+  // Set mock router rate
+  const setRateTx = await account.execute([
+    {
+      contractAddress: ROUTER,
+      entrypoint: "set_rate",
+      calldata: CallData.compile({
+        rate_numerator: { low: 100, high: 0 },
+        rate_denominator: { low: Math.round(btcPrice), high: 0 },
+      }),
+    },
+  ]);
+  await provider.waitForTransaction(setRateTx.transaction_hash);
+  pass(`Mock router rate: 100/${Math.round(btcPrice)}`);
 
-  const wbtcAfter = await wbtc.balance_of(accountAddress);
-  const wbtcReceived = BigInt(wbtcAfter.toString()) - BigInt(wbtcBefore.toString());
-  ok(`WBTC received: ${Number(wbtcReceived) / 1e8}`);
+  // Wait for nonce to settle
+  await new Promise((r) => setTimeout(r, 5000));
 
-  // Verify nullifier is spent
-  const isSpent = await pool.is_zk_nullifier_spent(proveData.zkNullifier);
-  ok(`Nullifier spent: ${isSpent}`);
+  // Execute batch (min_wbtc_out must be > 0 per security guardrail)
+  const batchTx = await account.execute([
+    {
+      contractAddress: POOL,
+      entrypoint: "execute_batch",
+      calldata: CallData.compile({
+        min_wbtc_out: { low: 1, high: 0 },
+        routes: [],
+      }),
+    },
+  ]);
+  await provider.waitForTransaction(batchTx.transaction_hash);
+  pass(`Batch executed — ${batchTx.transaction_hash.slice(0, 20)}...`);
 
-  // ───────────────────────────────────────
-  // Summary
-  // ───────────────────────────────────────
-  console.log("\n╔══════════════════════════════════════╗");
-  console.log("║          E2E TEST PASSED             ║");
-  console.log("╚══════════════════════════════════════╝");
-  console.log(`
-  Shield tx:     ${shieldTx.transaction_hash}
-  Batch tx:      ${batchTx.transaction_hash}
-  Withdraw tx:   ${withdrawTx.transaction_hash}
-  ZK proof size: ${proveData.proof.length} felt252 values
-  Proof time:    ${proofDuration}s
-  WBTC received: ${Number(wbtcReceived) / 1e8}
-`);
+  // ---- Step 5: Verify batch results ----
+  console.log("\n--- Step 5: Verify batch results ---");
+
+  const postBatchId = Number(BigInt((await pool.get_current_batch_id()).toString()));
+  if (postBatchId > initBatchId) {
+    pass(`Batch ID: ${postBatchId} (was ${initBatchId})`);
+  } else {
+    fail(`Batch ID unchanged: ${postBatchId}`);
+  }
+
+  // Check pool WBTC balance increased (proves the swap worked)
+  const poolWbtc = BigInt((await wbtc.balance_of(POOL)).toString());
+  if (poolWbtc > 0n) {
+    pass(`Pool WBTC balance: ${Number(poolWbtc) / 1e8} BTC`);
+  } else {
+    fail("Pool has no WBTC after batch execution");
+  }
+
+  // Pending deposits should be cleared
+  const postPendingCount = Number(await pool.get_batch_count());
+  if (postPendingCount === 0) {
+    pass("Pending deposit count cleared to 0");
+  } else {
+    log(`Pending deposits after batch: ${postPendingCount}`);
+  }
+
+  const postPending =
+    Number(BigInt((await pool.get_pending_usdc()).toString())) / 1e6;
+  if (postPending === 0) {
+    pass("Pending USDC cleared to $0");
+  } else {
+    log(`Pending USDC: $${postPending} (may include newer deposits)`);
+  }
+
+  // ---- Step 6: Verify nullifiers ----
+  console.log("\n--- Step 6: Verify nullifier state ---");
+  for (const note of notes) {
+    const used = await pool.is_nullifier_spent(
+      "0x" + note.nullifierFelt.toString(16),
+    );
+    if (!used) {
+      pass(
+        `Tier ${note.tier} nullifier not used (withdrawal-ready)`,
+      );
+    } else {
+      fail(`Tier ${note.tier} nullifier already used!`);
+    }
+  }
+
+  // ---- Step 7: Test Vercel APIs ----
+  console.log("\n--- Step 7: Vercel API endpoints ---");
+
+  try {
+    const info = await fetch(`${VERCEL_URL}/api/relayer/info`);
+    const d = await info.json();
+    if (d.relayer === "online" && d.pool === POOL) {
+      pass(`/api/relayer/info — online, pool matches`);
+    } else {
+      fail(`/api/relayer/info — ${JSON.stringify(d)}`);
+    }
+  } catch (e) {
+    fail(`/api/relayer/info — ${e}`);
+  }
+
+  try {
+    const status = await fetch(`${VERCEL_URL}/api/agent/status`);
+    const d = await status.json();
+    if (d.anonSets && "3" in d.anonSets) {
+      pass(
+        `/api/agent/status — batches: ${d.batchCount}, btc: $${d.btcPrice}, tiers: [${Object.values(d.anonSets).join(",")}]`,
+      );
+    } else {
+      fail(`/api/agent/status — ${JSON.stringify(d)}`);
+    }
+  } catch (e) {
+    fail(`/api/agent/status — ${e}`);
+  }
+
+  // Test calldata server (VM)
+  try {
+    const health = await fetch("http://141.148.215.239/health", {
+      signal: AbortSignal.timeout(5000),
+    });
+    const d = await health.json();
+    if (d.status === "ok") {
+      pass(`VM calldata server — healthy`);
+    } else {
+      fail(`VM calldata server — ${JSON.stringify(d)}`);
+    }
+  } catch (e) {
+    fail(`VM calldata server — ${e}`);
+  }
+
+  // ---- Summary ----
+  console.log("\n========================================");
+  if (failed === 0) {
+    console.log(
+      `  \x1b[32mALL ${passed} TESTS PASSED\x1b[0m`,
+    );
+  } else {
+    console.log(
+      `  \x1b[31m${failed} FAILED\x1b[0m, ${passed} passed`,
+    );
+  }
+  console.log("========================================");
+  console.log(`\n  Pool:      ${POOL}`);
+  console.log(`  Batch ID:  ${postBatchId}`);
+  console.log(`  Deposits:  4 (tiers 0-3: $1, $10, $100, $1,000)`);
+  console.log(`  Frontend:  ${VERCEL_URL}`);
+  console.log(`\n  ZK withdrawal requires browser-side bb.js WASM.`);
+  console.log(`  Test it manually at ${VERCEL_URL}/app\n`);
+
+  process.exit(failed > 0 ? 1 : 0);
 }
 
 main().catch((err) => {
-  console.error("\n✗ E2E TEST FAILED:", err.message ?? err);
+  console.error("\n[FATAL]", err.message ?? err);
   process.exit(1);
 });

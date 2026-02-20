@@ -38,63 +38,59 @@ function HistoryEntry({ note }: { note: NoteWithStatus }) {
   return (
     <motion.div
       layout
-      className="border-b border-gray-100 last:border-0"
+      className="border-b border-[var(--border-subtle)] last:border-0"
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 py-3 px-1 hover:bg-gray-50 transition-colors cursor-pointer rounded-lg"
+        className="w-full flex items-center gap-3 py-3 px-1 hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer rounded-lg"
       >
-        {/* Icon */}
         <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
           isClaimed
-            ? "bg-emerald-50"
-            : "bg-orange-50"
+            ? "bg-[var(--accent-emerald-dim)]"
+            : "bg-[var(--accent-orange-dim)]"
         }`}>
           {isClaimed ? (
-            <Unlock size={14} strokeWidth={1.5} className="text-emerald-600" />
+            <Unlock size={14} strokeWidth={1.5} className="text-[var(--accent-emerald)]" />
           ) : (
-            <Shield size={14} strokeWidth={1.5} className="text-[#FF5A00]" />
+            <Shield size={14} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
           )}
         </div>
 
-        {/* Info */}
         <div className="flex-1 text-left min-w-0">
-          <div className="text-[13px] font-medium text-gray-900">
+          <div className="text-[13px] font-medium text-[var(--text-primary)]">
             {isClaimed ? "Exited" : "Allocated"}
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-[var(--text-tertiary)]">
             Batch #{note.batchId} &middot; {formatTimestamp(note.timestamp)}
           </div>
         </div>
 
-        {/* Amount */}
         <div className="text-right flex-shrink-0">
-          <div className="text-[13px] font-[family-name:var(--font-geist-mono)] font-semibold text-gray-900 font-tabular">
+          <div className="text-[13px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
             {isClaimed ? (
               <span className="flex items-center gap-1">
-                <ArrowUpRight size={12} strokeWidth={1.5} className="text-emerald-600" />
+                <ArrowUpRight size={12} strokeWidth={1.5} className="text-[var(--accent-emerald)]" />
                 {wbtcAmount ? `${wbtcAmount.toFixed(6)} BTC` : `${usdcAmount.toLocaleString()} USDC`}
               </span>
             ) : (
               <span className="flex items-center gap-1">
-                <ArrowDownLeft size={12} strokeWidth={1.5} className="text-[#FF5A00]" />
+                <ArrowDownLeft size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
                 {usdcAmount.toLocaleString()} USDC
               </span>
             )}
           </div>
           <div className={`text-xs font-medium ${
             note.status === "READY"
-              ? "text-emerald-600"
+              ? "text-[var(--accent-emerald)]"
               : note.status === "PENDING"
-                ? "text-amber-600"
-                : "text-gray-400"
+                ? "text-[var(--accent-amber)]"
+                : "text-[var(--text-tertiary)]"
           }`}>
             {note.status === "READY" ? "Ready" : note.status === "PENDING" ? "Pending" : "Complete"}
           </div>
         </div>
 
-        {/* Expand */}
-        <div className="flex-shrink-0 text-gray-400">
+        <div className="flex-shrink-0 text-[var(--text-tertiary)]">
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </div>
       </button>
@@ -110,29 +106,29 @@ function HistoryEntry({ note }: { note: NoteWithStatus }) {
           >
             <div className="px-1 pb-3 space-y-1.5">
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500">Commitment:</span>
-                <code className="font-[family-name:var(--font-geist-mono)] text-gray-600 text-xs">
+                <span className="text-[var(--text-tertiary)]">Commitment:</span>
+                <code className="font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)] text-xs">
                   {truncateHash(note.commitment, 10)}
                 </code>
               </div>
               {note.zkCommitment && (
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-500">ZK Commitment:</span>
-                  <code className="font-[family-name:var(--font-geist-mono)] text-gray-600 text-xs">
+                  <span className="text-[var(--text-tertiary)]">ZK Commitment:</span>
+                  <code className="font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)] text-xs">
                     {truncateHash(note.zkCommitment, 10)}
                   </code>
                 </div>
               )}
               {note.hasBtcIdentity && (
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-500">BTC Identity:</span>
-                  <span className="text-[#FF5A00] font-medium">Linked</span>
+                  <span className="text-[var(--text-tertiary)]">BTC Identity:</span>
+                  <span className="text-[var(--accent-orange)] font-medium">Linked</span>
                 </div>
               )}
               {wbtcAmount && (
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-500">WBTC Received:</span>
-                  <span className="font-[family-name:var(--font-geist-mono)] text-emerald-600 font-medium">
+                  <span className="text-[var(--text-tertiary)]">WBTC Received:</span>
+                  <span className="font-[family-name:var(--font-geist-mono)] text-[var(--accent-emerald)] font-medium">
                     {wbtcAmount.toFixed(8)}
                   </span>
                 </div>
@@ -154,7 +150,6 @@ export default function TransactionHistory() {
     setLoading(true);
     try {
       const all = await checkAllNoteStatuses(address ?? undefined);
-      // Sort by timestamp descending (newest first)
       all.sort((a, b) => b.timestamp - a.timestamp);
       setNotes(all);
     } catch {
@@ -172,12 +167,12 @@ export default function TransactionHistory() {
   if (notes.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-500">
+    <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden">
+      <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+        <span className="text-xs font-semibold text-[var(--text-secondary)]">
           Capital Activity
         </span>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-[var(--text-tertiary)]">
           {notes.length} {notes.length === 1 ? "transaction" : "transactions"}
         </span>
       </div>

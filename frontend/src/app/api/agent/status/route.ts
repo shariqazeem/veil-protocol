@@ -81,7 +81,7 @@ export async function GET() {
     const pool = new Contract({ abi: POOL_ABI, address: POOL_ADDRESS, providerOrAccount: provider });
 
     // Fetch pool state and BTC price in parallel
-    const [pendingRaw, batchCount, leafCount, anonSet0, anonSet1, anonSet2, btcPrice] =
+    const [pendingRaw, batchCount, leafCount, anonSet0, anonSet1, anonSet2, anonSet3, btcPrice] =
       await Promise.all([
         pool.get_pending_usdc(),
         pool.get_batch_count(),
@@ -89,11 +89,12 @@ export async function GET() {
         pool.get_anonymity_set(0),
         pool.get_anonymity_set(1),
         pool.get_anonymity_set(2),
+        pool.get_anonymity_set(3),
         fetchBtcPrice(),
       ]);
 
     const pendingUsdc = Number(BigInt(pendingRaw.toString())) / 1_000_000;
-    const anon = [Number(anonSet0), Number(anonSet1), Number(anonSet2)];
+    const anon = [Number(anonSet0), Number(anonSet1), Number(anonSet2), Number(anonSet3)];
 
     // CSI: max_participants * active_tranches
     const activeTranches = anon.filter((a) => a > 0).length;
@@ -104,7 +105,7 @@ export async function GET() {
       pendingUsdc,
       batchCount: Number(batchCount),
       leafCount: Number(leafCount),
-      anonSets: { 0: anon[0], 1: anon[1], 2: anon[2] },
+      anonSets: { 0: anon[0], 1: anon[1], 2: anon[2], 3: anon[3] },
       btcPrice,
       csi,
     });

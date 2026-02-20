@@ -3,9 +3,16 @@
 import { useState } from "react";
 import { useAccount } from "@starknet-react/core";
 import { motion, AnimatePresence } from "framer-motion";
-import { Rocket, ExternalLink, X } from "lucide-react";
+import { ExternalLink, X, Shield, Wallet, ArrowRightLeft, Lock } from "lucide-react";
 
 const STARKNET_FAUCET = "https://starknet-faucet.vercel.app/";
+
+const steps = [
+  { icon: Wallet, label: "Connect", desc: "Link Starknet + Bitcoin wallets" },
+  { icon: Shield, label: "Shield", desc: "Deposit USDC into privacy pool" },
+  { icon: ArrowRightLeft, label: "Convert", desc: "Batch swap to BTC at market rate" },
+  { icon: Lock, label: "Exit", desc: "ZK-prove ownership, withdraw privately" },
+];
 
 export default function OnboardingBanner() {
   const { isConnected } = useAccount();
@@ -16,59 +23,53 @@ export default function OnboardingBanner() {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: -12 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-        className="rounded-2xl p-5 bg-orange-50 border border-orange-200 relative"
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.3 }}
+        className="card-glow p-4 sm:p-5 relative"
       >
         <button
           onClick={() => setDismissed(true)}
-          className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+          className="absolute top-3 right-3 p-1 text-[var(--text-quaternary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer"
         >
           <X size={14} strokeWidth={1.5} />
         </button>
 
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center flex-shrink-0">
-            <Rocket size={16} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
-          </div>
-          <div>
-            <h3 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">
-              Confidential Bitcoin Accumulation
-            </h3>
-            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mb-3">
-              Live on Starknet Sepolia. Execute the full confidential accumulation flow:
-            </p>
-            <div className="space-y-2">
-              <div className="flex items-start gap-2.5">
-                <span className="text-[12px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">01</span>
-                <div>
-                  <span className="text-[12px] text-[var(--text-primary)] font-medium">Acquire Sepolia STRK/ETH for gas</span>
-                  <a
-                    href={STARKNET_FAUCET}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-1.5 inline-flex items-center gap-0.5 text-[12px] text-[#FF5A00] hover:underline"
-                  >
-                    Faucet <ExternalLink size={9} strokeWidth={2} />
-                  </a>
-                </div>
+        <span className="text-sm font-semibold text-[var(--text-primary)] tracking-tight">
+          Confidential Bitcoin Accumulation
+        </span>
+        <p className="text-xs text-[var(--text-tertiary)] mt-1 mb-4 max-w-[280px]">
+          Shield USDC, convert to BTC, exit privately with zero-knowledge proofs.
+        </p>
+
+        <div className="grid grid-cols-4 gap-2">
+          {steps.map(({ icon: Icon, label, desc }, i) => (
+            <motion.div
+              key={label}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.08 }}
+              className="text-center"
+            >
+              <div className="w-8 h-8 mx-auto rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center mb-1.5">
+                <Icon size={13} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
               </div>
-              <div className="flex items-start gap-2.5">
-                <span className="text-[12px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">02</span>
-                <span className="text-[12px] text-[var(--text-primary)] font-medium">Connect Starknet + Bitcoin wallets</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="text-[12px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">03</span>
-                <span className="text-[12px] text-[var(--text-primary)] font-medium">Allocate USDC capital into a privacy pool tranche</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="text-[12px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">04</span>
-                <span className="text-[12px] text-[var(--text-primary)] font-medium">Execute confidential exit with STARK-verified ZK proof</span>
-              </div>
-            </div>
-          </div>
+              <span className="text-[11px] font-semibold text-[var(--text-secondary)] block">{label}</span>
+              <span className="text-[9px] text-[var(--text-quaternary)] leading-tight block mt-0.5 hidden sm:block">{desc}</span>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+          <a
+            href={STARKNET_FAUCET}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] text-[var(--accent-orange)] hover:underline inline-flex items-center gap-1"
+          >
+            Get testnet gas <ExternalLink size={8} strokeWidth={2} />
+          </a>
         </div>
       </motion.div>
     </AnimatePresence>

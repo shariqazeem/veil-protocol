@@ -5,7 +5,7 @@
  *   commitment = pedersen(pedersen(0, amount_hash), secret_hash)
  *
  * Supports:
- * - Fixed denomination deposits ($1, $10, $100 USDC)
+ * - Fixed denomination deposits ($1, $10, $100, $1,000 USDC)
  * - Pedersen Merkle tree proof generation
  * - Encrypted note storage (AES-GCM with wallet-derived key)
  * - Nullifier computation
@@ -22,7 +22,7 @@ export interface GhostNote {
   secret: string;
   blinder: string;
   amount: string;
-  denomination: number; // 0=$1, 1=$10, 2=$100
+  denomination: number; // 0=$1, 1=$10, 2=$100, 3=$1,000
   commitment: string;
   zkCommitment?: string;   // Poseidon BN254 commitment for ZK proof
   zkNullifier?: string;    // Poseidon BN254 nullifier for ZK proof
@@ -41,12 +41,14 @@ export const DENOMINATIONS: Record<number, number> = {
   0: 1_000_000,         // $1 USDC (6 decimals)
   1: 10_000_000,        // $10 USDC
   2: 100_000_000,       // $100 USDC
+  3: 1_000_000_000,     // $1,000 USDC
 };
 
 export const DENOMINATION_LABELS: Record<number, string> = {
   0: "$1",
   1: "$10",
   2: "$100",
+  3: "$1,000",
 };
 
 const TREE_DEPTH = 20;

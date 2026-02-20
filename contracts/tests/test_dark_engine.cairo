@@ -168,7 +168,7 @@ fn test_three_users_deposit_and_batch_execute() {
     let mut spy = spy_events();
 
     start_cheat_caller_address(pool_addr, owner);
-    pool.execute_batch(0, array![]);
+    pool.execute_batch(1, array![]);
     stop_cheat_caller_address(pool_addr);
 
     // Verify post-execution state
@@ -226,7 +226,7 @@ fn test_multiple_batches_sequential() {
     stop_cheat_caller_address(pool_addr);
 
     start_cheat_caller_address(pool_addr, owner);
-    pool.execute_batch(0, array![]);
+    pool.execute_batch(1, array![]);
     stop_cheat_caller_address(pool_addr);
 
     let result0 = pool.get_batch_result(0);
@@ -241,7 +241,7 @@ fn test_multiple_batches_sequential() {
     stop_cheat_caller_address(pool_addr);
 
     start_cheat_caller_address(pool_addr, owner);
-    pool.execute_batch(0, array![]);
+    pool.execute_batch(1, array![]);
     stop_cheat_caller_address(pool_addr);
 
     let result1 = pool.get_batch_result(1);
@@ -279,7 +279,7 @@ fn test_non_owner_cannot_execute_batch() {
 
     // Non-owner cannot execute batch (owner-only protection)
     start_cheat_caller_address(pool_addr, anyone);
-    pool.execute_batch(0, array![]);
+    pool.execute_batch(1, array![]);
 }
 
 #[test]
@@ -289,7 +289,7 @@ fn test_cannot_execute_empty_batch() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     start_cheat_caller_address(pool_addr, owner);
-    pool.execute_batch(0, array![]);
+    pool.execute_batch(1, array![]);
 }
 
 #[test]
@@ -343,7 +343,8 @@ fn test_denomination_amounts() {
     assert(pool.get_denomination_amount(0) == 1_000_000, 'Tier 0 wrong');
     assert(pool.get_denomination_amount(1) == 10_000_000, 'Tier 1 wrong');
     assert(pool.get_denomination_amount(2) == 100_000_000, 'Tier 2 wrong');
-    assert(pool.get_denomination_amount(3) == 0, 'Tier 3 should be 0');
+    assert(pool.get_denomination_amount(3) == 1_000_000_000, 'Tier 3 wrong');
+    assert(pool.get_denomination_amount(4) == 0, 'Tier 4 should be 0');
 }
 
 #[test]

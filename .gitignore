@@ -39,3 +39,4 @@ Thumbs.db
 
 # Lock files
 scripts/package-lock.json
+.vercel

@@ -2,7 +2,7 @@
 
 Confidential Bitcoin accumulation infrastructure on Starknet.
 
-[Live App](https://theveilprotocol.vercel.app) | [Docs](https://veilprotocol-docs.vercel.app) | [Pool on Voyager](https://sepolia.voyager.online/contract/0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210) | [Verifier on Voyager](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) | Re{define} Starknet Hackathon 2026
+[Live App](https://theveilprotocol.vercel.app) | [Docs](https://veilprotocol-docs.vercel.app) | [Pool on Voyager](https://sepolia.voyager.online/contract/0x36d381583268dc5730735a9359d467ae5094d1b8c11fad53d72497c0a3fde77) | [Verifier on Voyager](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) | Re{define} Starknet Hackathon 2026
 
 ---
 
@@ -36,10 +36,10 @@ The protocol consists of four layers. The **Cairo contract layer** manages depos
 
 | Contract | Address |
 |----------|---------|
-| ShieldedPool | `0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210` |
+| ShieldedPool | `0x36d381583268dc5730735a9359d467ae5094d1b8c11fad53d72497c0a3fde77` |
 | GaragaVerifier | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` |
-| USDC | `0x4cf76a48cda7d5e99d987e1506a0090caee3350a0d4fcedb5f39dea9c7d192b` |
-| WBTC | `0x73bcbf56714ac25619f59335ecaf967d657e67050b1b26f46087893aa21a2a2` |
+| USDC (Mock) | `0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080` |
+| WBTC (Mock) | `0x00452bd5c0512a61df7c7be8cfea5e4f893cb40e126bdc40aee6054db955129e` |
 
 ## Running Locally
 

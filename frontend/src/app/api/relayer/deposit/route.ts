@@ -43,6 +43,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate denomination amount matches a valid tier
+    const VALID_AMOUNTS = [1_000_000, 10_000_000, 100_000_000, 1_000_000_000];
+    if (!VALID_AMOUNTS.includes(Number(usdc_amount))) {
+      return NextResponse.json(
+        { success: false, error: "Invalid denomination amount" },
+        { status: 400 },
+      );
+    }
+
     const relayerAddress = account.address;
 
     // 1. Pull USDC from user to relayer (user pre-approved relayer)
