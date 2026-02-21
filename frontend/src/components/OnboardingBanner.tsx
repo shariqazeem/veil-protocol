@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAccount } from "@starknet-react/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { ExternalLink, X, Shield, Wallet, ArrowRightLeft, Lock } from "lucide-react";
+import { isMainnet } from "@/utils/network";
 
 const STARKNET_FAUCET = "https://starknet-faucet.vercel.app/";
 
@@ -53,7 +54,7 @@ export default function OnboardingBanner() {
               className="text-center"
             >
               <div className="w-8 h-8 mx-auto rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center mb-1.5">
-                <Icon size={13} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                <Icon size={13} strokeWidth={1.5} className="text-violet-500" />
               </div>
               <span className="text-[11px] font-semibold text-[var(--text-secondary)] block">{label}</span>
               <span className="text-[9px] text-[var(--text-quaternary)] leading-tight block mt-0.5 hidden sm:block">{desc}</span>
@@ -61,16 +62,18 @@ export default function OnboardingBanner() {
           ))}
         </div>
 
-        <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
-          <a
-            href={STARKNET_FAUCET}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] text-[var(--accent-orange)] hover:underline inline-flex items-center gap-1"
-          >
-            Get testnet gas <ExternalLink size={8} strokeWidth={2} />
-          </a>
-        </div>
+        {!isMainnet && (
+          <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+            <a
+              href={STARKNET_FAUCET}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-violet-500 hover:underline inline-flex items-center gap-1"
+            >
+              Get testnet gas <ExternalLink size={8} strokeWidth={2} />
+            </a>
+          </div>
+        )}
       </motion.div>
     </AnimatePresence>
   );

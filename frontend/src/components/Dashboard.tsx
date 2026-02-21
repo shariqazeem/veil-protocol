@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useReadContract } from "@starknet-react/core";
 import { motion, useMotionValue, animate } from "framer-motion";
-import { Play, Loader2, Check, ExternalLink, Zap, Lock } from "lucide-react";
+import { Play, Loader2, Check, ExternalLink, Zap, Lock, Bitcoin, ArrowRightLeft } from "lucide-react";
 import PrivacyScore from "./PrivacyScore";
 import { SkeletonLine } from "./Skeleton";
 import { useToast } from "@/context/ToastContext";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
-import { EXPLORER_TX } from "@/utils/network";
+import { EXPLORER_TX, RPC_URL } from "@/utils/network";
+import { RpcProvider, Contract, type Abi } from "starknet";
 
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 
@@ -82,6 +83,108 @@ function PrivacyOrb({ score, leaves }: { score: number; leaves: number }) {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+interface IntentData {
+  id: number;
+  amount: string;
+  status: string;
+  timestamp: number;
+}
+
+const STATUS_MAP: Record<number, string> = { 0: "CREATED", 1: "CLAIMED", 2: "SETTLED", 3: "EXPIRED" };
+const STATUS_COLORS: Record<string, string> = {
+  CREATED: "var(--accent-orange)",
+  CLAIMED: "var(--accent-amber)",
+  SETTLED: "var(--accent-emerald)",
+  EXPIRED: "var(--text-tertiary)",
+};
+
+function IntentExplorer({ poolAddress }: { poolAddress: string }) {
+  const [intents, setIntents] = useState<IntentData[]>([]);
+  const [intentCount, setIntentCount] = useState(0);
+
+  useEffect(() => {
+    if (!poolAddress) return;
+    async function fetchIntents() {
+      try {
+        const provider = new RpcProvider({ nodeUrl: RPC_URL });
+        const pool = new Contract({ abi: SHIELDED_POOL_ABI as unknown as Abi, address: poolAddress, providerOrAccount: provider });
+        const count = Number(await pool.call("get_intent_count", []));
+        setIntentCount(count);
+        if (count === 0) return;
+        const start = Math.max(0, count - 5);
+        const fetched: IntentData[] = [];
+        for (let i = count - 1; i >= start; i--) {
+          try {
+            const intent = await pool.call("get_intent", [i]) as any;
+            fetched.push({
+              id: i,
+              amount: (Number(intent.amount || intent[0] || 0) / 1e8).toFixed(6),
+              status: STATUS_MAP[Number(intent.status ?? intent[4] ?? 0)] || "UNKNOWN",
+              timestamp: Number(intent.timestamp || intent[3] || 0),
+            });
+          } catch { break; }
+        }
+        setIntents(fetched);
+      } catch { /* no intents available */ }
+    }
+    fetchIntents();
+    const interval = setInterval(fetchIntents, 15_000);
+    return () => clearInterval(interval);
+  }, [poolAddress]);
+
+  if (intentCount === 0) return null;
+
+  return (
+    <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] p-5 sm:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Bitcoin size={14} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">Bitcoin Intent Settlement</span>
+        </div>
+        <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--accent-orange-dim)] text-[var(--accent-orange)] font-semibold">
+          {intentCount} intent{intentCount !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="space-y-2">
+        {intents.map((intent) => {
+          const color = STATUS_COLORS[intent.status] || "var(--text-tertiary)";
+          return (
+            <motion.div
+              key={intent.id}
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)]"
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="flex items-center gap-3">
+                <ArrowRightLeft size={12} strokeWidth={1.5} style={{ color }} />
+                <div>
+                  <span className="text-xs font-semibold text-[var(--text-primary)]">
+                    Intent #{intent.id}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-tertiary)] ml-2">
+                    {intent.amount} WBTC
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {intent.status === "CREATED" || intent.status === "CLAIMED" ? (
+                  <Loader2 size={10} className="animate-spin" style={{ color }} strokeWidth={2} />
+                ) : (
+                  <Check size={10} style={{ color }} strokeWidth={2} />
+                )}
+                <span className="text-[11px] font-semibold" style={{ color }}>
+                  {intent.status}
+                </span>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -247,7 +350,7 @@ export default function Dashboard() {
                 <div className="flex items-baseline gap-1.5 mt-1">
                   {dataLoaded ? (
                     <motion.span
-                      className="text-xl sm:text-2xl font-[family-name:var(--font-geist-mono)] font-bold text-[var(--accent-orange)] font-tabular tracking-tight"
+                      className="text-xl sm:text-2xl font-[family-name:var(--font-geist-mono)] font-bold text-violet-600 font-tabular tracking-tight"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.4, delay: 0.1 }}
@@ -281,18 +384,18 @@ export default function Dashboard() {
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between p-4 rounded-2xl bg-[var(--accent-orange-dim)] border border-[var(--accent-orange)]/15"
+          className="flex items-center justify-between p-4 rounded-2xl bg-violet-50 border border-violet-200/50"
         >
           <div>
             <span className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
-              <Zap size={11} strokeWidth={2} className="text-[var(--accent-orange)]" />
+              <Zap size={11} strokeWidth={2} className="text-violet-500" />
               {pending.toLocaleString()} USDC ready for conversion
             </span>
           </div>
           <motion.button
             onClick={handleExecuteBatch}
             disabled={batchExecuting || proverStatus !== "online"}
-            className="px-4 py-2 bg-[var(--accent-orange)] text-white rounded-xl text-xs font-semibold
+            className="px-4 py-2 bg-gray-900 text-white rounded-xl text-xs font-semibold
                        disabled:opacity-30 disabled:cursor-not-allowed
                        cursor-pointer flex items-center gap-1.5 flex-shrink-0"
             whileTap={!batchExecuting ? { scale: 0.97 } : {}}
@@ -318,6 +421,9 @@ export default function Dashboard() {
           <ExternalLink size={9} strokeWidth={1.5} className="opacity-60" />
         </a>
       )}
+
+      {/* Active Bitcoin Intents */}
+      <IntentExplorer poolAddress={poolAddress} />
 
       {/* Anonymity Sets + Privacy Score */}
       <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] p-5 sm:p-6">

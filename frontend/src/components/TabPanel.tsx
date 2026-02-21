@@ -12,9 +12,9 @@ import AgentTab from "./AgentTab";
 type Step = 1 | 2 | "agent";
 
 const tabs = [
-  { key: 1 as Step, label: "Shield", icon: Shield, color: "var(--accent-orange)", glow: "rgba(255,90,0,0.15)" },
-  { key: 2 as Step, label: "Unveil", icon: Unlock, color: "var(--accent-emerald)", glow: "rgba(52,211,153,0.15)" },
-  { key: "agent" as Step, label: "Strategist", icon: Brain, color: "var(--accent-violet)", glow: "rgba(167,139,250,0.15)" },
+  { key: 1 as Step, label: "Shield", icon: Shield, color: "#7C3AED", glow: "rgba(124,58,237,0.15)" },
+  { key: 2 as Step, label: "Unveil", icon: Unlock, color: "#10B981", glow: "rgba(16,185,129,0.15)" },
+  { key: "agent" as Step, label: "Strategist", icon: Brain, color: "#8B5CF6", glow: "rgba(139,92,246,0.15)" },
 ];
 
 export default function TabPanel() {

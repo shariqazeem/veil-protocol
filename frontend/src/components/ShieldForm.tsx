@@ -63,8 +63,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
   const poolAddress = addresses.contracts.shieldedPool;
   const usdcAddress = addresses.contracts.usdc;
 
-  const REAL_USDC = "0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080";
-  const isLiveMode = usdcAddress.toLowerCase() === REAL_USDC.toLowerCase();
+  const isLiveMode = isMainnet || addresses.network !== "sepolia";
 
   const { data: usdcBalance, refetch: refetchBalance } = useReadContract({
     address: usdcAddress || undefined,
@@ -311,8 +310,8 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
               <div
                 className="w-24 h-24 rounded-full animate-processing-orb"
                 style={{
-                  background: "radial-gradient(circle at 40% 35%, rgba(255,90,0,0.3) 0%, rgba(255,90,0,0.15) 50%, rgba(255,90,0,0.05) 100%)",
-                  border: "1px solid rgba(255,90,0,0.3)",
+                  background: "radial-gradient(circle at 40% 35%, rgba(124,58,237,0.3) 0%, rgba(124,58,237,0.15) 50%, rgba(124,58,237,0.05) 100%)",
+                  border: "1px solid rgba(124,58,237,0.3)",
                 }}
               />
             )}
@@ -350,7 +349,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                     {i > 0 && <div className={`w-6 h-px ${isDone || isActive ? "bg-[var(--accent-emerald)]" : "bg-[var(--border-subtle)]"}`} />}
                     <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
                       isDone ? "bg-[var(--accent-emerald-dim)] text-[var(--accent-emerald)] border-[var(--accent-emerald)]/30"
-                        : isActive ? "bg-[var(--accent-orange-dim)] text-[var(--accent-orange)] border-[var(--accent-orange)]/30"
+                        : isActive ? "bg-[var(--accent-primary-dim)] text-[var(--accent-primary)] border-[var(--accent-primary)]/30"
                         : "bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] border-[var(--border-subtle)]"
                     }`}>
                       {isDone && <CheckCircle size={10} strokeWidth={2} />}
@@ -376,31 +375,44 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl p-4 bg-[var(--accent-orange-dim)] border border-[var(--accent-orange)]/20"
+                className="rounded-2xl p-4 bg-violet-50 border border-violet-200/60"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-[var(--accent-orange)]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Droplets size={14} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                  <div className="w-8 h-8 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Droplets size={14} strokeWidth={1.5} className="text-violet-500" />
                   </div>
                   <div className="flex-1 min-w-0">
                     {isLiveMode ? (
                       <>
                         <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">
-                          Get Sepolia USDC
+                          {isMainnet ? "Get USDC" : "Get Sepolia USDC"}
                         </p>
                         <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
-                          This demo uses real Sepolia testnet USDC:
+                          {isMainnet
+                            ? "Bridge USDC to Starknet to start shielding:"
+                            : "This demo uses real Sepolia testnet USDC:"}
                         </p>
                         <ol className="text-xs text-[var(--text-secondary)] leading-relaxed mb-3 list-decimal list-inside space-y-1">
-                          <li>Get Sepolia ETH from a{" "}
-                            <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">faucet</a>
-                          </li>
-                          <li>Get Sepolia USDC from{" "}
-                            <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">Circle Faucet</a>
-                          </li>
-                          <li>Bridge to Starknet via{" "}
-                            <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">StarkGate</a>
-                          </li>
+                          {isMainnet ? (
+                            <>
+                              <li>Get USDC on Ethereum</li>
+                              <li>Bridge to Starknet via{" "}
+                                <a href="https://starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">StarkGate</a>
+                              </li>
+                            </>
+                          ) : (
+                            <>
+                              <li>Get Sepolia ETH from a{" "}
+                                <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">faucet</a>
+                              </li>
+                              <li>Get Sepolia USDC from{" "}
+                                <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">Circle Faucet</a>
+                              </li>
+                              <li>Bridge to Starknet via{" "}
+                                <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">StarkGate</a>
+                              </li>
+                            </>
+                          )}
                         </ol>
                         <span className="text-xs text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)]">
                           Balance: {balance.toLocaleString()} USDC
@@ -418,7 +430,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                           <motion.button
                             onClick={handleMintUsdc}
                             disabled={minting || !address}
-                            className="px-4 py-2 bg-[var(--accent-orange)] text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                            className="px-4 py-2 bg-violet-600 text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                             whileTap={{ scale: 0.97 }}
                             transition={spring}
                           >
@@ -475,8 +487,8 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                       onClick={() => setSelectedTier(tierNum)}
                       className={`relative py-4 px-2 rounded-xl text-center transition-all cursor-pointer border active:scale-95 ${
                         isSelected
-                          ? "bg-[var(--accent-orange)] text-white border-[var(--accent-orange)] shadow-[var(--glow-orange)]"
-                          : "bg-[var(--bg-tertiary)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--accent-orange)]/30 hover-glow"
+                          ? "bg-violet-600 text-white border-violet-600 shadow-[0_0_20px_rgba(124,58,237,0.2)]"
+                          : "bg-[var(--bg-tertiary)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-violet-300 hover-glow"
                       }`}
                       whileTap={{ scale: 0.95 }}
                       transition={spring}
@@ -522,11 +534,11 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
             <motion.button
               onClick={handleAccumulate}
               disabled={!canAccumulate}
-              className="btn-shimmer w-full py-4 bg-[var(--accent-orange)] text-white rounded-2xl text-[15px] font-semibold tracking-tight
+              className="btn-shimmer w-full py-4 bg-gray-900 text-white rounded-2xl text-[15px] font-semibold tracking-tight
                          disabled:opacity-20 disabled:cursor-not-allowed
                          cursor-pointer transition-all flex items-center justify-center gap-2
-                         shadow-[var(--glow-orange)] active:scale-[0.98]"
-              whileHover={canAccumulate ? { y: -1, boxShadow: "0 0 50px rgba(255,90,0,0.4)" } : {}}
+                         shadow-lg active:scale-[0.98]"
+              whileHover={canAccumulate ? { y: -2, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" } : {}}
               whileTap={canAccumulate ? { scale: 0.98 } : {}}
               transition={spring}
             >

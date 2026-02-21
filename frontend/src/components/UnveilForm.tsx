@@ -30,7 +30,7 @@ interface ProofDetails {
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 const TX_EXPLORER = EXPLORER_TX;
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
-const GARAGA_VERIFIER = "0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07";
+const GARAGA_VERIFIER = addresses.contracts.garagaVerifier;
 
 function truncateHash(h: string, chars = 4): string {
   if (h.length <= chars * 2 + 2) return h;
@@ -152,7 +152,7 @@ function NoteCard({
         {note.wbtcShare && (
           <div>
             <span className="text-xs text-[var(--text-tertiary)]">BTC Share</span>
-            <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--accent-orange)] font-tabular">
+            <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-amber-500 font-tabular">
               {(Number(note.wbtcShare) / 1e8).toFixed(8)} BTC
             </div>
           </div>
@@ -170,11 +170,11 @@ function NoteCard({
         <motion.button
           onClick={() => onClaim(note)}
           disabled={isClaiming}
-          className="w-full py-3 bg-[var(--accent-orange)] text-white rounded-xl text-sm font-semibold
+          className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold
                      disabled:opacity-50 disabled:cursor-not-allowed
                      flex items-center justify-center gap-2 cursor-pointer
-                     shadow-[var(--glow-orange)]"
-          whileHover={{ y: -1, boxShadow: "0 0 40px rgba(255,90,0,0.35)" }}
+                     shadow-lg"
+          whileHover={{ y: -2, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
           whileTap={{ scale: 0.98 }}
           transition={spring}
         >
@@ -522,10 +522,10 @@ export default function UnveilForm() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                    <Fingerprint size={14} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                    <Fingerprint size={14} strokeWidth={1.5} className="text-violet-500" />
                     <span className="font-medium">Generating Zero-Knowledge Proof</span>
                   </div>
-                  <span className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--accent-orange)] font-tabular animate-pulse">
+                  <span className="text-xs font-[family-name:var(--font-geist-mono)] text-violet-500 font-tabular animate-pulse">
                     {zkTimer}s
                   </span>
                 </div>
@@ -541,11 +541,11 @@ export default function UnveilForm() {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: i * 0.15 }}
-                      className="rounded-lg p-3 text-center border bg-[var(--accent-orange-dim)] border-[var(--accent-orange)]/20 animate-glow-pulse"
+                      className="rounded-lg p-3 text-center border bg-violet-50 border-violet-200/50 animate-glow-pulse"
                     >
                       <div className="flex items-center justify-center gap-1 mb-1">
-                        <Loader size={10} className="animate-spin text-[var(--accent-orange)]" strokeWidth={2} />
-                        <span className="text-xs font-bold text-[var(--accent-orange)]">
+                        <Loader size={10} className="animate-spin text-violet-500" strokeWidth={2} />
+                        <span className="text-xs font-bold text-violet-600">
                           {step.label}
                         </span>
                       </div>
@@ -562,7 +562,7 @@ export default function UnveilForm() {
             )}
             {claimPhase === "withdrawing" && (
               <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                <Loader size={14} className="animate-spin text-[var(--accent-orange)]" strokeWidth={1.5} />
+                <Loader size={14} className="animate-spin text-violet-500" strokeWidth={1.5} />
                 <span>Executing confidential exit ({proofDetails?.calldataElements ?? "~2835"} calldata elements)...</span>
               </div>
             )}
@@ -648,7 +648,7 @@ export default function UnveilForm() {
           <div className="rounded-lg bg-[var(--bg-tertiary)] p-2.5 space-y-1.5 border border-[var(--border-subtle)]">
             <div className="text-xs text-[var(--text-secondary)] font-medium">Add BTC token to your wallet:</div>
             <div className="flex items-center gap-2">
-              <code className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--accent-orange)] bg-[var(--bg-elevated)] px-2 py-1 rounded flex-1 truncate">
+              <code className="text-xs font-[family-name:var(--font-geist-mono)] text-violet-600 bg-[var(--bg-elevated)] px-2 py-1 rounded flex-1 truncate">
                 {addresses.contracts.wbtc}
               </code>
               <button
@@ -656,7 +656,7 @@ export default function UnveilForm() {
                   navigator.clipboard.writeText(addresses.contracts.wbtc);
                   setTokenAdded(true);
                 }}
-                className="text-xs font-medium text-[var(--accent-orange)] hover:text-[var(--accent-orange)]/80 px-2 py-1 bg-[var(--bg-elevated)] rounded cursor-pointer whitespace-nowrap border border-[var(--border-subtle)]"
+                className="text-xs font-medium text-violet-600 hover:text-violet-500 px-2 py-1 bg-[var(--bg-elevated)] rounded cursor-pointer whitespace-nowrap border border-[var(--border-subtle)]"
               >
                 {tokenAdded ? "Copied" : "Copy"}
               </button>
@@ -689,7 +689,7 @@ export default function UnveilForm() {
       {activeNotes.some((n) => n.status === "READY" && !!n.zkCommitment) && (
         <div className={`rounded-xl p-4 border transition-all ${
           useRelayer
-            ? "bg-[var(--accent-orange-dim)] border-[var(--accent-orange)]/20"
+            ? "bg-violet-50 border-violet-200/50"
             : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)]"
         }`}>
           <button
@@ -698,7 +698,7 @@ export default function UnveilForm() {
           >
             <div className="flex items-center gap-2.5">
               <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                useRelayer ? "bg-[var(--accent-orange)]" : "bg-[var(--bg-elevated)]"
+                useRelayer ? "bg-violet-600" : "bg-[var(--bg-elevated)]"
               }`}>
                 <Zap size={13} strokeWidth={1.5} className={useRelayer ? "text-white" : "text-[var(--text-tertiary)]"} />
               </div>
@@ -712,7 +712,7 @@ export default function UnveilForm() {
               </div>
             </div>
             <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-              useRelayer ? "bg-[var(--accent-orange)]" : "bg-[var(--bg-elevated)]"
+              useRelayer ? "bg-violet-600" : "bg-[var(--bg-elevated)]"
             }`}>
               <span
                 className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
@@ -722,8 +722,8 @@ export default function UnveilForm() {
             </div>
           </button>
           {useRelayer && (
-            <div className="mt-3 pt-3 border-t border-[var(--accent-orange)]/20 flex items-center justify-between">
-              <span className="text-xs text-[var(--accent-orange)]">
+            <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between">
+              <span className="text-xs text-violet-600">
                 Fee: <strong>{relayerFee ? `${relayerFee / 100}%` : "2%"}</strong> of WBTC
               </span>
               <span className="text-xs text-[var(--text-tertiary)]">
@@ -790,7 +790,7 @@ export default function UnveilForm() {
               </div>
               <input
                 type="text"
-                placeholder="tb1q... or bc1q... (your Bitcoin address)"
+                placeholder="bc1q... (your Bitcoin address)"
                 value={btcWithdrawAddress}
                 onChange={(e) => setBtcWithdrawAddress(e.target.value)}
                 className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-primary)] border border-[var(--border-medium)] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
@@ -949,7 +949,7 @@ export default function UnveilForm() {
               <Download size={11} strokeWidth={1.5} />
               Export Notes
             </button>
-            <label className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-orange)]/30 transition-colors cursor-pointer flex items-center justify-center gap-1.5">
+            <label className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-violet-300 transition-colors cursor-pointer flex items-center justify-center gap-1.5">
               <Upload size={11} strokeWidth={1.5} />
               Import Notes
               <input

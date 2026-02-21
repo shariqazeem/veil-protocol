@@ -130,7 +130,7 @@ export default function WalletBar() {
       <div className="max-w-3xl mx-auto flex items-center justify-between">
         {/* Wordmark */}
         <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
-          Veil<span className="text-[var(--accent-orange)]"> Protocol</span>
+          Veil<span className="text-violet-600"> Protocol</span>
         </span>
 
         {/* Identity Pill */}
@@ -162,7 +162,7 @@ export default function WalletBar() {
 
             {/* Bitcoin side */}
             <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2.5 sm:py-2.5">
-              <Bitcoin size={13} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+              <Bitcoin size={13} strokeWidth={1.5} className="text-amber-500" />
               {bitcoinAddress ? (
                 <>
                   <span className="text-[11px] sm:text-[13px] font-medium text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]">
@@ -179,7 +179,7 @@ export default function WalletBar() {
           {/* If neither connected */}
           {!starknetAddress && !bitcoinAddress && (
             <div className="absolute -bottom-6 right-0 text-[12px] text-[var(--text-tertiary)] whitespace-nowrap flex items-center gap-1">
-              <Zap size={10} strokeWidth={2} className="text-[var(--accent-orange)]" />
+              <Zap size={10} strokeWidth={2} className="text-violet-500" />
               Connect Identity
             </div>
           )}
@@ -236,7 +236,7 @@ export default function WalletBar() {
                           key={connector.id}
                           onClick={() => handleStarknetConnect(connector)}
                           disabled={snConnecting || connectPending}
-                          className="w-full text-left px-3.5 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--accent-orange)]/30 rounded-xl text-[13px] font-medium text-[var(--text-primary)] transition-all cursor-pointer disabled:opacity-50"
+                          className="w-full text-left px-3.5 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-violet-400/30 rounded-xl text-[13px] font-medium text-[var(--text-primary)] transition-all cursor-pointer disabled:opacity-50"
                         >
                           {(snConnecting || connectPending) ? "Connecting..." : connector.name}
                         </button>
@@ -256,7 +256,7 @@ export default function WalletBar() {
                 {/* Bitcoin Section */}
                 <div>
                   <div className="flex items-center gap-2 mb-2.5">
-                    <Bitcoin size={13} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                    <Bitcoin size={13} strokeWidth={1.5} className="text-amber-500" />
                     <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
                       Bitcoin <span className="text-[var(--text-tertiary)]">(optional)</span>
                     </span>
@@ -281,7 +281,7 @@ export default function WalletBar() {
                       <button
                         onClick={connectBitcoin}
                         disabled={btcLoading}
-                        className="w-full text-left px-3.5 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--accent-orange)]/30 rounded-xl text-[13px] font-medium text-[var(--text-primary)] transition-all disabled:opacity-50 cursor-pointer"
+                        className="w-full text-left px-3.5 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-violet-400/30 rounded-xl text-[13px] font-medium text-[var(--text-primary)] transition-all disabled:opacity-50 cursor-pointer"
                       >
                         {btcLoading ? "Connecting..." : "Connect Xverse"}
                       </button>

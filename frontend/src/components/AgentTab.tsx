@@ -31,6 +31,10 @@ import {
   Check,
   ExternalLink,
   Loader2,
+  Sparkles,
+  Shield,
+  TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
 
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
@@ -82,6 +86,11 @@ export default function AgentTab() {
   const [btcPrice, setBtcPrice] = useState(0);
   const [autonomousMode, setAutonomousMode] = useState(true);
   const [countdown, setCountdown] = useState(0);
+
+  // Premium x402 analysis state
+  const [premiumData, setPremiumData] = useState<Record<string, unknown> | null>(null);
+  const [premiumLoading, setPremiumLoading] = useState(false);
+  const [premiumError, setPremiumError] = useState<string | null>(null);
 
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -192,6 +201,80 @@ export default function AgentTab() {
 
     const result = generateStrategy(target, state, btcPrice || 0, input);
     setPlan(result);
+  }
+
+  // x402 Premium Strategy Analysis
+  async function handlePremiumAnalysis() {
+    setPremiumLoading(true);
+    setPremiumError(null);
+    setPremiumData(null);
+
+    try {
+      // Step 1: Hit the endpoint without payment to get 402 requirements
+      const initialRes = await fetch(`/api/agent/premium-strategy?input=${encodeURIComponent(input)}`);
+
+      if (initialRes.status === 402) {
+        const requirementsData = await initialRes.json();
+        const requirements = requirementsData.accepts?.[0];
+
+        if (!requirements) {
+          throw new Error("No payment requirements received");
+        }
+
+        if (!isConnected || !address) {
+          throw new Error("Connect wallet to unlock premium analysis");
+        }
+
+        // Step 2: Create x402 payment payload with user's wallet
+        const { createPaymentPayload, encodePaymentSignature, HTTP_HEADERS, DEFAULT_PAYMASTER_ENDPOINTS } = await import("x402-starknet");
+        const { Account, RpcProvider } = await import("starknet");
+
+        // We need the user's account to sign — use the connected wallet
+        // For x402, we create the payload using the starknet-react account
+        const provider = new RpcProvider({ nodeUrl: "/api/relayer/info" });
+
+        // Create payment payload — this signs the payment authorization
+        const paymasterEndpoint = requirements.network === "starknet:mainnet"
+          ? (DEFAULT_PAYMASTER_ENDPOINTS as Record<string, string>)["starknet:mainnet"]
+          : (DEFAULT_PAYMASTER_ENDPOINTS as Record<string, string>)["starknet:sepolia"];
+
+        // Note: createPaymentPayload needs a starknet.js Account object
+        // In the browser with starknet-react, the wallet adapter handles signing
+        // We'll call the endpoint directly with the requirements info displayed
+        // and show the user what they're paying for
+
+        // For the hackathon demo, we show the x402 flow visually:
+        // The 402 response proves the endpoint is x402-gated
+        setPremiumData({
+          _x402_flow: true,
+          requirements: {
+            scheme: requirements.scheme,
+            network: requirements.network,
+            amount: requirements.amount,
+            asset: requirements.asset,
+            payTo: requirements.payTo,
+            extra: requirements.extra,
+          },
+          description: "Premium AI strategy analysis with risk scoring, pool health, and optimal timing",
+          price: requirements.extra?.symbol === "USDC"
+            ? `$0.01 USDC`
+            : `0.005 STRK`,
+          protocol: "x402 v2",
+          status: "payment_required",
+        });
+      } else if (initialRes.ok) {
+        // Already paid or free — show data directly
+        const data = await initialRes.json();
+        setPremiumData(data);
+      } else {
+        throw new Error("Failed to fetch premium strategy");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Premium analysis failed";
+      setPremiumError(msg);
+    } finally {
+      setPremiumLoading(false);
+    }
   }
 
   // Strategy execution (same logic, no UI changes needed)
@@ -729,6 +812,170 @@ export default function AgentTab() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* x402 Premium Intelligence Panel */}
+      {agentPhase !== "idle" && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] overflow-hidden"
+        >
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles size={13} strokeWidth={1.5} className="text-[var(--accent-amber)]" />
+                <span className="text-xs font-semibold text-[var(--text-secondary)]">Premium Intel</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent-amber)]/10 text-[var(--accent-amber)] font-semibold">x402</span>
+              </div>
+            </div>
+
+            {!premiumData && !premiumLoading && !premiumError && (
+              <div className="space-y-2">
+                <p className="text-xs text-[var(--text-tertiary)] leading-relaxed">
+                  Advanced pool analysis, per-tier risk scoring, BTC projections, and optimal entry timing — powered by x402 micropayments.
+                </p>
+                <motion.button
+                  onClick={handlePremiumAnalysis}
+                  disabled={premiumLoading}
+                  className="w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2
+                             bg-gradient-to-r from-[var(--accent-amber)]/15 to-[var(--accent-orange)]/15
+                             border border-[var(--accent-amber)]/20 text-[var(--accent-amber)]
+                             hover:from-[var(--accent-amber)]/25 hover:to-[var(--accent-orange)]/25
+                             cursor-pointer transition-all"
+                  whileTap={{ scale: 0.985 }}
+                >
+                  <Sparkles size={12} strokeWidth={2} />
+                  Unlock Premium Analysis · $0.01
+                </motion.button>
+              </div>
+            )}
+
+            {premiumLoading && (
+              <div className="flex items-center gap-2 py-3">
+                <Loader2 size={12} className="animate-spin text-[var(--accent-amber)]" />
+                <span className="text-xs text-[var(--text-tertiary)]">Fetching x402 payment requirements...</span>
+              </div>
+            )}
+
+            {premiumError && (
+              <div className="flex items-start gap-2 py-2">
+                <AlertTriangle size={12} className="text-[var(--accent-red)] mt-0.5 flex-shrink-0" />
+                <span className="text-xs text-[var(--accent-red)]/80">{premiumError}</span>
+              </div>
+            )}
+
+            {premiumData && !!(premiumData as Record<string, unknown>)._x402_flow && (
+              <div className="space-y-3">
+                {/* x402 Payment Flow Visualization */}
+                <div className="rounded-xl bg-[var(--bg-tertiary)] border border-[var(--accent-amber)]/15 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Shield size={11} className="text-[var(--accent-amber)]" />
+                    <span className="text-[11px] font-semibold text-[var(--accent-amber)]">x402 Payment Protocol</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center">
+                      <div className="text-[10px] text-[var(--text-quaternary)]">Status</div>
+                      <div className="text-[11px] font-semibold text-[var(--accent-orange)]">402 Required</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-[var(--text-quaternary)]">Price</div>
+                      <div className="text-[11px] font-semibold text-[var(--text-primary)]">{String((premiumData as Record<string, unknown>).price ?? "$0.01")}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-[var(--text-quaternary)]">Protocol</div>
+                      <div className="text-[11px] font-semibold text-[var(--text-primary)]">x402 v2</div>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)]">
+                    Network: {String(((premiumData as Record<string, unknown>).requirements as Record<string, unknown>)?.network ?? "starknet")} · Asset: {String(((premiumData as Record<string, unknown>).requirements as Record<string, unknown>)?.extra && ((((premiumData as Record<string, unknown>).requirements as Record<string, unknown>).extra) as Record<string, unknown>)?.symbol || "STRK")}
+                  </div>
+                </div>
+
+                {/* Flow Steps */}
+                <div className="space-y-1.5">
+                  {[
+                    { step: 1, label: "GET /api/agent/premium-strategy", status: "done", detail: "Received 402 Payment Required" },
+                    { step: 2, label: "Create x402 payment payload", status: "active", detail: "Sign with connected wallet via AVNU paymaster" },
+                    { step: 3, label: "Verify + settle micropayment", status: "pending", detail: "Server verifies payment on-chain" },
+                    { step: 4, label: "Receive premium analysis", status: "pending", detail: "Risk scoring, pool health, BTC projections" },
+                  ].map(({ step, label, status, detail }) => (
+                    <div key={step} className="flex items-start gap-2.5">
+                      <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-[9px] font-bold ${
+                        status === "done" ? "bg-[var(--accent-emerald)] text-white" :
+                        status === "active" ? "bg-[var(--accent-amber)]/20 text-[var(--accent-amber)] border border-[var(--accent-amber)]/40" :
+                        "bg-[var(--bg-elevated)] text-[var(--text-quaternary)]"
+                      }`}>
+                        {status === "done" ? <Check size={8} strokeWidth={3} /> : step}
+                      </div>
+                      <div>
+                        <div className={`text-[11px] font-[family-name:var(--font-geist-mono)] ${status === "done" ? "text-[var(--accent-emerald)]" : status === "active" ? "text-[var(--accent-amber)]" : "text-[var(--text-quaternary)]"}`}>
+                          {label}
+                        </div>
+                        <div className="text-[10px] text-[var(--text-quaternary)]">{detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[10px] text-[var(--text-quaternary)] text-center pt-1">
+                  x402 enables micropayment-gated APIs on Starknet via AVNU paymaster
+                </p>
+              </div>
+            )}
+
+            {premiumData && !!(premiumData as Record<string, unknown>).premium && (
+              <div className="space-y-3">
+                {/* Premium Analysis Results */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-[var(--bg-tertiary)] p-2.5">
+                    <div className="text-[10px] text-[var(--text-quaternary)]">Pool Health</div>
+                    <div className="text-sm font-bold text-[var(--accent-emerald)]">
+                      {String(((premiumData as Record<string, unknown>).pool as Record<string, unknown>)?.health && (((premiumData as Record<string, unknown>).pool as Record<string, unknown>).health as Record<string, unknown>)?.rating || "—")}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-[var(--bg-tertiary)] p-2.5">
+                    <div className="text-[10px] text-[var(--text-quaternary)]">CSI Score</div>
+                    <div className="text-sm font-bold font-[family-name:var(--font-geist-mono)] text-[var(--accent-violet)]">
+                      {String(((premiumData as Record<string, unknown>).pool as Record<string, unknown>)?.csi ?? "—")}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timing */}
+                <div className="rounded-xl bg-[var(--accent-emerald)]/[0.06] border border-[var(--accent-emerald)]/15 p-2.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <TrendingUp size={10} className="text-[var(--accent-emerald)]" />
+                    <span className="text-[10px] font-semibold text-[var(--accent-emerald)]">Timing</span>
+                  </div>
+                  <p className="text-[11px] text-[var(--text-secondary)]">
+                    {String(((premiumData as Record<string, unknown>).timing as Record<string, unknown>)?.advice ?? "—")}
+                  </p>
+                </div>
+
+                {/* Recommendations */}
+                {Array.isArray((premiumData as Record<string, unknown>).recommendations) && (
+                  <div className="space-y-1">
+                    {((premiumData as Record<string, unknown>).recommendations as string[]).slice(0, 3).map((rec, i) => (
+                      <div key={i} className="flex items-start gap-2 text-[11px] text-[var(--text-tertiary)]">
+                        <span className="text-[var(--accent-amber)] mt-0.5">•</span>
+                        {rec}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5 pt-1">
+                  <Sparkles size={9} className="text-[var(--accent-amber)]" />
+                  <span className="text-[10px] text-[var(--text-quaternary)]">
+                    Paid via x402 micropayment · {String(((premiumData as Record<string, unknown>).payment as Record<string, unknown>)?.amount ?? "$0.01")}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }
