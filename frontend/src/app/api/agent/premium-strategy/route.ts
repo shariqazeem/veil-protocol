@@ -13,13 +13,12 @@ import { RpcProvider, Contract, type Abi } from "starknet";
 import {
   buildUSDCPayment,
   buildSTRKPayment,
-  verifyPayment,
-  settlePayment,
   decodePaymentSignature,
   HTTP_HEADERS,
   type PaymentRequirements,
   type PaymentPayload,
 } from "x402-starknet";
+import { settlePaymentDefault } from "@/utils/x402";
 import { POOL_ADDRESS, RPC_URL, NETWORK, TREASURY_ADDRESS } from "../../relayer/shared";
 
 const x402Network = NETWORK === "mainnet" ? "starknet:mainnet" as const : "starknet:sepolia" as const;
@@ -207,21 +206,13 @@ async function generatePremiumAnalysis(userInput: string) {
   };
 }
 
-/** Verify x402 payment and return premium analysis. */
+/** Verify x402 payment, settle via paymaster (default mode), return premium analysis. */
 async function handlePaidRequest(paymentHeader: string, userInput: string) {
   const payload: PaymentPayload = decodePaymentSignature(paymentHeader);
   const requirements = getPaymentRequirements();
   const provider = new RpcProvider({ nodeUrl: RPC_URL });
 
-  const verification = await verifyPayment(provider, payload, requirements);
-  if (!verification.isValid) {
-    return NextResponse.json(
-      { error: "Payment verification failed", reason: verification.invalidReason, details: verification.details },
-      { status: 402 },
-    );
-  }
-
-  const settlement = await settlePayment(provider, payload, requirements);
+  const settlement = await settlePaymentDefault(provider, payload, requirements);
   if (!settlement.success) {
     return NextResponse.json(
       { error: "Payment settlement failed", reason: settlement.errorReason },
@@ -235,7 +226,7 @@ async function handlePaidRequest(paymentHeader: string, userInput: string) {
     payment: {
       settled: true,
       transaction: settlement.transaction,
-      payer: verification.payer,
+      payer: settlement.payer,
       amount: x402Network === "starknet:mainnet" ? `$${PREMIUM_PRICE_USDC} USDC` : `${PREMIUM_PRICE_STRK} STRK`,
     },
   });

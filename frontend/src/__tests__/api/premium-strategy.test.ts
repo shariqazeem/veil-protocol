@@ -19,6 +19,13 @@ vi.mock("x402-starknet", () => ({
   },
 }));
 
+// Mock our custom x402 utility (used by the route instead of settlePayment)
+vi.mock("@/utils/x402", () => ({
+  settlePaymentDefault: vi
+    .fn()
+    .mockResolvedValue({ success: true, transaction: "0xSETTLE", payer: "0xPAYER" }),
+}));
+
 // Mock starknet — provide Contract as a constructor that returns mock pool methods
 const mockPoolContract = {
   get_pending_usdc: vi.fn().mockResolvedValue(BigInt(50_000_000)),
@@ -133,12 +140,12 @@ describe("premium-strategy", () => {
   });
 
   it("returns 402 when payment verification fails", async () => {
-    const x402 = await import("x402-starknet");
-    vi.mocked(x402.verifyPayment).mockResolvedValueOnce({
-      isValid: false,
-      invalidReason: "Bad signature",
-      details: "Nonce mismatch",
-    } as any);
+    const x402Util = await import("@/utils/x402");
+    vi.mocked(x402Util.settlePaymentDefault).mockResolvedValueOnce({
+      success: false,
+      errorReason: "Bad signature",
+      payer: undefined,
+    });
 
     const { GET } = await import(
       "@/app/api/agent/premium-strategy/route"
@@ -153,20 +160,17 @@ describe("premium-strategy", () => {
     const res = await GET(nextReq);
     expect(res.status).toBe(402);
     const body = await res.json();
-    expect(body.error).toBe("Payment verification failed");
+    expect(body.error).toBe("Payment settlement failed");
     expect(body.reason).toBe("Bad signature");
   });
 
   it("returns 402 when payment settlement fails", async () => {
-    const x402 = await import("x402-starknet");
-    vi.mocked(x402.verifyPayment).mockResolvedValueOnce({
-      isValid: true,
-      payer: "0xPAYER",
-    } as any);
-    vi.mocked(x402.settlePayment).mockResolvedValueOnce({
+    const x402Util = await import("@/utils/x402");
+    vi.mocked(x402Util.settlePaymentDefault).mockResolvedValueOnce({
       success: false,
       errorReason: "Insufficient funds",
-    } as any);
+      payer: "0xPAYER",
+    });
 
     const { GET } = await import(
       "@/app/api/agent/premium-strategy/route"

@@ -15,6 +15,8 @@ import {
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import { EXPLORER_TX, RPC_URL } from "@/utils/network";
+import { createPaymentPayloadDefault } from "@/utils/x402";
+import { encodePaymentSignature, HTTP_HEADERS } from "x402-starknet";
 import { CallData, RpcProvider, Contract, type Abi, num } from "starknet";
 
 type WithdrawMode = "wbtc" | "btc_intent";
@@ -421,32 +423,38 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
             });
             setClaimPhase("withdrawing");
 
-            // Build relay request headers — add x402 payment if enabled
-            const relayHeaders: Record<string, string> = { "Content-Type": "application/json" };
+            // Build relay request — add x402 payment if enabled
+            let x402Header: string | undefined;
+            let paymentTxHash: string | undefined;
 
             if (useX402Relay && account) {
               try {
-                // 1. Get x402 payment requirements
+                // 1. Get x402 payment requirements from relay-quote
                 const quoteRes = await fetch(`${RELAYER_URL}/relay-quote`);
                 const paymentRequired = await quoteRes.json();
                 const requirements = paymentRequired.accepts?.[0];
 
                 if (requirements) {
-                  // 2. Sign x402 payment via AVNU paymaster
-                  const { createPaymentPayload, encodePaymentSignature, createPaymasterConfig, HTTP_HEADERS } = await import("x402-starknet");
-                  const network = requirements.network as "starknet:mainnet" | "starknet:sepolia";
-                  const paymasterEndpoint = network === "starknet:mainnet"
-                    ? "https://starknet.paymaster.avnu.fi"
-                    : "https://sepolia.paymaster.avnu.fi";
-                  const paymasterConfig = createPaymasterConfig(network, { endpoint: paymasterEndpoint });
-                  const payload = await createPaymentPayload(account as import("starknet").Account, 2, requirements, paymasterConfig);
-                  const signature = encodePaymentSignature(payload);
-                  relayHeaders[HTTP_HEADERS.PAYMENT_SIGNATURE] = signature;
+                  // 2. Build signed x402 payload via paymaster (default mode — user pays gas in STRK)
+                  const network = requirements.network?.includes("mainnet")
+                    ? ("starknet:mainnet" as const)
+                    : ("starknet:sepolia" as const);
+                  const payload = await createPaymentPayloadDefault(account, requirements, network);
+                  x402Header = encodePaymentSignature(payload);
                 }
               } catch (x402Err) {
-                console.warn("[unveil] x402 payment failed, falling back to 2% fee:", x402Err);
-                // Fall through to legacy relay
+                const msg = x402Err instanceof Error ? x402Err.message : String(x402Err);
+                if (msg.includes("reject") || msg.includes("abort") || msg.includes("cancel") || msg.includes("denied")) {
+                  throw new Error("Fee payment rejected — withdrawal cancelled.");
+                }
+                console.warn("[unveil] x402 flat fee payment failed, falling back to 2% deduction:", x402Err);
+                // Fall through to legacy relay (2% deduction)
               }
+            }
+
+            const relayHeaders: Record<string, string> = { "Content-Type": "application/json" };
+            if (x402Header) {
+              relayHeaders[HTTP_HEADERS.PAYMENT_SIGNATURE] = x402Header;
             }
 
             const relayRes = await fetch(`${RELAYER_URL}/relay`, {
@@ -461,6 +469,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                 path_indices: pathIndices.map(Number),
                 recipient: address,
                 btc_recipient_hash: btcRecipientHash,
+                ...(paymentTxHash ? { payment_tx: paymentTxHash } : {}),
               }),
             });
             const relayData = await relayRes.json();
@@ -792,7 +801,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[#4D4DFF]">
                   {useX402Relay
-                    ? "Fee: $0.03 flat (via x402 micropayment)"
+                    ? "Fee: 0.015 STRK flat (wallet approval)"
                     : `Fee: ${relayerFee ? `${relayerFee / 100}%` : "2%"} of WBTC`}
                 </span>
                 <span className="text-xs text-[var(--text-tertiary)]">

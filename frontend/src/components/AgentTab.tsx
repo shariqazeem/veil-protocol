@@ -22,6 +22,8 @@ import {
   type PoolState,
 } from "@/utils/strategyEngine";
 import { EXPLORER_TX, RPC_URL } from "@/utils/network";
+import { createPaymentPayloadDefault } from "@/utils/x402";
+import { encodePaymentSignature, HTTP_HEADERS } from "x402-starknet";
 import addresses from "@/contracts/addresses.json";
 import { CallData, RpcProvider } from "starknet";
 import { motion, AnimatePresence } from "framer-motion";
@@ -240,140 +242,32 @@ export default function AgentTab() {
       const requirements = paymentRequired.accepts?.[0];
       if (!requirements) throw new Error("Invalid 402 response — no payment requirements");
 
-      // Step 2: Try x402 paymaster flow first, fall back to direct transfer
+      // Step 2: Build x402 payment via paymaster (default mode — user pays gas in STRK)
       setX402Phase("signing");
 
-      let paidViaX402 = false;
-      let txHash: string | null = null;
+      const network = requirements.network?.includes("mainnet")
+        ? ("starknet:mainnet" as const)
+        : ("starknet:sepolia" as const);
+      const payload = await createPaymentPayloadDefault(account, requirements, network);
+      const x402Header = encodePaymentSignature(payload);
 
-      try {
-        // Attempt: x402 paymaster-signed payment (gasless for user)
-        const {
-          createPaymentPayload,
-          encodePaymentSignature,
-          createPaymasterConfig,
-          HTTP_HEADERS,
-        } = await import("x402-starknet");
+      // Step 3: Re-request premium endpoint with x402 payment header — server settles
+      setX402Phase("settling");
 
-        const network = requirements.network as "starknet:mainnet" | "starknet:sepolia";
-        const paymasterEndpoint = network === "starknet:mainnet"
-          ? "https://starknet.paymaster.avnu.fi"
-          : "https://sepolia.paymaster.avnu.fi";
+      const paidRes = await fetch(
+        `/api/agent/premium-strategy?input=${encodeURIComponent(input || "analyze pool")}`,
+        { headers: { [HTTP_HEADERS.PAYMENT_SIGNATURE]: x402Header } },
+      );
 
-        const paymasterConfig = createPaymasterConfig(network, { endpoint: paymasterEndpoint });
-
-        const payload = await createPaymentPayload(
-          account as import("starknet").Account,
-          2, requirements, paymasterConfig,
-        );
-        const signature = encodePaymentSignature(payload);
-
-        // Send paid request with x402 header
-        setX402Phase("settling");
-        const paidRes = await fetch(
-          `/api/agent/premium-strategy?input=${encodeURIComponent(input || "analyze pool")}`,
-          { headers: { [HTTP_HEADERS.PAYMENT_SIGNATURE]: signature } },
-        );
-
-        if (paidRes.ok) {
-          const result = await paidRes.json();
-          if (result.payment?.transaction) txHash = String(result.payment.transaction);
-          setPremiumData(result);
-          paidViaX402 = true;
-        }
-      } catch (x402Err) {
-        // x402 paymaster flow failed — fall back to direct wallet transfer
-        console.log("[x402] Paymaster flow failed, falling back to direct transfer:", x402Err);
+      if (!paidRes.ok) {
+        const errData = await paidRes.json().catch(() => ({}));
+        throw new Error(errData.error ?? errData.reason ?? `Payment failed (${paidRes.status})`);
       }
 
-      if (!paidViaX402) {
-        // Fallback: Direct wallet transfer — user pays on-chain, we fetch premium data
-        setX402Phase("signing");
+      const analysis = await paidRes.json();
+      setPremiumData(analysis);
 
-        // Build a direct STRK transfer to the treasury
-        const payTo = requirements.payTo;
-        const amount = requirements.amount; // already in atomic units
-        const tokenAddress = requirements.asset; // STRK contract address
-
-        const transferCall = [{
-          contractAddress: tokenAddress,
-          entrypoint: "transfer",
-          calldata: CallData.compile({
-            recipient: payTo,
-            amount: { low: BigInt(amount), high: 0n },
-          }),
-        }];
-
-        // This pops up the wallet — user approves the real STRK transfer
-        const result = await sendAsync(transferCall);
-        txHash = result.transaction_hash;
-
-        // Wait for on-chain confirmation
-        setX402Phase("settling");
-        const provider = new RpcProvider({ nodeUrl: RPC_URL });
-        await provider.waitForTransaction(result.transaction_hash);
-
-        // Fetch premium analysis (payment confirmed on-chain)
-        const premiumRes = await fetch("/api/agent/status");
-        const poolData = premiumRes.ok ? await premiumRes.json() : {};
-
-        const anonSets = (poolData.anonSets || {}) as Record<string, number>;
-        const anon = [anonSets[0] || 0, anonSets[1] || 0, anonSets[2] || 0, anonSets[3] || 0];
-        const maxAnon = Math.max(...anon, 0);
-        const activeTiers = anon.filter((a: number) => a > 0).length;
-        const csi = maxAnon * activeTiers;
-        const totalPart = anon.reduce((s: number, v: number) => s + v, 0);
-        const healthScore = Math.min(totalPart * 2, 40) + activeTiers * 10 + Math.min(Math.min(...anon) * 5, 30);
-        const healthRating = healthScore >= 80 ? "Excellent" : healthScore >= 50 ? "Strong" : healthScore >= 25 ? "Moderate" : "Growing";
-        const pendingUsdc = Number(poolData.pendingUsdc || 0);
-        const btc = btcPrice || 0;
-
-        const recommendations: string[] = [];
-        if (maxAnon < 5) recommendations.push("Pool in early stage — deposits have maximum marginal privacy impact.");
-        const weakIdx = anon.indexOf(Math.min(...anon));
-        if (anon[weakIdx] < 3) recommendations.push(`${["$1","$10","$100","$1,000"][weakIdx]} tier needs participants.`);
-        if (pendingUsdc > 50) recommendations.push(`$${pendingUsdc.toFixed(0)} USDC pending — batch imminent.`);
-        if (recommendations.length === 0) recommendations.push("Pool health is strong — any strategy is viable.");
-
-        setPremiumData({
-          premium: true,
-          pool: {
-            health: { score: healthScore, rating: healthRating },
-            csi,
-            pending_usdc: pendingUsdc,
-            leaf_count: Number(poolData.leafCount || 0),
-          },
-          tier_analysis: anon.map((count: number, i: number) => ({
-            label: ["$1","$10","$100","$1,000"][i],
-            participants: count,
-            unlinkability: count >= 10 ? "Strong" : count >= 5 ? "Good" : count >= 3 ? "Moderate" : "Low",
-          })),
-          timing: {
-            advice: pendingUsdc > 100
-              ? "Batch nearing execution — deposit now to join this cycle"
-              : pendingUsdc > 0
-                ? "Active batch accumulating — good entry window"
-                : "Fresh batch cycle — ideal for privacy-first deposits",
-          },
-          btc: btc > 0 ? {
-            current_price: btc,
-            projections: {
-              "$10": (10 / btc * 0.99).toFixed(8),
-              "$100": (100 / btc * 0.99).toFixed(8),
-              "$1000": (1000 / btc * 0.99).toFixed(6),
-            },
-            slippage_estimate: "~1% (AVNU DEX aggregation)",
-          } : null,
-          recommendations,
-          payment: {
-            settled: true,
-            amount: requirements.extra?.symbol === "USDC" ? "$0.01 USDC" : "0.005 STRK",
-            payer: address,
-            transaction: txHash,
-          },
-        });
-      }
-
+      const txHash = analysis.payment?.transaction ?? null;
       if (txHash) setX402TxHash(txHash);
       setX402Phase("complete");
       toast("success", "Premium analysis unlocked");

@@ -58,6 +58,10 @@ vi.mock("x402-starknet", () => ({
   HTTP_HEADERS: { PAYMENT_REQUIRED: "X-Payment-Required", PAYMENT_SIGNATURE: "X-Payment" },
 }));
 
+vi.mock("@/utils/x402", () => ({
+  settlePaymentDefault: vi.fn().mockResolvedValue({ success: true, transaction: "0xSETTLE", payer: "0xPAYER" }),
+}));
+
 function buildValidBody() {
   return {
     denomination: 1,
