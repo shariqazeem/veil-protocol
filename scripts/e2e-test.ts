@@ -553,6 +553,91 @@ async function main() {
     fail(`/api/agent/status — ${e}`);
   }
 
+  // Test x402 relay-quote endpoint
+  try {
+    const quoteRes = await fetch(`${VERCEL_URL}/api/relayer/relay-quote`);
+    if (quoteRes.status === 402) {
+      const body = await quoteRes.json();
+      if (body.x402Version === 2 && body.accepts?.length > 0) {
+        const req = body.accepts[0];
+        pass(`/api/relayer/relay-quote — 402, x402v2, payTo: ${req.payTo?.slice(0, 14)}..., network: ${req.network}`);
+      } else {
+        fail(`/api/relayer/relay-quote — 402 but bad body: ${JSON.stringify(body).slice(0, 100)}`);
+      }
+      // Verify X-Payment-Required header (HTTP/2 lowercases to "payment-required")
+      const header = quoteRes.headers.get("X-Payment-Required") ?? quoteRes.headers.get("payment-required");
+      if (header) {
+        const decoded = JSON.parse(Buffer.from(header, "base64").toString());
+        if (decoded.x402Version === 2) {
+          pass(`/api/relayer/relay-quote — X-Payment-Required header valid`);
+        } else {
+          fail(`/api/relayer/relay-quote — bad header: ${JSON.stringify(decoded).slice(0, 80)}`);
+        }
+      } else {
+        fail(`/api/relayer/relay-quote — missing X-Payment-Required header`);
+      }
+    } else if (quoteRes.status === 404) {
+      log(`/api/relayer/relay-quote — x402 relay disabled (404), skipping`);
+    } else {
+      fail(`/api/relayer/relay-quote — unexpected status: ${quoteRes.status}`);
+    }
+  } catch (e) {
+    fail(`/api/relayer/relay-quote — ${e}`);
+  }
+
+  // Test x402 premium-strategy endpoint (should return 402 without payment)
+  try {
+    const premRes = await fetch(`${VERCEL_URL}/api/agent/premium-strategy?input=test`);
+    if (premRes.status === 402) {
+      const body = await premRes.json();
+      if (body.x402Version === 2 && body.accepts?.length > 0) {
+        pass(`/api/agent/premium-strategy — 402 Payment Required (x402v2)`);
+      } else {
+        fail(`/api/agent/premium-strategy — 402 but bad body`);
+      }
+    } else {
+      fail(`/api/agent/premium-strategy — expected 402, got ${premRes.status}`);
+    }
+  } catch (e) {
+    fail(`/api/agent/premium-strategy — ${e}`);
+  }
+
+  // Test relay endpoint (should return 400 for missing fields, not 500)
+  try {
+    const relayRes = await fetch(`${VERCEL_URL}/api/relayer/relay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ denomination: 1 }),
+    });
+    if (relayRes.status === 400) {
+      const body = await relayRes.json();
+      if (body.error === "Missing required fields") {
+        pass(`/api/relayer/relay — 400 for missing fields (correct)`);
+      } else {
+        fail(`/api/relayer/relay — 400 but wrong error: ${body.error}`);
+      }
+    } else if (relayRes.status === 503) {
+      pass(`/api/relayer/relay — 503 relayer not configured (Vercel has no keys, expected)`);
+    } else {
+      fail(`/api/relayer/relay — unexpected status: ${relayRes.status}`);
+    }
+  } catch (e) {
+    fail(`/api/relayer/relay — ${e}`);
+  }
+
+  // Test relayer info includes x402 config
+  try {
+    const infoRes = await fetch(`${VERCEL_URL}/api/relayer/info`);
+    const d = await infoRes.json();
+    if (d.x402Relay && d.x402Relay.enabled === true) {
+      pass(`/api/relayer/info — x402Relay enabled, fee: ${d.x402Relay.flatFee}`);
+    } else {
+      fail(`/api/relayer/info — x402Relay missing or disabled: ${JSON.stringify(d.x402Relay)}`);
+    }
+  } catch (e) {
+    fail(`/api/relayer/info x402 — ${e}`);
+  }
+
   // Test calldata server (VM)
   try {
     const health = await fetch("http://141.148.215.239/health", {
