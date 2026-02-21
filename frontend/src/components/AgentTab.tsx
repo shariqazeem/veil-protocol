@@ -69,7 +69,7 @@ const LOG_DOT_COLORS: Record<AgentLogEntry["type"], string> = {
 };
 
 export default function AgentTab() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, account } = useAccount();
   const { bitcoinAddress } = useWallet();
   const { sendAsync } = useSendTransaction({ calls: [] });
   const { toast } = useToast();
@@ -91,10 +91,11 @@ export default function AgentTab() {
 
   // Premium x402 analysis state
   const [premiumData, setPremiumData] = useState<Record<string, unknown> | null>(null);
-  const [premiumLoading, setPremiumLoading] = useState(false);
   const [premiumError, setPremiumError] = useState<string | null>(null);
-  const [x402DemoStep, setX402DemoStep] = useState(0); // 0=not started, 1-4=steps, 5=complete
-  const [x402DemoActive, setX402DemoActive] = useState(false);
+  // x402 flow phases: idle → requesting → signing → settling → complete
+  type X402Phase = "idle" | "requesting" | "signing" | "settling" | "complete";
+  const [x402Phase, setX402Phase] = useState<X402Phase>("idle");
+  const [x402TxHash, setX402TxHash] = useState<string | null>(null);
 
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -207,109 +208,104 @@ export default function AgentTab() {
     setPlan(result);
   }
 
-  // x402 Premium Strategy Analysis — Live Demo Flow
+  // x402 Premium Strategy Analysis — Real Payment Flow
   async function handlePremiumAnalysis() {
-    setPremiumLoading(true);
     setPremiumError(null);
     setPremiumData(null);
-    setX402DemoActive(true);
-    setX402DemoStep(0);
+    setX402TxHash(null);
 
     try {
-      // Step 1: Hit the x402-gated endpoint — get real 402 response
-      setX402DemoStep(1);
+      // Step 1: Hit x402-gated endpoint → receive 402 Payment Required
+      setX402Phase("requesting");
       const initialRes = await fetch(`/api/agent/premium-strategy?input=${encodeURIComponent(input || "analyze pool")}`);
-      await new Promise(r => setTimeout(r, 600)); // Visual pause
 
       if (initialRes.status === 402) {
-        const requirementsData = await initialRes.json();
-        const requirements = requirementsData.accepts?.[0];
+        const paymentRequired = await initialRes.json();
+        const requirements = paymentRequired.accepts?.[0];
+        if (!requirements) throw new Error("Invalid 402 response — no payment requirements");
 
-        // Step 2: Show payment creation
-        setX402DemoStep(2);
-        await new Promise(r => setTimeout(r, 900));
+        // Step 2: Create signed payment payload with user's wallet
+        if (!account || !isConnected) {
+          throw new Error("Connect your wallet to pay for premium analysis");
+        }
 
-        // Step 3: Simulate settlement verification
-        setX402DemoStep(3);
-        await new Promise(r => setTimeout(r, 800));
+        setX402Phase("signing");
+        const {
+          createPaymentPayload,
+          encodePaymentSignature,
+          createPaymasterConfig,
+          HTTP_HEADERS,
+        } = await import("x402-starknet");
 
-        // Step 4: Fetch real pool data from status endpoint for premium display
-        setX402DemoStep(4);
-        let poolData: Record<string, unknown> = {};
-        try {
-          const statusRes = await fetch("/api/agent/status");
-          if (statusRes.ok) {
-            poolData = await statusRes.json();
-          }
-        } catch { /* use defaults */ }
-        await new Promise(r => setTimeout(r, 700));
+        // Use AVNU paymaster — Sepolia at public endpoint, mainnet at production
+        const network = requirements.network as "starknet:mainnet" | "starknet:sepolia";
+        const paymasterEndpoint = network === "starknet:mainnet"
+          ? "https://starknet.paymaster.avnu.fi"
+          : "https://sepolia.paymaster.avnu.fi";
 
-        // Step 5: Complete — show premium analysis with real pool data
-        setX402DemoStep(5);
-
-        const btc = btcPrice || 0;
-        const pendingUsdc = Number(poolData.pendingUsdc || 0);
-        const leafCt = Number(poolData.leafCount || 0);
-        const batchCt = Number(poolData.batchCount || 0);
-        const anonSets = (poolData.anonSets || {}) as Record<string, number>;
-        const anon = [anonSets[0] || 0, anonSets[1] || 0, anonSets[2] || 0, anonSets[3] || 0];
-        const maxAnon = Math.max(...anon, 0);
-        const activeTiers = anon.filter(a => a > 0).length;
-        const csi = maxAnon * activeTiers;
-        const healthScore = Math.min(anon.reduce((s, v) => s + v, 0) * 2, 40) + activeTiers * 10 + Math.min(Math.min(...anon) * 5, 30);
-        const healthRating = healthScore >= 80 ? "Excellent" : healthScore >= 50 ? "Strong" : healthScore >= 25 ? "Moderate" : "Growing";
-
-        const recommendations: string[] = [];
-        if (maxAnon < 5) recommendations.push("Pool is in early stage — deposits have maximum marginal privacy impact.");
-        const weakIdx = anon.indexOf(Math.min(...anon));
-        if (anon[weakIdx] < 3) recommendations.push(`${["$1","$10","$100","$1,000"][weakIdx]} tier needs participants — contributing here maximizes privacy.`);
-        if (pendingUsdc > 50) recommendations.push(`$${pendingUsdc.toFixed(0)} USDC pending — batch conversion imminent.`);
-        if (recommendations.length === 0) recommendations.push("Pool health is strong — any strategy is viable.");
-
-        setPremiumData({
-          premium: true,
-          _x402_demo: true,
-          pool: {
-            health: { score: healthScore, rating: healthRating },
-            csi,
-            pending_usdc: pendingUsdc,
-            leaf_count: leafCt,
-          },
-          tier_analysis: anon.map((count, i) => ({
-            label: ["$1","$10","$100","$1,000"][i],
-            participants: count,
-            unlinkability: count >= 10 ? "Strong" : count >= 5 ? "Good" : count >= 3 ? "Moderate" : "Low",
-          })),
-          timing: {
-            advice: pendingUsdc > 100
-              ? "Batch nearing execution — deposit now to join this cycle"
-              : pendingUsdc > 0
-                ? "Active batch accumulating — good entry window"
-                : "Fresh batch cycle — ideal for privacy-first deposits",
-          },
-          btc: btc > 0 ? { current_price: btc } : null,
-          recommendations,
-          payment: {
-            settled: true,
-            amount: requirements?.extra?.symbol === "USDC" ? "$0.01 USDC" : "0.005 STRK",
-            protocol: "x402 v2",
-            network: requirements?.network || "starknet:sepolia",
-          },
+        const paymasterConfig = createPaymasterConfig(network, {
+          endpoint: paymasterEndpoint,
         });
+
+        // This triggers the wallet popup — user approves the $0.01 payment
+        const payload = await createPaymentPayload(
+          account as import("starknet").Account,
+          2,
+          requirements,
+          paymasterConfig,
+        );
+
+        const signature = encodePaymentSignature(payload);
+
+        // Step 3: Send paid request — server verifies + settles on-chain
+        setX402Phase("settling");
+        const paidRes = await fetch(
+          `/api/agent/premium-strategy?input=${encodeURIComponent(input || "analyze pool")}`,
+          { headers: { [HTTP_HEADERS.PAYMENT_SIGNATURE]: signature } },
+        );
+
+        if (!paidRes.ok) {
+          const err = await paidRes.json();
+          throw new Error(err.error || err.reason || "Payment verification failed");
+        }
+
+        // Step 4: Receive premium analysis
+        const premiumResult = await paidRes.json();
+
+        // Extract tx hash from settlement response header or body
+        const paymentResponseHeader = paidRes.headers.get("PAYMENT-RESPONSE");
+        if (paymentResponseHeader) {
+          try {
+            const { decodePaymentResponse } = await import("x402-starknet");
+            const settlement = decodePaymentResponse(paymentResponseHeader);
+            if (settlement.transaction) setX402TxHash(String(settlement.transaction));
+          } catch { /* header parsing optional */ }
+        }
+        if (!x402TxHash && premiumResult.payment?.transaction) {
+          setX402TxHash(String(premiumResult.payment.transaction));
+        }
+
+        setPremiumData(premiumResult);
+        setX402Phase("complete");
+        toast("success", "Premium analysis unlocked via x402");
+
       } else if (initialRes.ok) {
-        setX402DemoStep(5);
+        // Endpoint returned data without payment (shouldn't happen but handle gracefully)
         const data = await initialRes.json();
-        setPremiumData({ ...data, _x402_demo: false });
+        setPremiumData(data);
+        setX402Phase("complete");
       } else {
-        throw new Error("Failed to fetch premium strategy");
+        throw new Error(`Unexpected response: ${initialRes.status}`);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Premium analysis failed";
-      setPremiumError(msg);
-      setX402DemoStep(0);
-    } finally {
-      setPremiumLoading(false);
-      setX402DemoActive(false);
+      const msg = err instanceof Error ? err.message : "Payment failed";
+      // Detect wallet rejection
+      if (msg.includes("reject") || msg.includes("abort") || msg.includes("cancel") || msg.includes("denied") || msg.includes("REFUSED")) {
+        setPremiumError("Payment cancelled — you were not charged");
+      } else {
+        setPremiumError(msg);
+      }
+      setX402Phase("idle");
     }
   }
 
@@ -849,7 +845,7 @@ export default function AgentTab() {
         )}
       </AnimatePresence>
 
-      {/* x402 Premium Intelligence Panel — Always Visible */}
+      {/* x402 Premium Intelligence — Real Micropayment Flow */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -863,33 +859,30 @@ export default function AgentTab() {
               <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center">
                 <CreditCard size={11} strokeWidth={1.5} className="text-amber-600" />
               </div>
-              <span className="text-xs font-bold text-[var(--text-primary)]">x402 Premium Intel</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">HTTP 402</span>
+              <span className="text-xs font-bold text-[var(--text-primary)]">Premium Intelligence</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">x402</span>
             </div>
-            {premiumData && !!(premiumData as Record<string, unknown>).premium && (
-              <div className="flex items-center gap-1">
-                <Check size={10} strokeWidth={2.5} className="text-emerald-500" />
-                <span className="text-[10px] text-emerald-600 font-semibold">Paid</span>
+            {x402Phase === "complete" && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/50">
+                <Check size={9} strokeWidth={2.5} className="text-emerald-500" />
+                <span className="text-[9px] text-emerald-600 font-bold">SETTLED</span>
               </div>
             )}
           </div>
 
-          {/* Initial state — show what x402 is + trigger button */}
-          {!premiumData && !x402DemoActive && !premiumError && (
+          {/* Idle — unlock button */}
+          {x402Phase === "idle" && !premiumData && !premiumError && (
             <div className="space-y-3">
               <p className="text-xs text-[var(--text-tertiary)] leading-relaxed">
-                Monetize AI strategy APIs with <span className="text-amber-600 font-semibold">x402 micropayments</span>.
-                Our endpoint returns <code className="text-[10px] px-1 py-0.5 bg-amber-100/80 rounded text-amber-700 font-[family-name:var(--font-geist-mono)]">402 Payment Required</code> —
-                the client pays $0.01 via AVNU paymaster, then receives premium analysis.
+                Pay <span className="text-amber-600 font-semibold">$0.01</span> via x402 micropayment to unlock real-time pool intelligence — risk scoring, per-tier unlinkability, optimal timing, and BTC projections.
               </p>
 
-              {/* What you get */}
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { icon: TrendingUp, label: "Pool Health & CSI", desc: "Live risk scoring" },
-                  { icon: Shield, label: "Tier Analysis", desc: "Per-tier unlinkability" },
+                  { icon: Shield, label: "Tier Unlinkability", desc: "Per-tier analysis" },
                   { icon: Brain, label: "Entry Timing", desc: "Optimal deposit window" },
-                  { icon: Sparkles, label: "BTC Projections", desc: "Slippage estimates" },
+                  { icon: Sparkles, label: "BTC Projections", desc: "Yield estimates" },
                 ].map(({ icon: Icon, label, desc }) => (
                   <div key={label} className="flex items-start gap-2 p-2 rounded-lg bg-[var(--bg-tertiary)]/60">
                     <Icon size={11} strokeWidth={1.5} className="text-amber-500 mt-0.5 flex-shrink-0" />
@@ -903,66 +896,67 @@ export default function AgentTab() {
 
               <motion.button
                 onClick={handlePremiumAnalysis}
+                disabled={!isConnected}
                 className="w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2
                            bg-gradient-to-r from-amber-500 to-orange-500 text-white
                            hover:from-amber-600 hover:to-orange-600
+                           disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed
                            shadow-md hover:shadow-lg
                            cursor-pointer transition-all"
-                whileTap={{ scale: 0.985 }}
+                whileTap={isConnected ? { scale: 0.985 } : {}}
               >
                 <Zap size={13} strokeWidth={2} />
-                Test x402 Flow · $0.01 Micropayment
+                {isConnected ? "Unlock Premium Analysis · $0.01" : "Connect Wallet to Unlock"}
               </motion.button>
               <p className="text-[10px] text-[var(--text-quaternary)] text-center">
-                Hits live x402 endpoint → shows 402 response → simulates payment → returns real pool data
+                Paid via x402 protocol — AVNU paymaster settles on Starknet
               </p>
             </div>
           )}
 
-          {/* Animated x402 Demo Flow */}
-          {x402DemoActive && (
+          {/* Active payment flow — step indicators */}
+          {x402Phase !== "idle" && x402Phase !== "complete" && (
             <div className="space-y-3">
-              <div className="rounded-xl bg-[var(--bg-tertiary)] border border-amber-200/40 p-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <Zap size={11} className="text-amber-600" />
-                  <span className="text-[11px] font-bold text-amber-700">x402 Payment Flow — Live</span>
-                </div>
-                <div className="space-y-2">
+              <div className="rounded-xl bg-[var(--bg-tertiary)] border border-amber-200/40 p-3.5">
+                <div className="space-y-2.5">
                   {[
-                    { step: 1, label: "GET /api/agent/premium-strategy", detail: "Server returns 402 Payment Required + payment requirements" },
-                    { step: 2, label: "Create x402 payment payload", detail: "Client signs USDC transfer via AVNU paymaster" },
-                    { step: 3, label: "Verify + settle on-chain", detail: "Server verifies payment, settles micropayment" },
-                    { step: 4, label: "Receive premium analysis", detail: "Unlocked: risk scoring, pool health, BTC projections" },
-                  ].map(({ step, label, detail }) => {
-                    const isDone = x402DemoStep > step;
-                    const isActive = x402DemoStep === step;
+                    { id: "requesting" as X402Phase, label: "Request premium endpoint", detail: "Server responds with 402 Payment Required" },
+                    { id: "signing" as X402Phase, label: "Authorize $0.01 micropayment", detail: "Your wallet signs the x402 payment via AVNU paymaster" },
+                    { id: "settling" as X402Phase, label: "Verify & settle on-chain", detail: "Server verifies signature, settles payment, returns analysis" },
+                  ].map(({ id, label, detail }, i) => {
+                    const phases: X402Phase[] = ["requesting", "signing", "settling"];
+                    const currentIdx = phases.indexOf(x402Phase);
+                    const stepIdx = phases.indexOf(id);
+                    const isDone = stepIdx < currentIdx;
+                    const isActive = id === x402Phase;
+
                     return (
                       <motion.div
-                        key={step}
+                        key={id}
                         initial={{ opacity: 0.5 }}
                         animate={{ opacity: isDone || isActive ? 1 : 0.4 }}
-                        className="flex items-start gap-2.5"
+                        className="flex items-start gap-3"
                       >
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-[9px] font-bold transition-all duration-300 ${
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold transition-all duration-300 ${
                           isDone ? "bg-emerald-500 text-white" :
                           isActive ? "bg-amber-500 text-white" :
                           "bg-[var(--bg-elevated)] text-[var(--text-quaternary)]"
                         }`}>
-                          {isDone ? <Check size={9} strokeWidth={3} /> : isActive ? <Loader2 size={9} strokeWidth={2} className="animate-spin" /> : step}
+                          {isDone ? <Check size={10} strokeWidth={3} /> : isActive ? <Loader2 size={10} strokeWidth={2} className="animate-spin" /> : i + 1}
                         </div>
-                        <div className="flex-1">
-                          <div className={`text-[11px] font-[family-name:var(--font-geist-mono)] font-medium ${isDone ? "text-emerald-600" : isActive ? "text-amber-600" : "text-[var(--text-quaternary)]"}`}>
+                        <div className="flex-1 pt-0.5">
+                          <div className={`text-[11px] font-semibold ${isDone ? "text-emerald-600" : isActive ? "text-amber-700" : "text-[var(--text-quaternary)]"}`}>
                             {label}
                           </div>
-                          <div className={`text-[10px] ${isDone ? "text-[var(--text-tertiary)]" : "text-[var(--text-quaternary)]"}`}>
+                          <div className={`text-[10px] mt-0.5 ${isDone ? "text-[var(--text-tertiary)]" : "text-[var(--text-quaternary)]"}`}>
                             {detail}
                           </div>
                           {isActive && (
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: "100%" }}
-                              transition={{ duration: 0.8, ease: "easeInOut" }}
-                              className="h-0.5 bg-amber-400 rounded-full mt-1.5"
+                              transition={{ duration: x402Phase === "signing" ? 10 : 3, ease: "linear" }}
+                              className="h-0.5 bg-amber-400 rounded-full mt-2"
                             />
                           )}
                         </div>
@@ -974,27 +968,31 @@ export default function AgentTab() {
               <div className="flex items-center justify-center gap-2 py-1">
                 <Loader2 size={11} className="animate-spin text-amber-500" />
                 <span className="text-[11px] text-amber-600 font-medium">
-                  {x402DemoStep === 1 && "Hitting x402-gated endpoint..."}
-                  {x402DemoStep === 2 && "Creating payment signature..."}
-                  {x402DemoStep === 3 && "Verifying on-chain settlement..."}
-                  {x402DemoStep === 4 && "Decrypting premium analysis..."}
-                  {x402DemoStep >= 5 && "Complete!"}
+                  {x402Phase === "requesting" && "Hitting x402-gated endpoint..."}
+                  {x402Phase === "signing" && "Approve in your wallet..."}
+                  {x402Phase === "settling" && "Verifying payment on-chain..."}
                 </span>
               </div>
             </div>
           )}
 
+          {/* Error state */}
           {premiumError && (
             <div className="flex items-start gap-2 py-2">
-              <AlertTriangle size={12} className="text-[var(--accent-red)] mt-0.5 flex-shrink-0" />
+              <AlertTriangle size={12} className="text-red-500 mt-0.5 flex-shrink-0" />
               <div>
-                <span className="text-xs text-[var(--accent-red)]/80">{premiumError}</span>
-                <button onClick={() => { setPremiumError(null); setX402DemoStep(0); }} className="block text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] mt-1 cursor-pointer">Try again</button>
+                <span className="text-xs text-red-600">{premiumError}</span>
+                <button
+                  onClick={() => { setPremiumError(null); setX402Phase("idle"); }}
+                  className="block text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] mt-1 cursor-pointer"
+                >
+                  Try again
+                </button>
               </div>
             </div>
           )}
 
-          {/* Premium Analysis Results */}
+          {/* Premium Analysis Results — Real data from on-chain payment */}
           {premiumData && !!(premiumData as Record<string, unknown>).premium && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
@@ -1002,18 +1000,32 @@ export default function AgentTab() {
               transition={{ duration: 0.4 }}
               className="space-y-3"
             >
-              {/* Payment confirmation */}
-              <div className="rounded-xl bg-emerald-50 border border-emerald-200/50 p-2.5 flex items-center gap-2">
-                <Check size={12} strokeWidth={2.5} className="text-emerald-500 flex-shrink-0" />
-                <div className="flex-1">
-                  <span className="text-[11px] font-semibold text-emerald-700">x402 Payment Settled</span>
-                  <span className="text-[10px] text-emerald-600/70 ml-2">
-                    {String(((premiumData as Record<string, unknown>).payment as Record<string, unknown>)?.amount ?? "$0.01")} via AVNU
-                  </span>
+              {/* Settlement confirmation */}
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200/50 p-2.5">
+                <div className="flex items-center gap-2">
+                  <Check size={12} strokeWidth={2.5} className="text-emerald-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[11px] font-semibold text-emerald-700">Payment settled on-chain</span>
+                    <span className="text-[10px] text-emerald-600/70 ml-2">
+                      {String(((premiumData as Record<string, unknown>).payment as Record<string, unknown>)?.amount ?? "$0.01")}
+                    </span>
+                  </div>
+                  {x402TxHash && (
+                    <a
+                      href={`${EXPLORER_TX}${x402TxHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[9px] font-[family-name:var(--font-geist-mono)] text-emerald-500 hover:text-emerald-700 flex items-center gap-0.5 flex-shrink-0"
+                    >
+                      View tx <ExternalLink size={7} strokeWidth={2} />
+                    </a>
+                  )}
                 </div>
-                <span className="text-[9px] font-[family-name:var(--font-geist-mono)] text-emerald-500/60">
-                  {String(((premiumData as Record<string, unknown>).payment as Record<string, unknown>)?.network ?? "starknet")}
-                </span>
+                {String(((premiumData as Record<string, unknown>).payment as Record<string, unknown>)?.payer || "") !== "" && (
+                  <div className="text-[9px] font-[family-name:var(--font-geist-mono)] text-emerald-500/60 mt-1 truncate">
+                    Payer: {String(((premiumData as Record<string, unknown>).payment as Record<string, unknown>).payer).slice(0, 20)}...
+                  </div>
+                )}
               </div>
 
               {/* Pool Health + CSI */}
@@ -1044,15 +1056,49 @@ export default function AgentTab() {
                     {((premiumData as Record<string, unknown>).tier_analysis as Array<Record<string, unknown>>).map((tier) => (
                       <div key={String(tier.label)} className="text-center">
                         <div className="text-[11px] font-[family-name:var(--font-geist-mono)] font-bold text-[var(--text-secondary)]">{String(tier.label)}</div>
-                        <div className={`text-[10px] font-semibold ${String(tier.unlinkability) === "Strong" ? "text-emerald-500" : String(tier.unlinkability) === "Good" ? "text-blue-500" : String(tier.unlinkability) === "Moderate" ? "text-amber-500" : "text-red-400"}`}>
+                        <div className={`text-[10px] font-semibold ${
+                          String(tier.unlinkability) === "Strong" ? "text-emerald-500" :
+                          String(tier.unlinkability) === "Good" ? "text-blue-500" :
+                          String(tier.unlinkability) === "Moderate" ? "text-amber-500" : "text-red-400"
+                        }`}>
                           {String(tier.unlinkability)}
                         </div>
-                        <div className="text-[9px] text-[var(--text-quaternary)]">{String(tier.participants)} users</div>
+                        <div className="text-[9px] text-[var(--text-quaternary)]">{String(tier.participants)} deposits</div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* BTC Projections */}
+              {!!(premiumData as Record<string, unknown>).btc && (() => {
+                const btcData = (premiumData as Record<string, unknown>).btc as Record<string, unknown>;
+                const projections = btcData?.projections as Record<string, string> | undefined;
+                const slippage = btcData?.slippage_estimate ? String(btcData.slippage_estimate) : "";
+                return (
+                  <div className="rounded-xl bg-amber-50/60 border border-amber-200/30 p-2.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Sparkles size={10} className="text-amber-500" />
+                      <span className="text-[10px] font-semibold text-amber-600">BTC Projections</span>
+                    </div>
+                    {projections && (
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        {Object.entries(projections).map(([label, btcAmt]) => (
+                          <div key={label}>
+                            <div className="text-[10px] text-[var(--text-quaternary)]">{label.replace("_deposit", "").replace("$", "")}</div>
+                            <div className="text-[10px] font-[family-name:var(--font-geist-mono)] font-bold text-amber-700">{btcAmt} BTC</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {slippage && (
+                      <div className="text-[9px] text-[var(--text-quaternary)] mt-1.5">
+                        Slippage: {slippage}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Timing */}
               <div className="rounded-xl bg-emerald-50/60 border border-emerald-200/30 p-2.5">
@@ -1080,16 +1126,16 @@ export default function AgentTab() {
               {/* Footer */}
               <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]">
                 <div className="flex items-center gap-1.5">
-                  <Sparkles size={9} className="text-amber-500" />
+                  <CreditCard size={9} className="text-amber-500" />
                   <span className="text-[10px] text-[var(--text-quaternary)]">
-                    Powered by x402 micropayments on Starknet
+                    Paid via x402 on Starknet · AVNU paymaster
                   </span>
                 </div>
                 <button
-                  onClick={() => { setPremiumData(null); setX402DemoStep(0); }}
-                  className="text-[10px] text-[var(--text-quaternary)] hover:text-[var(--text-secondary)] cursor-pointer"
+                  onClick={() => { setPremiumData(null); setX402Phase("idle"); setX402TxHash(null); }}
+                  className="text-[10px] text-amber-500 hover:text-amber-700 cursor-pointer font-semibold"
                 >
-                  Run Again
+                  Buy Again
                 </button>
               </div>
             </motion.div>
