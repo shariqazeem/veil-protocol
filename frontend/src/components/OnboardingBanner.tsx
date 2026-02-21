@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { useAccount } from "@starknet-react/core";
 import { motion, AnimatePresence } from "framer-motion";
-import { ExternalLink, X, Shield, Wallet, ArrowRightLeft, Lock } from "lucide-react";
+import { ExternalLink, X, Shield, Wallet, Brain, CreditCard } from "lucide-react";
 import { isMainnet } from "@/utils/network";
 
 const STARKNET_FAUCET = "https://starknet-faucet.vercel.app/";
 
 const steps = [
-  { icon: Wallet, label: "Connect", desc: "Link Starknet + Bitcoin wallets" },
-  { icon: Shield, label: "Shield", desc: "Deposit USDC into privacy pool" },
-  { icon: ArrowRightLeft, label: "Convert", desc: "Batch swap to BTC at market rate" },
-  { icon: Lock, label: "Exit", desc: "ZK-prove ownership, withdraw privately" },
+  { icon: Wallet, label: "Connect", desc: "Link your Starknet wallet" },
+  { icon: Brain, label: "AI Plan", desc: "AI plans your deposit strategy" },
+  { icon: CreditCard, label: "x402 Intel", desc: "Pay $0.01 for premium analysis" },
+  { icon: Shield, label: "Shield", desc: "ZK-private deposits & exit" },
 ];
 
 export default function OnboardingBanner() {
@@ -38,10 +38,10 @@ export default function OnboardingBanner() {
         </button>
 
         <span className="text-sm font-semibold text-[var(--text-primary)] tracking-tight">
-          Confidential Bitcoin Accumulation
+          AI-Powered Privacy Protocol
         </span>
-        <p className="text-xs text-[var(--text-tertiary)] mt-1 mb-4 max-w-[280px]">
-          Shield USDC, convert to BTC, exit privately with zero-knowledge proofs.
+        <p className="text-xs text-[var(--text-tertiary)] mt-1 mb-4 max-w-[320px]">
+          AI strategy engine + x402 micropayments + ZK privacy. Plan, pay-per-insight, and shield — all on Starknet.
         </p>
 
         <div className="grid grid-cols-4 gap-2">

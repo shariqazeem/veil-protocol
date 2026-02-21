@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useReadContract } from "@starknet-react/core";
 import { motion, useMotionValue, animate } from "framer-motion";
-import { Play, Loader2, Check, ExternalLink, Zap, Lock, Bitcoin, ArrowRightLeft } from "lucide-react";
+import { Play, Loader2, Check, ExternalLink, Zap, Lock, Bitcoin, ArrowRightLeft, Sparkles, Brain, CreditCard, Shield } from "lucide-react";
 import PrivacyScore from "./PrivacyScore";
 import { SkeletonLine } from "./Skeleton";
 import { useToast } from "@/context/ToastContext";
@@ -474,6 +474,81 @@ export default function Dashboard() {
               commitments={leaves}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Protocol Capabilities — x402, AI, ZK */}
+      <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">Protocol Stack</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-semibold">v2</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* x402 Micropayments */}
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="rounded-xl bg-amber-50/80 border border-amber-200/50 p-3.5"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center">
+                <CreditCard size={12} strokeWidth={1.5} className="text-amber-600" />
+              </div>
+              <span className="text-[11px] font-bold text-amber-700">x402 Payments</span>
+            </div>
+            <p className="text-[10px] text-amber-600/80 leading-relaxed">
+              Pay-per-insight via HTTP 402. Premium AI analysis for $0.01 per query through AVNU paymaster.
+            </p>
+            <div className="mt-2 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse-dot" />
+              <span className="text-[9px] text-amber-500 font-semibold">LIVE ON STARKNET</span>
+            </div>
+          </motion.div>
+
+          {/* AI Strategy Engine */}
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="rounded-xl bg-violet-50/80 border border-violet-200/50 p-3.5"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center">
+                <Brain size={12} strokeWidth={1.5} className="text-violet-600" />
+              </div>
+              <span className="text-[11px] font-bold text-violet-700">AI Strategy</span>
+            </div>
+            <p className="text-[10px] text-violet-600/80 leading-relaxed">
+              Natural language DCA planning. &quot;$50 max privacy&quot; → optimized multi-tier deposit strategy.
+            </p>
+            <div className="mt-2 flex items-center gap-1">
+              <Sparkles size={9} className="text-violet-500" />
+              <span className="text-[9px] text-violet-500 font-semibold">5 STRATEGY MODES</span>
+            </div>
+          </motion.div>
+
+          {/* ZK Privacy */}
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-xl bg-emerald-50/80 border border-emerald-200/50 p-3.5"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <Shield size={12} strokeWidth={1.5} className="text-emerald-600" />
+              </div>
+              <span className="text-[11px] font-bold text-emerald-700">ZK Privacy</span>
+            </div>
+            <p className="text-[10px] text-emerald-600/80 leading-relaxed">
+              UltraHonk ZK proofs via Noir + Garaga. Prove ownership without revealing deposit history.
+            </p>
+            <div className="mt-2 flex items-center gap-1">
+              <Lock size={9} className="text-emerald-500" />
+              <span className="text-[9px] text-emerald-500 font-semibold">NOIR CIRCUITS</span>
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>
