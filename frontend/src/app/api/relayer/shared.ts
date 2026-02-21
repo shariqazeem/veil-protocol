@@ -46,7 +46,18 @@ export const RPC_URL =
 export const POOL_ADDRESS = addresses.contracts.shieldedPool;
 export const USDC_ADDRESS = addresses.contracts.usdc;
 export const WBTC_ADDRESS = addresses.contracts.wbtc;
-export const FEE_BPS = 200; // 2% relayer fee
+export const FEE_BPS = Number(process.env.RELAYER_FEE_BPS ?? 200); // 2% relayer fee (legacy path)
+
+// x402-funded relay: flat fee instead of percentage deduction
+export const RELAY_FEE_USDC = Number(process.env.RELAY_FEE_USDC ?? 0.03);
+export const RELAY_FEE_STRK = Number(process.env.RELAY_FEE_STRK ?? 0.015);
+export const X402_RELAY_ENABLED = process.env.X402_RELAY_ENABLED !== "false";
+export const NETWORK = network;
+
+// Treasury address that receives x402 micropayments — set via env for mainnet
+export const TREASURY_ADDRESS =
+  process.env.X402_TREASURY_ADDRESS ??
+  addresses.deployer;
 
 export const AVNU_API_BASE =
   network === "mainnet"

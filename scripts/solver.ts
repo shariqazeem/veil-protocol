@@ -69,6 +69,10 @@ const POOL_ADDRESS =
   deployedAddresses.shieldedPool ??
   "";
 
+// Bot webhook for push notifications
+const BOT_WEBHOOK_URL = process.env.BOT_WEBHOOK_URL;
+const BOT_WEBHOOK_SECRET = process.env.BOT_WEBHOOK_SECRET;
+
 // Loop interval (30 seconds — faster than keeper since intents are time-sensitive)
 const LOOP_INTERVAL_MS = 30 * 1000;
 
@@ -255,6 +259,21 @@ async function runSolver(dryRun: boolean): Promise<boolean> {
         await provider.waitForTransaction(claimTx.transaction_hash);
         console.log("    Claimed!");
 
+        // Push intent_claimed event to bot webhook
+        if (BOT_WEBHOOK_URL) {
+          await fetch(`${BOT_WEBHOOK_URL}/notify`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(BOT_WEBHOOK_SECRET ? { Authorization: `Bearer ${BOT_WEBHOOK_SECRET}` } : {}),
+            },
+            body: JSON.stringify({
+              type: "intent_claimed",
+              data: { intent_id: i, amount: amount.toString(), solver: accountAddress },
+            }),
+          }).catch((err) => console.warn(`    [webhook] Failed to notify bot: ${err.message}`));
+        }
+
         // Simulate BTC send delay
         console.log(`    Simulating BTC send (${CONFIRM_DELAY_MS / 1000}s)...`);
         await new Promise((r) => setTimeout(r, CONFIRM_DELAY_MS));
@@ -266,6 +285,21 @@ async function runSolver(dryRun: boolean): Promise<boolean> {
           console.log(`    tx: ${confirmTx.transaction_hash}`);
           await provider.waitForTransaction(confirmTx.transaction_hash);
           console.log("    Confirmed + WBTC released to solver!");
+
+          // Push intent_settled event to bot webhook
+          if (BOT_WEBHOOK_URL) {
+            await fetch(`${BOT_WEBHOOK_URL}/notify`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(BOT_WEBHOOK_SECRET ? { Authorization: `Bearer ${BOT_WEBHOOK_SECRET}` } : {}),
+              },
+              body: JSON.stringify({
+                type: "intent_settled",
+                data: { intent_id: i, amount: amount.toString() },
+              }),
+            }).catch((err) => console.warn(`    [webhook] Failed to notify bot: ${err.message}`));
+          }
         } else {
           console.log("    Cannot confirm — not an oracle. Waiting for oracle confirmation.");
         }
@@ -293,6 +327,22 @@ async function runSolver(dryRun: boolean): Promise<boolean> {
           console.log(`    tx: ${confirmTx.transaction_hash}`);
           await provider.waitForTransaction(confirmTx.transaction_hash);
           console.log("    Confirmed + WBTC released!");
+
+          // Push intent_settled event to bot webhook
+          if (BOT_WEBHOOK_URL) {
+            await fetch(`${BOT_WEBHOOK_URL}/notify`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(BOT_WEBHOOK_SECRET ? { Authorization: `Bearer ${BOT_WEBHOOK_SECRET}` } : {}),
+              },
+              body: JSON.stringify({
+                type: "intent_settled",
+                data: { intent_id: i, amount: amount.toString() },
+              }),
+            }).catch((err) => console.warn(`    [webhook] Failed to notify bot: ${err.message}`));
+          }
+
           acted = true;
         } catch (err: any) {
           console.error(`    Error: ${err?.message ?? err}`);

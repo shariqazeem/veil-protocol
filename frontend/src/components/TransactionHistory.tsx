@@ -9,6 +9,8 @@ import { EXPLORER_TX } from "@/utils/network";
 
 const TX_EXPLORER = EXPLORER_TX;
 
+const springDefault = { type: "spring" as const, stiffness: 300, damping: 24 };
+
 function truncateHash(h: string, chars = 6): string {
   if (h.length <= chars * 2 + 2) return h;
   return `${h.slice(0, chars + 2)}...${h.slice(-chars)}`;
@@ -39,6 +41,8 @@ function HistoryEntry({ note }: { note: NoteWithStatus }) {
     <motion.div
       layout
       className="border-b border-[var(--border-subtle)] last:border-0"
+      whileHover={{ x: 2 }}
+      transition={springDefault}
     >
       <button
         onClick={() => setExpanded(!expanded)}
@@ -66,7 +70,7 @@ function HistoryEntry({ note }: { note: NoteWithStatus }) {
         </div>
 
         <div className="text-right flex-shrink-0">
-          <div className="text-[13px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
+          <div className="text-[13px] font-['JetBrains_Mono'] font-semibold text-[var(--text-primary)] font-tabular">
             {isClaimed ? (
               <span className="flex items-center gap-1">
                 <ArrowUpRight size={12} strokeWidth={1.5} className="text-[var(--accent-emerald)]" />
@@ -101,20 +105,20 @@ function HistoryEntry({ note }: { note: NoteWithStatus }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ height: springDefault, opacity: { duration: 0.2 } }}
             className="overflow-hidden"
           >
             <div className="px-1 pb-3 space-y-1.5">
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-[var(--text-tertiary)]">Commitment:</span>
-                <code className="font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)] text-xs">
+                <code className="font-['JetBrains_Mono'] text-[var(--text-secondary)] text-xs">
                   {truncateHash(note.commitment, 10)}
                 </code>
               </div>
               {note.zkCommitment && (
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-[var(--text-tertiary)]">ZK Commitment:</span>
-                  <code className="font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)] text-xs">
+                  <code className="font-['JetBrains_Mono'] text-[var(--text-secondary)] text-xs">
                     {truncateHash(note.zkCommitment, 10)}
                   </code>
                 </div>
@@ -128,7 +132,7 @@ function HistoryEntry({ note }: { note: NoteWithStatus }) {
               {wbtcAmount && (
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-[var(--text-tertiary)]">WBTC Received:</span>
-                  <span className="font-[family-name:var(--font-geist-mono)] text-[var(--accent-emerald)] font-medium">
+                  <span className="font-['JetBrains_Mono'] text-[var(--accent-emerald)] font-medium">
                     {wbtcAmount.toFixed(8)}
                   </span>
                 </div>
@@ -167,7 +171,7 @@ export default function TransactionHistory() {
   if (notes.length === 0) return null;
 
   return (
-    <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden">
+    <div className="bg-[var(--bg-secondary)] rounded-3xl border-2 border-[var(--border-subtle)] overflow-hidden">
       <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
         <span className="text-xs font-semibold text-[var(--text-secondary)]">
           Capital Activity

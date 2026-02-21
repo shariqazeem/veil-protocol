@@ -14,6 +14,9 @@ import { RpcProvider, Contract, type Abi } from "starknet";
 
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 
+const springDefault = { type: "spring" as const, stiffness: 300, damping: 24 };
+const springSnappy = { type: "spring" as const, stiffness: 500, damping: 30 };
+
 function AnimatedCounter({ value, decimals = 0, duration = 1.5 }: { value: number; decimals?: number; duration?: number }) {
   const motionVal = useMotionValue(0);
   const [display, setDisplay] = useState("0");
@@ -34,10 +37,10 @@ function AnimatedCounter({ value, decimals = 0, duration = 1.5 }: { value: numbe
 
 /** Animated shield visualization — the "hero moment" for the dashboard */
 function PrivacyOrb({ score, leaves }: { score: number; leaves: number }) {
-  const color = score >= 60 ? "52,211,153" : score >= 30 ? "245,158,11" : "255,90,0";
+  const color = score >= 60 ? "18,212,131" : score >= 30 ? "255,153,0" : "255,90,0";
 
   return (
-    <div className="relative w-28 h-28 mx-auto flex-shrink-0">
+    <div className="relative w-28 h-28 mx-auto flex-shrink-0 animate-float">
       {/* Outer ring — slow rotate */}
       <div
         className="absolute inset-0 rounded-full animate-spin-slow"
@@ -59,7 +62,7 @@ function PrivacyOrb({ score, leaves }: { score: number; leaves: number }) {
         style={{
           background: `radial-gradient(circle at 40% 35%, rgba(${color},0.25) 0%, rgba(${color},0.08) 60%, transparent 100%)`,
           border: `1px solid rgba(${color},0.25)`,
-          boxShadow: `0 0 40px rgba(${color},0.15), inset 0 0 20px rgba(${color},0.05)`,
+          boxShadow: `0 0 40px rgba(${color},0.15), 0 8px 32px -4px rgba(${color},0.2), inset 0 0 20px rgba(${color},0.05)`,
         }}
       >
         <div className="text-center">
@@ -158,7 +161,7 @@ function IntentExplorer({ poolAddress }: { poolAddress: string }) {
               className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)]"
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={springDefault}
             >
               <div className="flex items-center gap-3">
                 <ArrowRightLeft size={12} strokeWidth={1.5} style={{ color }} />
@@ -166,7 +169,7 @@ function IntentExplorer({ poolAddress }: { poolAddress: string }) {
                   <span className="text-xs font-semibold text-[var(--text-primary)]">
                     Intent #{intent.id}
                   </span>
-                  <span className="text-[11px] text-[var(--text-tertiary)] ml-2">
+                  <span className="text-[11px] text-[var(--text-tertiary)] ml-2 font-['JetBrains_Mono']">
                     {intent.amount} WBTC
                   </span>
                 </div>
@@ -177,7 +180,7 @@ function IntentExplorer({ poolAddress }: { poolAddress: string }) {
                 ) : (
                   <Check size={10} style={{ color }} strokeWidth={2} />
                 )}
-                <span className="text-[11px] font-semibold" style={{ color }}>
+                <span className="text-[11px] font-semibold font-['JetBrains_Mono']" style={{ color }}>
                   {intent.status}
                 </span>
               </div>
@@ -320,7 +323,7 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+            transition={{ type: "spring", stiffness: 200, damping: 15 }}
           >
             <PrivacyOrb score={privacyScoreValue} leaves={leaves} />
           </motion.div>
@@ -333,7 +336,7 @@ export default function Dashboard() {
                 <div className="flex items-baseline gap-1.5 mt-1">
                   {dataLoaded ? (
                     <motion.span
-                      className="text-xl sm:text-2xl font-[family-name:var(--font-geist-mono)] font-bold text-[var(--text-primary)] font-tabular tracking-tight"
+                      className="text-xl sm:text-2xl font-['JetBrains_Mono'] font-bold text-[var(--text-primary)] font-tabular tracking-tight"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.4 }}
@@ -350,7 +353,7 @@ export default function Dashboard() {
                 <div className="flex items-baseline gap-1.5 mt-1">
                   {dataLoaded ? (
                     <motion.span
-                      className="text-xl sm:text-2xl font-[family-name:var(--font-geist-mono)] font-bold text-violet-600 font-tabular tracking-tight"
+                      className="text-xl sm:text-2xl font-['JetBrains_Mono'] font-bold text-[#4D4DFF] font-tabular tracking-tight"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.4, delay: 0.1 }}
@@ -369,7 +372,7 @@ export default function Dashboard() {
               {stats.map(({ label, value }) => (
                 <div key={label} className="flex items-center gap-1.5">
                   <span className="text-[11px] text-[var(--text-quaternary)]">{label}</span>
-                  <span className="text-[12px] font-[family-name:var(--font-geist-mono)] font-bold text-[var(--text-secondary)] font-tabular">
+                  <span className="text-[12px] font-['JetBrains_Mono'] font-bold text-[var(--text-secondary)] font-tabular">
                     <AnimatedCounter value={value} duration={1} />
                   </span>
                 </div>
@@ -384,11 +387,12 @@ export default function Dashboard() {
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between p-4 rounded-2xl bg-violet-50 border border-violet-200/50"
+          transition={springDefault}
+          className="flex items-center justify-between p-4 rounded-2xl bg-indigo-50 border border-indigo-200/50"
         >
           <div>
             <span className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
-              <Zap size={11} strokeWidth={2} className="text-violet-500" />
+              <Zap size={11} strokeWidth={2} className="text-[#4D4DFF]" />
               {pending.toLocaleString()} USDC ready for conversion
             </span>
           </div>
@@ -414,7 +418,7 @@ export default function Dashboard() {
           href={`${EXPLORER_TX}${batchTxHash}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-xs text-[var(--accent-emerald)] hover:underline font-[family-name:var(--font-geist-mono)] px-1"
+          className="flex items-center gap-1.5 text-xs text-[var(--accent-emerald)] hover:underline font-['JetBrains_Mono'] px-1"
         >
           <Check size={10} strokeWidth={2} />
           Conversion confirmed
@@ -443,10 +447,10 @@ export default function Dashboard() {
                 return (
                   <div key={label}>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)] font-tabular">
+                      <span className="text-sm font-['JetBrains_Mono'] text-[var(--text-secondary)] font-tabular">
                         {label}
                       </span>
-                      <span className="text-sm font-[family-name:var(--font-geist-mono)] font-bold font-tabular" style={{ color }}>
+                      <span className="text-sm font-['JetBrains_Mono'] font-bold font-tabular" style={{ color }}>
                         {count}
                       </span>
                     </div>
@@ -456,7 +460,7 @@ export default function Dashboard() {
                         style={{ background: color }}
                         initial={{ width: 0 }}
                         animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1], delay: 0.1 * i }}
+                        transition={{ type: "spring", stiffness: 80, damping: 20, delay: 0.1 * i }}
                       />
                     </div>
                   </div>
@@ -481,28 +485,29 @@ export default function Dashboard() {
       <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] p-5 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <span className="text-xs font-semibold text-[var(--text-secondary)]">Protocol Stack</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-semibold">v2</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-[#4D4DFF] font-semibold">v2</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* x402 Micropayments */}
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="rounded-xl bg-amber-50/80 border border-amber-200/50 p-3.5"
+            transition={{ y: springDefault, opacity: { duration: 0.3 }, delay: 0.1 }}
+            whileHover={{ y: -4, transition: springSnappy }}
+            className="rounded-xl bg-orange-50/80 border border-orange-200/50 p-3.5"
           >
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center">
-                <CreditCard size={12} strokeWidth={1.5} className="text-amber-600" />
+              <div className="w-6 h-6 rounded-lg bg-orange-100 flex items-center justify-center">
+                <CreditCard size={12} strokeWidth={1.5} className="text-[#FF9900]" />
               </div>
-              <span className="text-[11px] font-bold text-amber-700">x402 Payments</span>
+              <span className="text-[11px] font-bold text-orange-700">x402 Payments</span>
             </div>
-            <p className="text-[10px] text-amber-600/80 leading-relaxed">
-              Pay-per-insight via HTTP 402. Premium AI analysis for $0.01 per query through AVNU paymaster.
+            <p className="text-[10px] text-orange-600/80 leading-relaxed">
+              x402-funded gasless relay ($0.03 flat) replaces 2% withdrawal fee. Premium AI analysis $0.01/query.
             </p>
             <div className="mt-2 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse-dot" />
-              <span className="text-[9px] text-amber-500 font-semibold">LIVE ON STARKNET</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF9900] animate-pulse-dot" />
+              <span className="text-[9px] text-[#FF9900] font-semibold">LIVE ON STARKNET</span>
             </div>
           </motion.div>
 
@@ -510,21 +515,22 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="rounded-xl bg-violet-50/80 border border-violet-200/50 p-3.5"
+            transition={{ y: springDefault, opacity: { duration: 0.3 }, delay: 0.15 }}
+            whileHover={{ y: -4, transition: springSnappy }}
+            className="rounded-xl bg-indigo-50/80 border border-indigo-200/50 p-3.5"
           >
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center">
-                <Brain size={12} strokeWidth={1.5} className="text-violet-600" />
+              <div className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <Brain size={12} strokeWidth={1.5} className="text-[#4D4DFF]" />
               </div>
-              <span className="text-[11px] font-bold text-violet-700">AI Strategy</span>
+              <span className="text-[11px] font-bold text-indigo-700">AI Strategy</span>
             </div>
-            <p className="text-[10px] text-violet-600/80 leading-relaxed">
+            <p className="text-[10px] text-indigo-600/80 leading-relaxed">
               Natural language DCA planning. &quot;$50 max privacy&quot; → optimized multi-tier deposit strategy.
             </p>
             <div className="mt-2 flex items-center gap-1">
-              <Sparkles size={9} className="text-violet-500" />
-              <span className="text-[9px] text-violet-500 font-semibold">5 STRATEGY MODES</span>
+              <Sparkles size={9} className="text-[#4D4DFF]" />
+              <span className="text-[9px] text-[#4D4DFF] font-semibold">5 STRATEGY MODES</span>
             </div>
           </motion.div>
 
@@ -532,7 +538,8 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ y: springDefault, opacity: { duration: 0.3 }, delay: 0.2 }}
+            whileHover={{ y: -4, transition: springSnappy }}
             className="rounded-xl bg-emerald-50/80 border border-emerald-200/50 p-3.5"
           >
             <div className="flex items-center gap-2 mb-2">

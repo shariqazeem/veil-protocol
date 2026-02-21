@@ -51,13 +51,13 @@ export default function PrivacyScore(props: PrivacyScoreProps) {
               strokeDasharray={circumference}
               initial={{ strokeDashoffset: circumference }}
               animate={{ strokeDashoffset: offset }}
-              transition={{ duration: 1.2, ease: [0.4, 0, 0.2, 1] }}
+              transition={{ type: "spring", stiffness: 80, damping: 20 }}
               transform="rotate(-90 48 48)"
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <motion.span
-              className="text-xl font-[family-name:var(--font-geist-mono)] font-bold font-tabular"
+              className="text-xl font-['JetBrains_Mono'] font-bold font-tabular"
               style={{ color }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -73,7 +73,7 @@ export default function PrivacyScore(props: PrivacyScoreProps) {
           {items.map(({ label, value, max }) => (
             <div key={label} className="flex items-center justify-between">
               <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
-              <span className="text-[11px] font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)] font-tabular">
+              <span className="text-[11px] font-['JetBrains_Mono'] text-[var(--text-secondary)] font-tabular">
                 {value}<span className="text-[var(--text-quaternary)]">/{max}</span>
               </span>
             </div>

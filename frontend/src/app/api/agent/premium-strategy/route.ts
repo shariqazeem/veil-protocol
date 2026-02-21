@@ -20,20 +20,13 @@ import {
   type PaymentRequirements,
   type PaymentPayload,
 } from "x402-starknet";
-import { POOL_ADDRESS, RPC_URL } from "../../relayer/shared";
-import addresses from "@/contracts/addresses.json";
+import { POOL_ADDRESS, RPC_URL, NETWORK, TREASURY_ADDRESS } from "../../relayer/shared";
 
-const network = addresses.network ?? "sepolia";
-const x402Network = network === "mainnet" ? "starknet:mainnet" as const : "starknet:sepolia" as const;
-
-// Treasury address that receives x402 micropayments
-const TREASURY_ADDRESS =
-  process.env.X402_TREASURY_ADDRESS ??
-  "0x0501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5";
+const x402Network = NETWORK === "mainnet" ? "starknet:mainnet" as const : "starknet:sepolia" as const;
 
 // Price per premium analysis: $0.01 USDC (or 0.005 STRK on sepolia)
-const PREMIUM_PRICE_USDC = 0.01;
-const PREMIUM_PRICE_STRK = 0.005;
+const PREMIUM_PRICE_USDC = Number(process.env.PREMIUM_PRICE_USDC ?? 0.01);
+const PREMIUM_PRICE_STRK = Number(process.env.PREMIUM_PRICE_STRK ?? 0.005);
 
 const POOL_ABI: Abi = [
   { type: "function", name: "get_pending_usdc", inputs: [], outputs: [{ type: "core::integer::u256" }], state_mutability: "view" },

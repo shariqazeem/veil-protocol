@@ -85,6 +85,10 @@ const AVNU_API_BASE =
 const DEFAULT_MIN_PENDING = deployedNetwork === "mainnet" ? "1000000" : "10000000";
 const MIN_PENDING = BigInt(process.env.MIN_PENDING ?? DEFAULT_MIN_PENDING);
 
+// Bot webhook for push notifications
+const BOT_WEBHOOK_URL = process.env.BOT_WEBHOOK_URL;
+const BOT_WEBHOOK_SECRET = process.env.BOT_WEBHOOK_SECRET;
+
 // Loop interval in milliseconds (5 minutes)
 const LOOP_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -401,6 +405,27 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
     await provider.waitForTransaction(tx.transaction_hash);
 
     console.log(`  Batch executed successfully!`);
+
+    // Push batch event to bot webhook
+    if (BOT_WEBHOOK_URL) {
+      await fetch(`${BOT_WEBHOOK_URL}/notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(BOT_WEBHOOK_SECRET ? { Authorization: `Bearer ${BOT_WEBHOOK_SECRET}` } : {}),
+        },
+        body: JSON.stringify({
+          type: "batch_executed",
+          data: {
+            batch_count: Number(batchCount) + 1,
+            usdc_in: pendingBigInt.toString(),
+            wbtc_out: minOut.toString(),
+            tx_hash: tx.transaction_hash,
+          },
+        }),
+      }).catch((err) => console.warn(`  [webhook] Failed to notify bot: ${err.message}`));
+    }
+
     console.log();
     return true;
   } catch (err: any) {

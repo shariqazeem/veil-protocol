@@ -43,9 +43,11 @@ const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 
 interface ShieldFormProps {
   onComplete?: () => void;
+  prefillTier?: number | null;
+  onPrefillConsumed?: () => void;
 }
 
-export default function ShieldForm({ onComplete }: ShieldFormProps) {
+export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed }: ShieldFormProps) {
   const { address, isConnected } = useAccount();
   const { bitcoinAddress } = useWallet();
   const { sendAsync } = useSendTransaction({ calls: [] });
@@ -101,6 +103,14 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
     }
     setMinting(false);
   }
+
+  // Pre-fill tier from deep link / URL params
+  useEffect(() => {
+    if (prefillTier !== null && prefillTier !== undefined && prefillTier >= 0 && prefillTier <= 3) {
+      setSelectedTier(prefillTier);
+      onPrefillConsumed?.();
+    }
+  }, [prefillTier, onPrefillConsumed]);
 
   useEffect(() => {
     async function fetchPrice() {
@@ -310,8 +320,8 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
               <div
                 className="w-24 h-24 rounded-full animate-processing-orb"
                 style={{
-                  background: "radial-gradient(circle at 40% 35%, rgba(124,58,237,0.3) 0%, rgba(124,58,237,0.15) 50%, rgba(124,58,237,0.05) 100%)",
-                  border: "1px solid rgba(124,58,237,0.3)",
+                  background: "radial-gradient(circle at 40% 35%, rgba(77,77,255,0.3) 0%, rgba(77,77,255,0.15) 50%, rgba(77,77,255,0.05) 100%)",
+                  border: "1px solid rgba(77,77,255,0.3)",
                 }}
               />
             )}
@@ -375,11 +385,11 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl p-4 bg-violet-50 border border-violet-200/60"
+                className="rounded-2xl p-4 bg-indigo-50 border border-indigo-200/60"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Droplets size={14} strokeWidth={1.5} className="text-violet-500" />
+                  <div className="w-8 h-8 rounded-xl bg-[#4D4DFF]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Droplets size={14} strokeWidth={1.5} className="text-[#4D4DFF]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     {isLiveMode ? (
@@ -397,24 +407,24 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                             <>
                               <li>Get USDC on Ethereum</li>
                               <li>Bridge to Starknet via{" "}
-                                <a href="https://starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">StarkGate</a>
+                                <a href="https://starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-[#4D4DFF] hover:underline">StarkGate</a>
                               </li>
                             </>
                           ) : (
                             <>
                               <li>Get Sepolia ETH from a{" "}
-                                <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">faucet</a>
+                                <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noopener noreferrer" className="text-[#4D4DFF] hover:underline">faucet</a>
                               </li>
                               <li>Get Sepolia USDC from{" "}
-                                <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">Circle Faucet</a>
+                                <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-[#4D4DFF] hover:underline">Circle Faucet</a>
                               </li>
                               <li>Bridge to Starknet via{" "}
-                                <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">StarkGate</a>
+                                <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-[#4D4DFF] hover:underline">StarkGate</a>
                               </li>
                             </>
                           )}
                         </ol>
-                        <span className="text-xs text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)]">
+                        <span className="text-xs text-[var(--text-tertiary)] font-['JetBrains_Mono']">
                           Balance: {balance.toLocaleString()} USDC
                         </span>
                       </>
@@ -430,14 +440,14 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                           <motion.button
                             onClick={handleMintUsdc}
                             disabled={minting || !address}
-                            className="px-4 py-2 bg-violet-600 text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                            className="px-4 py-2 bg-[#4D4DFF] text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                             whileTap={{ scale: 0.97 }}
                             transition={spring}
                           >
                             <Droplets size={12} strokeWidth={2} />
                             {minting ? "Minting..." : "Mint 100K USDC"}
                           </motion.button>
-                          <span className="text-xs text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)]">
+                          <span className="text-xs text-[var(--text-tertiary)] font-['JetBrains_Mono']">
                             Balance: {balance.toLocaleString()} USDC
                           </span>
                         </div>
@@ -454,7 +464,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                 <span className="text-xs text-[var(--text-tertiary)]">
                   {isLiveMode ? `${NETWORK_LABEL} USDC Balance` : "Test USDC Balance"}
                 </span>
-                <span className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
+                <span className="text-[12px] font-['JetBrains_Mono'] font-semibold text-[var(--text-primary)] font-tabular">
                   {balance.toLocaleString()} USDC
                 </span>
               </div>
@@ -467,7 +477,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                   Select Capital Tier
                 </span>
                 {btcPrice && (
-                  <span className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)]">
+                  <span className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] font-['JetBrains_Mono']">
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-emerald)] animate-pulse" />
                     BTC ${btcPrice.toLocaleString()}
                   </span>
@@ -487,17 +497,17 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                       onClick={() => setSelectedTier(tierNum)}
                       className={`relative py-4 px-2 rounded-xl text-center transition-all cursor-pointer border active:scale-95 ${
                         isSelected
-                          ? "bg-violet-600 text-white border-violet-600 shadow-[0_0_20px_rgba(124,58,237,0.2)]"
-                          : "bg-[var(--bg-tertiary)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-violet-300 hover-glow"
+                          ? "bg-[#4D4DFF] text-white border-[#4D4DFF] shadow-[0_8px_32px_-4px_rgba(77,77,255,0.25)]"
+                          : "bg-[var(--bg-tertiary)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#4D4DFF]/30 hover-glow"
                       }`}
                       whileTap={{ scale: 0.95 }}
                       transition={spring}
                     >
-                      <div className="text-xl sm:text-[22px] font-[family-name:var(--font-geist-mono)] font-bold tracking-tight font-tabular">
+                      <div className="text-xl sm:text-[22px] font-['JetBrains_Mono'] font-bold tracking-tight font-tabular">
                         ${usdcAmount.toLocaleString()}
                       </div>
                       {btcEstimate !== null && (
-                        <div className={`text-[10px] mt-1 font-[family-name:var(--font-geist-mono)] ${
+                        <div className={`text-[10px] mt-1 font-['JetBrains_Mono'] ${
                           isSelected ? "text-white/50" : "text-[var(--text-quaternary)]"
                         }`}>
                           {btcEstimate.toFixed(btcEstimate < 0.001 ? 6 : 4)} BTC
@@ -591,7 +601,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                   href={`${EXPLORER_TX}${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 flex items-center gap-1.5 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]"
+                  className="mt-2 flex items-center gap-1.5 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] font-['JetBrains_Mono']"
                 >
                   Deposit tx &rarr;
                 </a>
@@ -601,7 +611,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                   href={`${EXPLORER_TX}${batchTxHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]"
+                  className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] font-['JetBrains_Mono']"
                 >
                   Conversion tx &rarr;
                 </a>

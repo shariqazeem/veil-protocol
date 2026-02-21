@@ -23,6 +23,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import * as http from "http";
 import { Bot, InlineKeyboard, InputFile } from "grammy";
 import { RpcProvider, Contract, type Abi } from "starknet";
 import "dotenv/config";
@@ -78,6 +79,8 @@ const RPC_URL =
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEB_APP_BASE = process.env.WEB_APP_URL ?? "http://localhost:3000";
 const RELAYER_API = process.env.RELAYER_API_URL ?? `${WEB_APP_BASE}/api/relayer`;
+const BOT_WEBHOOK_PORT = parseInt(process.env.BOT_WEBHOOK_PORT ?? "3002", 10);
+const BOT_WEBHOOK_SECRET = process.env.BOT_WEBHOOK_SECRET ?? "";
 
 const EXPLORER_BASE =
   network === "mainnet"
@@ -148,6 +151,13 @@ const POOL_ABI: Abi = [
     name: "get_anonymity_set",
     inputs: [{ name: "tier", type: "core::integer::u8" }],
     outputs: [{ type: "core::integer::u32" }],
+    state_mutability: "view",
+  },
+  {
+    type: "function",
+    name: "get_intent_count",
+    inputs: [],
+    outputs: [{ type: "core::integer::u64" }],
     state_mutability: "view",
   },
 ];
@@ -259,20 +269,55 @@ function buildDeepLink(userInput: string, target: number, plan: AgentPlan): stri
   return `${WEB_APP_BASE}/app?strategy=${params}`;
 }
 
+function buildShieldLink(tier: number): string {
+  return `${WEB_APP_BASE}/app?action=shield&tier=${tier}`;
+}
+
+function buildUnveilLink(noteIdx: number): string {
+  return `${WEB_APP_BASE}/app?action=unveil&noteIdx=${noteIdx}`;
+}
+
+function buildMiniAppParams(action: string, params: Record<string, string>): string {
+  return Buffer.from(JSON.stringify({ action, ...params })).toString("base64url");
+}
+
+function buildMiniAppUrl(action: string, params: Record<string, string> = {}): string {
+  const startParam = buildMiniAppParams(action, params);
+  return `${WEB_APP_BASE}/app?tgWebAppStartParam=${startParam}`;
+}
+
 // ---------------------------------------------------------------------------
 // User State (file-backed persistence — survives restarts)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Notification Preferences
+// ---------------------------------------------------------------------------
+
+interface NotificationPrefs {
+  batch: boolean;     // batch execution alerts
+  intent: boolean;    // intent bridge events
+  anon: boolean;      // anonymity set milestones (5, 10, 20)
+  price: boolean;     // BTC >5% moves
+  personal: boolean;  // user's own deposit batch status
+}
+
+const DEFAULT_PREFS: NotificationPrefs = {
+  batch: true, intent: true, anon: true, price: true, personal: true,
+};
+
 interface UserState {
   starknetAddress: string | null;
   notes: GhostNote[];
+  notifyPrefs?: NotificationPrefs;
 }
 
 const STATE_FILE = path.resolve(__dirname, "data", "bot-state.json");
 
 /** Persisted state structure */
 interface PersistedState {
-  users: Record<string, { starknetAddress: string | null; notes: GhostNote[] }>;
+  users: Record<string, { starknetAddress: string | null; notes: GhostNote[]; notifyPrefs?: NotificationPrefs }>;
+  alertSubscribers?: number[];
 }
 
 function loadPersistedState(): Map<number, UserState> {
@@ -284,7 +329,19 @@ function loadPersistedState(): Map<number, UserState> {
         map.set(Number(chatId), {
           starknetAddress: data.starknetAddress,
           notes: data.notes ?? [],
+          notifyPrefs: data.notifyPrefs,
         });
+      }
+      // Migrate old alertSubscribers
+      if (raw.alertSubscribers) {
+        for (const chatId of raw.alertSubscribers) {
+          const existing = map.get(chatId);
+          if (existing && !existing.notifyPrefs) {
+            existing.notifyPrefs = { ...DEFAULT_PREFS };
+          } else if (!existing) {
+            map.set(chatId, { starknetAddress: null, notes: [], notifyPrefs: { ...DEFAULT_PREFS } });
+          }
+        }
       }
       console.log(`[bot] Loaded state: ${map.size} users, ${[...map.values()].reduce((s, u) => s + u.notes.length, 0)} notes`);
     }
@@ -301,6 +358,7 @@ function persistState(): void {
       obj.users[String(chatId)] = {
         starknetAddress: state.starknetAddress,
         notes: state.notes,
+        notifyPrefs: state.notifyPrefs,
       };
     }
     fs.writeFileSync(STATE_FILE, JSON.stringify(obj, null, 2), "utf-8");
@@ -316,6 +374,15 @@ function getUser(chatId: number): UserState {
     users.set(chatId, { starknetAddress: null, notes: [] });
   }
   return users.get(chatId)!;
+}
+
+/** Get all chat IDs that have notifications enabled for a given type */
+function getSubscribers(type: keyof NotificationPrefs): number[] {
+  const result: number[] = [];
+  for (const [chatId, state] of users.entries()) {
+    if (state.notifyPrefs?.[type]) result.push(chatId);
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -335,9 +402,11 @@ async function getRelayerInfo(): Promise<{ relayerAddress: string | null; relaye
 // Alerts State
 // ---------------------------------------------------------------------------
 
-const alertSubscribers = new Set<number>();
 let lastBatchCount = -1;
 let lastBtcPrice = 0;
+let lastIntentCount = -1;
+let lastAnonSets: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+const ANON_THRESHOLDS = [5, 10, 20];
 
 // ---------------------------------------------------------------------------
 // Bot Setup
@@ -348,13 +417,15 @@ const bot = new Bot(BOT_TOKEN);
 // /start
 bot.command("start", async (ctx) => {
   const keyboard = new InlineKeyboard()
+    .webApp("Launch Mini-App", `${WEB_APP_BASE}/app`)
+    .row()
     .text("Plan $10 Strategy", "quick_dca_10")
     .text("Plan $50 Strategy", "quick_dca_50")
     .row()
     .text("Pool Status", "pool_status")
     .text("BTC Price", "btc_price")
     .row()
-    .url("Open Veil App", `${WEB_APP_BASE}/app`);
+    .url("Open in Browser", `${WEB_APP_BASE}/app`);
 
   await ctx.reply(
     `<b>Veil Strategist</b>\n` +
@@ -401,7 +472,9 @@ bot.command("connect", async (ctx) => {
 // /approve — informational, approvals handled in web app
 bot.command("approve", async (ctx) => {
   const keyboard = new InlineKeyboard()
-    .url("Open Veil App", `${WEB_APP_BASE}/app`);
+    .webApp("Open Mini-App", `${WEB_APP_BASE}/app`)
+    .row()
+    .url("Open in Browser", `${WEB_APP_BASE}/app`);
 
   await ctx.reply(
     `<b>USDC Approvals</b>\n\n` +
@@ -457,8 +530,9 @@ bot.command("notes", async (ctx) => {
   const totalUsdc = user.notes.reduce((s, n) => s + Number(n.amount) / 1e6, 0);
 
   const keyboard = new InlineKeyboard()
-    .url("Export Notes Securely (Web App)", `${WEB_APP_BASE}/app`)
+    .webApp("Open Mini-App", `${WEB_APP_BASE}/app`)
     .row()
+    .url("Export Notes (Browser)", `${WEB_APP_BASE}/app`)
     .text("Download as File", "download_notes");
 
   await ctx.reply(
@@ -475,10 +549,12 @@ bot.command("notes", async (ctx) => {
 // /help
 bot.command("help", async (ctx) => {
   const keyboard = new InlineKeyboard()
+    .webApp("Launch Mini-App", `${WEB_APP_BASE}/app`)
+    .row()
     .text("Plan $10 Strategy", "quick_dca_10")
     .text("Plan $50 Strategy", "quick_dca_50")
     .row()
-    .url("Open Veil App", `${WEB_APP_BASE}/app`);
+    .url("Open in Browser", `${WEB_APP_BASE}/app`);
 
   await ctx.reply(
     `<b>Veil Strategist — Help</b>\n\n` +
@@ -492,8 +568,12 @@ bot.command("help", async (ctx) => {
     `<b>Analytics:</b>\n` +
     `<code>/status</code> — Pool state\n` +
     `<code>/portfolio</code> — Protocol analytics\n` +
-    `<code>/price</code> — BTC price + rates\n` +
-    `<code>/alerts on/off</code> — Pool notifications\n\n` +
+    `<code>/price</code> — BTC price + rates\n\n` +
+    `<b>Notifications:</b>\n` +
+    `<code>/notify</code> — Granular notification toggles\n` +
+    `<code>/notify all</code> — Enable all alerts\n` +
+    `<code>/notify off</code> — Disable all alerts\n` +
+    `<code>/alerts on/off</code> — Quick toggle (legacy)\n\n` +
     `<b>Wallet:</b>\n` +
     `<code>/connect &lt;address&gt;</code> — Link wallet (optional)\n` +
     `<code>/wallet</code> — Connection status\n` +
@@ -627,32 +707,84 @@ bot.command("portfolio", async (ctx) => {
   }
 });
 
-// /alerts
+// /alerts — legacy redirect to /notify
 bot.command("alerts", async (ctx) => {
   const arg = ctx.match?.trim().toLowerCase();
   const chatId = ctx.chat.id;
+  const user = getUser(chatId);
 
   if (arg === "on") {
-    alertSubscribers.add(chatId);
+    user.notifyPrefs = { ...DEFAULT_PREFS };
+    persistState();
     await ctx.reply(
-      `<b>Alerts enabled</b>\n\n` +
-      `Notifications for: batch events, anonymity thresholds, BTC price &gt;5% moves.\n` +
-      `Use <code>/alerts off</code> to disable.`,
+      `<b>All notifications enabled</b>\n\n` +
+      `Use <code>/notify</code> for granular control.`,
       { parse_mode: "HTML" },
     );
   } else if (arg === "off") {
-    alertSubscribers.delete(chatId);
-    await ctx.reply("Alerts disabled.");
+    user.notifyPrefs = undefined;
+    persistState();
+    await ctx.reply("All notifications disabled.");
   } else {
-    const isSubscribed = alertSubscribers.has(chatId);
-    const keyboard = new InlineKeyboard()
-      .text(isSubscribed ? "Disable Alerts" : "Enable Alerts", isSubscribed ? "alerts_off" : "alerts_on");
     await ctx.reply(
-      `<b>Pool Health Alerts</b>\n\nStatus: ${isSubscribed ? "Enabled" : "Disabled"}\n\n` +
-      `<code>/alerts on</code> — subscribe\n<code>/alerts off</code> — unsubscribe`,
-      { parse_mode: "HTML", reply_markup: keyboard },
+      `Use <code>/notify</code> for granular notification control.`,
+      { parse_mode: "HTML" },
     );
   }
+});
+
+// /notify — granular notification toggle
+bot.command("notify", async (ctx) => {
+  const arg = ctx.match?.trim().toLowerCase();
+  const chatId = ctx.chat.id;
+  const user = getUser(chatId);
+
+  if (arg === "all") {
+    user.notifyPrefs = { ...DEFAULT_PREFS };
+    persistState();
+    await ctx.reply(`<b>All notifications enabled</b>`, { parse_mode: "HTML" });
+    return;
+  }
+  if (arg === "off") {
+    user.notifyPrefs = undefined;
+    persistState();
+    await ctx.reply("All notifications disabled.");
+    return;
+  }
+
+  // Toggle individual types
+  const toggleTypes: (keyof NotificationPrefs)[] = ["batch", "intent", "anon", "price", "personal"];
+  if (arg && toggleTypes.includes(arg as keyof NotificationPrefs)) {
+    if (!user.notifyPrefs) user.notifyPrefs = { ...DEFAULT_PREFS };
+    const key = arg as keyof NotificationPrefs;
+    user.notifyPrefs[key] = !user.notifyPrefs[key];
+    persistState();
+    await ctx.reply(
+      `<b>${key}</b> notifications: ${user.notifyPrefs[key] ? "ON" : "OFF"}`,
+      { parse_mode: "HTML" },
+    );
+    return;
+  }
+
+  // Show current prefs as toggle buttons
+  const prefs = user.notifyPrefs ?? { batch: false, intent: false, anon: false, price: false, personal: false };
+  const keyboard = new InlineKeyboard()
+    .text(`${prefs.batch ? "✓" : "○"} Batch`, "toggle_notify_batch")
+    .text(`${prefs.intent ? "✓" : "○"} Intent`, "toggle_notify_intent")
+    .row()
+    .text(`${prefs.anon ? "✓" : "○"} Anon Sets`, "toggle_notify_anon")
+    .text(`${prefs.price ? "✓" : "○"} BTC Price`, "toggle_notify_price")
+    .row()
+    .text(`${prefs.personal ? "✓" : "○"} My Deposits`, "toggle_notify_personal")
+    .row()
+    .text("Enable All", "notify_all")
+    .text("Disable All", "notify_off");
+
+  await ctx.reply(
+    `<b>Notification Preferences</b>\n\n` +
+    `Toggle individual alert types:`,
+    { parse_mode: "HTML", reply_markup: keyboard },
+  );
 });
 
 // /dca
@@ -750,9 +882,22 @@ async function runStrategyFlow(
     const strategyType = detectStrategyType(userInput, target);
 
     // Build keyboard — primary action links to web app
+    const miniAppUrl = buildDeepLink(userInput, target, plan);
     const keyboard = new InlineKeyboard()
-      .url("Execute on Veil", buildDeepLink(userInput, target, plan))
-      .row()
+      .webApp("Execute in Mini-App", miniAppUrl)
+      .row();
+
+    // Per-step shield links for each unique tier
+    const uniqueTiers = [...new Set(s.steps.map(step => step.tier))];
+    for (const tier of uniqueTiers) {
+      const count = s.steps.filter(step => step.tier === tier).length;
+      keyboard.url(
+        `Shield ${DENOMINATION_LABELS[tier]}${count > 1 ? ` x${count}` : ""}`,
+        buildShieldLink(tier),
+      );
+    }
+    keyboard.row()
+      .url("Open in Browser", miniAppUrl)
       .text("Try Different Strategy", "strategy_select");
 
     const summaryLines = [
@@ -764,8 +909,8 @@ async function runStrategyFlow(
       `<b>Privacy:</b> ${s.privacyScore}`,
       `<b>CSI Impact:</b> ${s.csiImpact}`,
       ``,
-      `Tap <b>"Execute on Veil"</b> to open the app.`,
-      `Connect your wallet and tap Confirm to execute.`,
+      `Tap <b>"Execute in Mini-App"</b> to open inside Telegram.`,
+      `Or use <b>"Open in Browser"</b> for full desktop experience.`,
     ];
 
     await ctx.reply(summaryLines.join("\n"), {
@@ -905,13 +1050,84 @@ bot.callbackQuery("check_approval", async (ctx) => {
 
 bot.callbackQuery("alerts_on", async (ctx) => {
   await ctx.answerCallbackQuery("Alerts enabled!");
-  alertSubscribers.add(ctx.chat!.id);
-  await ctx.reply("Alerts enabled.", { parse_mode: "HTML" });
+  const user = getUser(ctx.chat!.id);
+  user.notifyPrefs = { ...DEFAULT_PREFS };
+  persistState();
+  await ctx.reply("All notifications enabled.", { parse_mode: "HTML" });
 });
 bot.callbackQuery("alerts_off", async (ctx) => {
   await ctx.answerCallbackQuery("Alerts disabled.");
-  alertSubscribers.delete(ctx.chat!.id);
-  await ctx.reply("Alerts disabled.");
+  const user = getUser(ctx.chat!.id);
+  user.notifyPrefs = undefined;
+  persistState();
+  await ctx.reply("All notifications disabled.");
+});
+
+// Notification toggle callbacks
+bot.callbackQuery(/^toggle_notify_(batch|intent|anon|price|personal)$/, async (ctx) => {
+  const type = ctx.match[1] as keyof NotificationPrefs;
+  const user = getUser(ctx.chat!.id);
+  if (!user.notifyPrefs) user.notifyPrefs = { ...DEFAULT_PREFS };
+  user.notifyPrefs[type] = !user.notifyPrefs[type];
+  persistState();
+  await ctx.answerCallbackQuery(`${type}: ${user.notifyPrefs[type] ? "ON" : "OFF"}`);
+
+  // Rebuild keyboard with updated state
+  const prefs = user.notifyPrefs;
+  const keyboard = new InlineKeyboard()
+    .text(`${prefs.batch ? "✓" : "○"} Batch`, "toggle_notify_batch")
+    .text(`${prefs.intent ? "✓" : "○"} Intent`, "toggle_notify_intent")
+    .row()
+    .text(`${prefs.anon ? "✓" : "○"} Anon Sets`, "toggle_notify_anon")
+    .text(`${prefs.price ? "✓" : "○"} BTC Price`, "toggle_notify_price")
+    .row()
+    .text(`${prefs.personal ? "✓" : "○"} My Deposits`, "toggle_notify_personal")
+    .row()
+    .text("Enable All", "notify_all")
+    .text("Disable All", "notify_off");
+
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: keyboard });
+  } catch { /* ignore if can't edit */ }
+});
+
+bot.callbackQuery("notify_all", async (ctx) => {
+  const user = getUser(ctx.chat!.id);
+  user.notifyPrefs = { ...DEFAULT_PREFS };
+  persistState();
+  await ctx.answerCallbackQuery("All notifications enabled!");
+  const prefs = user.notifyPrefs;
+  const keyboard = new InlineKeyboard()
+    .text(`${prefs.batch ? "✓" : "○"} Batch`, "toggle_notify_batch")
+    .text(`${prefs.intent ? "✓" : "○"} Intent`, "toggle_notify_intent")
+    .row()
+    .text(`${prefs.anon ? "✓" : "○"} Anon Sets`, "toggle_notify_anon")
+    .text(`${prefs.price ? "✓" : "○"} BTC Price`, "toggle_notify_price")
+    .row()
+    .text(`${prefs.personal ? "✓" : "○"} My Deposits`, "toggle_notify_personal")
+    .row()
+    .text("Enable All", "notify_all")
+    .text("Disable All", "notify_off");
+  try { await ctx.editMessageReplyMarkup({ reply_markup: keyboard }); } catch { /* ignore */ }
+});
+
+bot.callbackQuery("notify_off", async (ctx) => {
+  const user = getUser(ctx.chat!.id);
+  user.notifyPrefs = undefined;
+  persistState();
+  await ctx.answerCallbackQuery("All notifications disabled!");
+  const keyboard = new InlineKeyboard()
+    .text(`○ Batch`, "toggle_notify_batch")
+    .text(`○ Intent`, "toggle_notify_intent")
+    .row()
+    .text(`○ Anon Sets`, "toggle_notify_anon")
+    .text(`○ BTC Price`, "toggle_notify_price")
+    .row()
+    .text(`○ My Deposits`, "toggle_notify_personal")
+    .row()
+    .text("Enable All", "notify_all")
+    .text("Disable All", "notify_off");
+  try { await ctx.editMessageReplyMarkup({ reply_markup: keyboard }); } catch { /* ignore */ }
 });
 
 bot.callbackQuery("export_notes", async (ctx) => {
@@ -1016,36 +1232,184 @@ bot.on("message:text", async (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
-// Background Alert Polling
+// Background Alert Polling (enhanced)
 // ---------------------------------------------------------------------------
 
 async function pollForAlerts() {
-  if (alertSubscribers.size === 0) return;
+  const hasAnySubscriber = [...users.values()].some(u => u.notifyPrefs);
+  if (!hasAnySubscriber) return;
+
   try {
     const state = await getPoolState();
+
+    // Batch alerts
     if (lastBatchCount >= 0 && state.batchCount > lastBatchCount) {
       const msg = `<b>New Batch Executed</b>\nBatch #${state.batchCount} completed. USDC converted to BTC via AVNU.`;
-      for (const chatId of alertSubscribers) {
+      for (const chatId of getSubscribers("batch")) {
         try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+      }
+      // Personal alerts — users who deposited in the last 30 min
+      const recentThreshold = Date.now() - 30 * 60 * 1000;
+      for (const [chatId, userState] of users.entries()) {
+        if (!userState.notifyPrefs?.personal) continue;
+        const recentNote = userState.notes.find(n => n.timestamp > recentThreshold);
+        if (recentNote) {
+          const msg = `<b>Your Deposit Batch Executed</b>\nBatch containing your recent deposit has been converted to BTC.`;
+          try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+        }
       }
     }
     lastBatchCount = state.batchCount;
 
+    // Anonymity milestone alerts (5, 10, 20)
+    for (let tier = 0; tier <= 3; tier++) {
+      const current = state.anonSets[tier] ?? 0;
+      const prev = lastAnonSets[tier] ?? 0;
+      for (const threshold of ANON_THRESHOLDS) {
+        if (current >= threshold && prev < threshold) {
+          const msg = `<b>Anonymity Milestone</b>\n${DENOMINATION_LABELS[tier]} tier reached <b>${threshold}</b> participants!`;
+          for (const chatId of getSubscribers("anon")) {
+            try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+          }
+        }
+      }
+    }
+    lastAnonSets = { ...state.anonSets };
+
+    // BTC price alerts (>5% move)
     if (lastBtcPrice > 0 && state.btcPrice > 0) {
       const change = Math.abs(state.btcPrice - lastBtcPrice) / lastBtcPrice;
       if (change >= 0.05) {
         const direction = state.btcPrice > lastBtcPrice ? "up" : "down";
         const msg = `<b>BTC Price Alert</b>\nBTC moved ${direction} ${(change * 100).toFixed(1)}%\n$${lastBtcPrice.toLocaleString()} \u2192 $${state.btcPrice.toLocaleString()}`;
-        for (const chatId of alertSubscribers) {
+        for (const chatId of getSubscribers("price")) {
           try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
         }
       }
     }
     if (state.btcPrice > 0) lastBtcPrice = state.btcPrice;
+
+    // Intent tracking
+    try {
+      const provider = new RpcProvider({ nodeUrl: RPC_URL });
+      const pool = new Contract(POOL_ABI, POOL_ADDRESS, provider);
+      const intentCount = Number(await pool.get_intent_count());
+      if (lastIntentCount >= 0 && intentCount > lastIntentCount) {
+        const newCount = intentCount - lastIntentCount;
+        const msg = `<b>New Intent${newCount > 1 ? "s" : ""}</b>\n${newCount} new BTC settlement intent${newCount > 1 ? "s" : ""} created.`;
+        for (const chatId of getSubscribers("intent")) {
+          try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+        }
+      }
+      lastIntentCount = intentCount;
+    } catch { /* intent count not available */ }
   } catch { /* silent */ }
 }
 
 setInterval(pollForAlerts, 60_000);
+
+// ---------------------------------------------------------------------------
+// Webhook HTTP Server — receives events from keeper/solver
+// ---------------------------------------------------------------------------
+
+async function handleWebhookNotify(body: { type: string; data: Record<string, unknown> }) {
+  const { type, data } = body;
+
+  switch (type) {
+    case "batch_executed": {
+      const usdcIn = data.usdc_in ? `$${(Number(data.usdc_in) / 1_000_000).toFixed(2)}` : "";
+      const wbtcOut = data.wbtc_out ? `${(Number(data.wbtc_out) / 1e8).toFixed(8)} BTC` : "";
+      const txHash = data.tx_hash ? String(data.tx_hash) : "";
+      const txLink = txHash ? `\n<a href="${EXPLORER_BASE}/tx/${txHash}">View on Voyager</a>` : "";
+      const msg = `<b>Batch Executed</b>\n${usdcIn ? `USDC in: ${usdcIn}\n` : ""}${wbtcOut ? `BTC out: ${wbtcOut}\n` : ""}${txLink}`;
+      for (const chatId of getSubscribers("batch")) {
+        try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+      }
+      break;
+    }
+    case "intent_created": {
+      const amount = data.amount ? `${(Number(data.amount) / 1e8).toFixed(6)} BTC` : "";
+      const msg = `<b>New Intent Created</b>\n${amount ? `Amount: ${amount}\n` : ""}Status: CREATED`;
+      for (const chatId of getSubscribers("intent")) {
+        try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+      }
+      break;
+    }
+    case "intent_claimed": {
+      const intentId = data.intent_id ?? "?";
+      const solver = data.solver ? String(data.solver).slice(0, 14) + "..." : "";
+      const msg = `<b>Intent #${intentId} Claimed</b>\n${solver ? `Solver: <code>${solver}</code>\n` : ""}A solver is sending BTC...`;
+      for (const chatId of getSubscribers("intent")) {
+        try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+      }
+      break;
+    }
+    case "intent_settled": {
+      const intentId = data.intent_id ?? "?";
+      const amount = data.amount ? `${(Number(data.amount) / 1e8).toFixed(6)} BTC` : "";
+      const msg = `<b>Intent #${intentId} Settled</b>\n${amount ? `Amount: ${amount}\n` : ""}BTC payment confirmed!`;
+      for (const chatId of getSubscribers("intent")) {
+        try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+      }
+      break;
+    }
+    case "intent_expired": {
+      const intentId = data.intent_id ?? "?";
+      const msg = `<b>Intent #${intentId} Expired</b>\nNo solver filled the intent. Funds refunded.`;
+      for (const chatId of getSubscribers("intent")) {
+        try { await bot.api.sendMessage(chatId, msg, { parse_mode: "HTML" }); } catch { /* ignore */ }
+      }
+      break;
+    }
+  }
+}
+
+function startWebhookServer() {
+  const server = http.createServer(async (req, res) => {
+    // Health check
+    if (req.method === "GET" && req.url === "/health") {
+      const subscriberCount = [...users.values()].filter(u => u.notifyPrefs).length;
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok", subscribers: subscriberCount }));
+      return;
+    }
+
+    // Webhook notify
+    if (req.method === "POST" && req.url === "/notify") {
+      // Auth check
+      const authHeader = req.headers.authorization;
+      if (BOT_WEBHOOK_SECRET && authHeader !== `Bearer ${BOT_WEBHOOK_SECRET}`) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Unauthorized" }));
+        return;
+      }
+
+      let body = "";
+      req.on("data", (chunk) => { body += chunk; });
+      req.on("end", async () => {
+        try {
+          const parsed = JSON.parse(body);
+          await handleWebhookNotify(parsed);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ received: true }));
+        } catch (err) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      });
+      return;
+    }
+
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
+  });
+
+  server.listen(BOT_WEBHOOK_PORT, () => {
+    console.log(`[bot] Webhook server listening on :${BOT_WEBHOOK_PORT}`);
+  });
+
+  return server;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1069,7 +1433,11 @@ console.log(`[bot] Network: ${network}`);
 console.log(`[bot] Pool: ${POOL_ADDRESS}`);
 console.log(`[bot] Relayer API: ${RELAYER_API}`);
 console.log(`[bot] Web app: ${WEB_APP_BASE}`);
+console.log(`[bot] Webhook port: ${BOT_WEBHOOK_PORT}`);
+
+// Start webhook server alongside bot
+startWebhookServer();
 
 bot.start({
-  onStart: () => console.log("[bot] Veil Strategist is online. Strategy planning ready."),
+  onStart: () => console.log("[bot] Veil Strategist is online. Strategy planning + webhook ready."),
 });

@@ -8,6 +8,8 @@ import { isMainnet } from "@/utils/network";
 
 const STARKNET_FAUCET = "https://starknet-faucet.vercel.app/";
 
+const springSnappy = { type: "spring" as const, stiffness: 500, damping: 30 };
+
 const steps = [
   { icon: Wallet, label: "Connect", desc: "Link your Starknet wallet" },
   { icon: Brain, label: "AI Plan", desc: "AI plans your deposit strategy" },
@@ -27,7 +29,7 @@ export default function OnboardingBanner() {
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.3 }}
+        transition={{ y: { type: "spring", stiffness: 300, damping: 24 }, opacity: { duration: 0.25 } }}
         className="card-glow p-4 sm:p-5 relative"
       >
         <button
@@ -50,11 +52,11 @@ export default function OnboardingBanner() {
               key={label}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.08 }}
+              transition={{ y: springSnappy, opacity: { duration: 0.25 }, delay: 0.1 + i * 0.08 }}
               className="text-center"
             >
               <div className="w-8 h-8 mx-auto rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center mb-1.5">
-                <Icon size={13} strokeWidth={1.5} className="text-violet-500" />
+                <Icon size={13} strokeWidth={1.5} className="text-[#4D4DFF]" />
               </div>
               <span className="text-[11px] font-semibold text-[var(--text-secondary)] block">{label}</span>
               <span className="text-[9px] text-[var(--text-quaternary)] leading-tight block mt-0.5 hidden sm:block">{desc}</span>
@@ -68,7 +70,7 @@ export default function OnboardingBanner() {
               href={STARKNET_FAUCET}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] text-violet-500 hover:underline inline-flex items-center gap-1"
+              className="text-[11px] text-[#4D4DFF] hover:underline inline-flex items-center gap-1"
             >
               Get testnet gas <ExternalLink size={8} strokeWidth={2} />
             </a>

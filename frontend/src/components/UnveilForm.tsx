@@ -107,6 +107,7 @@ function NoteCard({
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -4 }}
       transition={spring}
       className={`bg-[var(--bg-tertiary)] border rounded-xl p-4 space-y-3 transition-all ${
         note.status === "READY"
@@ -121,7 +122,7 @@ function NoteCard({
           ) : (
             <Lock size={14} strokeWidth={1.5} className={note.status === "READY" ? "text-[var(--accent-emerald)]" : "text-[var(--text-primary)]"} />
           )}
-          <span className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)]">
+          <span className="text-xs font-['JetBrains_Mono'] text-[var(--text-secondary)]">
             {truncateHash(note.commitment)}
           </span>
         </div>
@@ -139,20 +140,20 @@ function NoteCard({
       <div className="flex items-center gap-6 text-sm">
         <div>
           <span className="text-xs text-[var(--text-tertiary)]">Amount</span>
-          <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
+          <div className="font-['JetBrains_Mono'] font-semibold text-[var(--text-primary)] font-tabular">
             {(Number(note.amount) / 1_000_000).toLocaleString()} USDC
           </div>
         </div>
         <div>
           <span className="text-xs text-[var(--text-tertiary)]">Batch</span>
-          <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
+          <div className="font-['JetBrains_Mono'] font-semibold text-[var(--text-primary)] font-tabular">
             #{note.batchId}
           </div>
         </div>
         {note.wbtcShare && (
           <div>
             <span className="text-xs text-[var(--text-tertiary)]">BTC Share</span>
-            <div className="font-[family-name:var(--font-geist-mono)] font-semibold text-amber-500 font-tabular">
+            <div className="font-['JetBrains_Mono'] font-semibold text-[#FF9900] font-tabular">
               {(Number(note.wbtcShare) / 1e8).toFixed(8)} BTC
             </div>
           </div>
@@ -190,7 +191,12 @@ function NoteCard({
   );
 }
 
-export default function UnveilForm() {
+interface UnveilFormProps {
+  prefillNoteIdx?: number | null;
+  onPrefillConsumed?: () => void;
+}
+
+export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: UnveilFormProps = {}) {
   const { address, account, isConnected } = useAccount();
   const { sendAsync } = useSendTransaction({ calls: [] });
   const { toast } = useToast();
@@ -205,6 +211,7 @@ export default function UnveilForm() {
   const [btcWithdrawAddress, setBtcWithdrawAddress] = useState<string>("");
   const [tokenAdded, setTokenAdded] = useState(false);
   const [useRelayer, setUseRelayer] = useState(true);
+  const [useX402Relay, setUseX402Relay] = useState(true);
   const [relayerFee, setRelayerFee] = useState<number | null>(null);
   const [proofDetails, setProofDetails] = useState<ProofDetails | null>(null);
   const [zkTimer, setZkTimer] = useState<number>(0);
@@ -232,6 +239,18 @@ export default function UnveilForm() {
   useEffect(() => {
     preloadZKProver();
   }, []);
+
+  // Pre-fill note selection from deep link / URL params
+  useEffect(() => {
+    if (prefillNoteIdx !== null && prefillNoteIdx !== undefined && prefillNoteIdx >= 0 && notes.length > 0) {
+      const activeNotes = notes.filter((n) => !n.claimed);
+      if (prefillNoteIdx < activeNotes.length) {
+        // Auto-trigger claim for the pre-selected note
+        // For now, just scroll to it — actual auto-selection happens via the UI
+        onPrefillConsumed?.();
+      }
+    }
+  }, [prefillNoteIdx, notes, onPrefillConsumed]);
 
   useEffect(() => {
     if (!useRelayer) return;
@@ -401,9 +420,38 @@ export default function UnveilForm() {
               gasless: true,
             });
             setClaimPhase("withdrawing");
+
+            // Build relay request headers — add x402 payment if enabled
+            const relayHeaders: Record<string, string> = { "Content-Type": "application/json" };
+
+            if (useX402Relay && account) {
+              try {
+                // 1. Get x402 payment requirements
+                const quoteRes = await fetch(`${RELAYER_URL}/relay-quote`);
+                const paymentRequired = await quoteRes.json();
+                const requirements = paymentRequired.accepts?.[0];
+
+                if (requirements) {
+                  // 2. Sign x402 payment via AVNU paymaster
+                  const { createPaymentPayload, encodePaymentSignature, createPaymasterConfig, HTTP_HEADERS } = await import("x402-starknet");
+                  const network = requirements.network as "starknet:mainnet" | "starknet:sepolia";
+                  const paymasterEndpoint = network === "starknet:mainnet"
+                    ? "https://starknet.paymaster.avnu.fi"
+                    : "https://sepolia.paymaster.avnu.fi";
+                  const paymasterConfig = createPaymasterConfig(network, { endpoint: paymasterEndpoint });
+                  const payload = await createPaymentPayload(account as import("starknet").Account, 2, requirements, paymasterConfig);
+                  const signature = encodePaymentSignature(payload);
+                  relayHeaders[HTTP_HEADERS.PAYMENT_SIGNATURE] = signature;
+                }
+              } catch (x402Err) {
+                console.warn("[unveil] x402 payment failed, falling back to 2% fee:", x402Err);
+                // Fall through to legacy relay
+              }
+            }
+
             const relayRes = await fetch(`${RELAYER_URL}/relay`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: relayHeaders,
               body: JSON.stringify({
                 denomination,
                 zk_nullifier: zkNullifier,
@@ -522,10 +570,10 @@ export default function UnveilForm() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                    <Fingerprint size={14} strokeWidth={1.5} className="text-violet-500" />
+                    <Fingerprint size={14} strokeWidth={1.5} className="text-[#4D4DFF]" />
                     <span className="font-medium">Generating Zero-Knowledge Proof</span>
                   </div>
-                  <span className="text-xs font-[family-name:var(--font-geist-mono)] text-violet-500 font-tabular animate-pulse">
+                  <span className="text-xs font-['JetBrains_Mono'] text-[#4D4DFF] font-tabular animate-pulse">
                     {zkTimer}s
                   </span>
                 </div>
@@ -541,15 +589,15 @@ export default function UnveilForm() {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: i * 0.15 }}
-                      className="rounded-lg p-3 text-center border bg-violet-50 border-violet-200/50 animate-glow-pulse"
+                      className="rounded-lg p-3 text-center border bg-indigo-50 border-indigo-200/50 animate-glow-pulse"
                     >
                       <div className="flex items-center justify-center gap-1 mb-1">
-                        <Loader size={10} className="animate-spin text-violet-500" strokeWidth={2} />
-                        <span className="text-xs font-bold text-violet-600">
+                        <Loader size={10} className="animate-spin text-[#4D4DFF]" strokeWidth={2} />
+                        <span className="text-xs font-bold text-[#4D4DFF]">
                           {step.label}
                         </span>
                       </div>
-                      <div className="text-[11px] font-[family-name:var(--font-geist-mono)] text-[var(--text-tertiary)]">
+                      <div className="text-[11px] font-['JetBrains_Mono'] text-[var(--text-tertiary)]">
                         {step.sub}
                       </div>
                     </motion.div>
@@ -562,7 +610,7 @@ export default function UnveilForm() {
             )}
             {claimPhase === "withdrawing" && (
               <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                <Loader size={14} className="animate-spin text-violet-500" strokeWidth={1.5} />
+                <Loader size={14} className="animate-spin text-[#4D4DFF]" strokeWidth={1.5} />
                 <span>Executing confidential exit ({proofDetails?.calldataElements ?? "~2835"} calldata elements)...</span>
               </div>
             )}
@@ -607,7 +655,7 @@ export default function UnveilForm() {
 
           {claimedWbtcAmount && (
             <div className="text-center text-xs text-[var(--accent-emerald)]">
-              Amount: <span className="font-[family-name:var(--font-geist-mono)] font-semibold text-[14px]">{(Number(claimedWbtcAmount) / 1e8).toFixed(8)}</span> BTC
+              Amount: <span className="font-['JetBrains_Mono'] font-semibold text-[14px]">{(Number(claimedWbtcAmount) / 1e8).toFixed(8)}</span> BTC
             </div>
           )}
 
@@ -616,7 +664,7 @@ export default function UnveilForm() {
               href={`${TX_EXPLORER}${claimTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 text-xs text-[var(--accent-emerald)] hover:underline font-[family-name:var(--font-geist-mono)]"
+              className="flex items-center justify-center gap-1.5 text-xs text-[var(--accent-emerald)] hover:underline font-['JetBrains_Mono']"
             >
               View on Voyager
               <ExternalLink size={10} strokeWidth={1.5} />
@@ -631,11 +679,11 @@ export default function UnveilForm() {
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                 <div className="text-xs text-[var(--text-tertiary)]">Proof size</div>
-                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-primary)]">{proofDetails.calldataElements} felt252</div>
+                <div className="text-xs font-['JetBrains_Mono'] text-[var(--text-primary)]">{proofDetails.calldataElements} felt252</div>
                 <div className="text-xs text-[var(--text-tertiary)]">Verifier</div>
-                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-primary)]">Garaga UltraKeccakZKHonk</div>
+                <div className="text-xs font-['JetBrains_Mono'] text-[var(--text-primary)]">Garaga UltraKeccakZKHonk</div>
                 <div className="text-xs text-[var(--text-tertiary)]">Method</div>
-                <div className="text-xs font-[family-name:var(--font-geist-mono)] text-[var(--text-primary)]">{proofDetails.gasless ? "Gasless relayer" : "Direct"}</div>
+                <div className="text-xs font-['JetBrains_Mono'] text-[var(--text-primary)]">{proofDetails.gasless ? "Gasless relayer" : "Direct"}</div>
               </div>
               <div className="pt-1.5 border-t border-[var(--border-subtle)]">
                 <div className="text-[11px] text-[var(--accent-emerald)]/70 font-medium">
@@ -648,7 +696,7 @@ export default function UnveilForm() {
           <div className="rounded-lg bg-[var(--bg-tertiary)] p-2.5 space-y-1.5 border border-[var(--border-subtle)]">
             <div className="text-xs text-[var(--text-secondary)] font-medium">Add BTC token to your wallet:</div>
             <div className="flex items-center gap-2">
-              <code className="text-xs font-[family-name:var(--font-geist-mono)] text-violet-600 bg-[var(--bg-elevated)] px-2 py-1 rounded flex-1 truncate">
+              <code className="text-xs font-['JetBrains_Mono'] text-[#4D4DFF] bg-[var(--bg-elevated)] px-2 py-1 rounded flex-1 truncate">
                 {addresses.contracts.wbtc}
               </code>
               <button
@@ -656,7 +704,7 @@ export default function UnveilForm() {
                   navigator.clipboard.writeText(addresses.contracts.wbtc);
                   setTokenAdded(true);
                 }}
-                className="text-xs font-medium text-violet-600 hover:text-violet-500 px-2 py-1 bg-[var(--bg-elevated)] rounded cursor-pointer whitespace-nowrap border border-[var(--border-subtle)]"
+                className="text-xs font-medium text-[#4D4DFF] hover:text-[#4D4DFF] px-2 py-1 bg-[var(--bg-elevated)] rounded cursor-pointer whitespace-nowrap border border-[var(--border-subtle)]"
               >
                 {tokenAdded ? "Copied" : "Copy"}
               </button>
@@ -689,7 +737,7 @@ export default function UnveilForm() {
       {activeNotes.some((n) => n.status === "READY" && !!n.zkCommitment) && (
         <div className={`rounded-xl p-4 border transition-all ${
           useRelayer
-            ? "bg-violet-50 border-violet-200/50"
+            ? "bg-indigo-50 border-indigo-200/50"
             : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)]"
         }`}>
           <button
@@ -698,7 +746,7 @@ export default function UnveilForm() {
           >
             <div className="flex items-center gap-2.5">
               <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                useRelayer ? "bg-violet-600" : "bg-[var(--bg-elevated)]"
+                useRelayer ? "bg-[#4D4DFF]" : "bg-[var(--bg-elevated)]"
               }`}>
                 <Zap size={13} strokeWidth={1.5} className={useRelayer ? "text-white" : "text-[var(--text-tertiary)]"} />
               </div>
@@ -712,7 +760,7 @@ export default function UnveilForm() {
               </div>
             </div>
             <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-              useRelayer ? "bg-violet-600" : "bg-[var(--bg-elevated)]"
+              useRelayer ? "bg-[#4D4DFF]" : "bg-[var(--bg-elevated)]"
             }`}>
               <span
                 className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
@@ -722,13 +770,35 @@ export default function UnveilForm() {
             </div>
           </button>
           {useRelayer && (
-            <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between">
-              <span className="text-xs text-violet-600">
-                Fee: <strong>{relayerFee ? `${relayerFee / 100}%` : "2%"}</strong> of WBTC
-              </span>
-              <span className="text-xs text-[var(--text-tertiary)]">
-                Max privacy — no on-chain link to you
-              </span>
+            <div className="mt-3 pt-3 border-t border-indigo-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-[#FF9900]">x402 Flat Fee</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold">SAVE</span>
+                </div>
+                <button
+                  onClick={() => setUseX402Relay(!useX402Relay)}
+                  className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 cursor-pointer ${
+                    useX402Relay ? "bg-[#FF9900]" : "bg-[var(--bg-elevated)]"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                      useX402Relay ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[#4D4DFF]">
+                  {useX402Relay
+                    ? "Fee: $0.03 flat (via x402 micropayment)"
+                    : `Fee: ${relayerFee ? `${relayerFee / 100}%` : "2%"} of WBTC`}
+                </span>
+                <span className="text-xs text-[var(--text-tertiary)]">
+                  {useX402Relay ? "Privacy-preserving" : "Deducted from withdrawal"}
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -793,7 +863,7 @@ export default function UnveilForm() {
                 placeholder="bc1q... (your Bitcoin address)"
                 value={btcWithdrawAddress}
                 onChange={(e) => setBtcWithdrawAddress(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-primary)] border border-[var(--border-medium)] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
+                className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-primary)] border border-[var(--border-medium)] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
               />
               <p className="text-[11px] text-[var(--text-tertiary)]">
                 Your BTC is locked in escrow. A solver sends native Bitcoin to this address, an oracle confirms settlement, and the solver receives the escrowed BTC.
@@ -949,7 +1019,7 @@ export default function UnveilForm() {
               <Download size={11} strokeWidth={1.5} />
               Export Notes
             </button>
-            <label className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-violet-300 transition-colors cursor-pointer flex items-center justify-center gap-1.5">
+            <label className="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[#4D4DFF]/30 transition-colors cursor-pointer flex items-center justify-center gap-1.5">
               <Upload size={11} strokeWidth={1.5} />
               Import Notes
               <input
