@@ -564,17 +564,17 @@ async function main() {
       } else {
         fail(`/api/relayer/relay-quote — 402 but bad body: ${JSON.stringify(body).slice(0, 100)}`);
       }
-      // Verify X-Payment-Required header (HTTP/2 lowercases to "payment-required")
-      const header = quoteRes.headers.get("X-Payment-Required") ?? quoteRes.headers.get("payment-required");
+      // Verify PAYMENT-REQUIRED header (x402-starknet uses "PAYMENT-REQUIRED"; HTTP/2 lowercases it)
+      const header = quoteRes.headers.get("PAYMENT-REQUIRED") ?? quoteRes.headers.get("payment-required");
       if (header) {
         const decoded = JSON.parse(Buffer.from(header, "base64").toString());
         if (decoded.x402Version === 2) {
-          pass(`/api/relayer/relay-quote — X-Payment-Required header valid`);
+          pass(`/api/relayer/relay-quote — PAYMENT-REQUIRED header valid`);
         } else {
           fail(`/api/relayer/relay-quote — bad header: ${JSON.stringify(decoded).slice(0, 80)}`);
         }
       } else {
-        fail(`/api/relayer/relay-quote — missing X-Payment-Required header`);
+        fail(`/api/relayer/relay-quote — missing PAYMENT-REQUIRED header`);
       }
     } else if (quoteRes.status === 404) {
       log(`/api/relayer/relay-quote — x402 relay disabled (404), skipping`);
