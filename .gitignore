@@ -3,6 +3,7 @@ node_modules/
 
 # Environment
 scripts/.env
+scripts/seed-notes.json
 .env
 .env.local
 .env.*.local
@@ -40,3 +41,4 @@ Thumbs.db
 # Lock files
 scripts/package-lock.json
 .vercel
+.env*.local

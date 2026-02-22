@@ -1,74 +1,75 @@
-# Veil Protocol — 3-Minute Demo Video Script
+# Veil Protocol -- 3-Minute Demo Video Script
 
 ## Setup Before Recording
 - Open https://theveilprotocol.vercel.app in Chrome
-- Have Argent X wallet ready (Sepolia, funded with test USDC)
-- Have Xverse wallet ready (Bitcoin testnet)
-- Open a second tab with Voyager explorer
+- Have Argent X wallet ready (Starknet mainnet, funded with USDC)
+- Open a second tab with Voyager explorer (mainnet)
 - Clear browser console
-- Screen: 1920x1080, browser at ~90% zoom for clean capture
+- Screen: 1920x1080, browser at ~90% zoom
 
 ---
 
 ## Script (3:00)
 
-### [0:00–0:20] Hook + Problem (20s)
+### [0:00--0:20] Hook + Problem (20s)
 
-**Voiceover:** "Every Bitcoin purchase in DeFi is public. If you're accumulating BTC — as an institution, a fund, or an individual — everyone can see your strategy, your timing, and your position size. Front-runners exploit this. Competitors monitor you. There's no privacy in Bitcoin DeFi today."
+**Voiceover:** "Every DeFi transaction is public. When you deposit or withdraw from a protocol, everyone can see -- your strategy, your timing, your position. But it's worse than that -- you have no idea *how private* you actually are. Privacy pools exist, but they don't tell you if your anonymity set is strong enough, if your timing exposes you, or when it's safe to withdraw. Until now."
 
-**Screen:** Landing page of Veil Protocol. Scroll slowly through the hero section.
+**Screen:** Landing page of Veil Protocol. Slow scroll through the hero.
 
-### [0:20–0:40] Solution Overview (20s)
+### [0:20--0:45] Solution Overview (25s)
 
-**Voiceover:** "Veil Protocol solves this. It's confidential Bitcoin accumulation infrastructure on Starknet. You deposit USDC into shielded tranches. Deposits batch into a single swap — your intent is hidden. When you withdraw, a zero-knowledge proof generated in your browser proves ownership without revealing your identity. Secrets never leave your device."
+**Voiceover:** "Veil Protocol is privacy infrastructure on Starknet with a built-in AI Privacy Agent. You deposit into shielded pools. Withdrawals use real zero-knowledge proofs generated in your browser. And the Privacy Agent analyzes your on-chain privacy posture in real-time -- scoring your deposits, detecting threats, and recommending when to withdraw."
 
-**Screen:** Click "Open Terminal" → show the app dashboard with stats cards and pool overview.
+**Screen:** Click "Open Terminal" -> show the app dashboard with stats cards and pool overview.
 
-### [0:40–1:20] Live Demo — Shield (40s)
+### [0:45--1:20] Live Demo -- Shield (35s)
 
-**Voiceover:** "Let me show you. I connect my Starknet wallet... and my Bitcoin wallet for cross-chain settlement."
+**Voiceover:** "Let me show you. I connect my Starknet wallet on mainnet."
 
-**Screen:** Connect Argent X. Connect Xverse. Show both connected in the header.
+**Screen:** Connect Argent X. Show connected state in header.
 
-**Voiceover:** "I'll shield 10 USDC. The app generates a Pedersen commitment and a Poseidon BN254 commitment client-side — only hashes go on-chain."
+**Voiceover:** "I'll shield 1 USDC into the privacy pool. The app generates a Pedersen commitment and a Poseidon BN254 commitment entirely client-side -- only cryptographic hashes go on-chain."
 
-**Screen:** Go to Shield tab. Select $10 tier. Click "Shield 10 USDC". Show the step-by-step progress: commitment generation → Bitcoin wallet signing → on-chain deposit. Wait for success toast.
+**Screen:** Go to Shield tab. Select $1 tier. Click "Shield 1 USDC". Show step-by-step: commitment generation -> on-chain deposit. Wait for success toast.
 
-**Voiceover:** "Done. My deposit is in the shielded pool. The dashboard shows the anonymity set growing — my deposit is indistinguishable from everyone else's."
+**Voiceover:** "Done. My deposit is in the shielded pool. The anonymity set just grew -- my deposit is indistinguishable from every other $1 deposit."
 
-**Screen:** Show updated dashboard stats.
+### [1:20--2:10] AI Privacy Agent (50s)
 
-### [1:20–2:10] Live Demo — Unveil with ZK Proof (50s)
+**Voiceover:** "Now the key differentiator -- the AI Privacy Agent. I'll ask it: 'How private am I?'"
 
-**Voiceover:** "Now the key innovation — withdrawal with a real zero-knowledge proof. Watch the three-step pipeline."
+**Screen:** Go to Agent tab. Show the Privacy Chat interface. Type "how private am I?" and send.
 
-**Screen:** Go to Unveil tab. Show the note card with "Ready" status. Click "Claim WBTC".
+**Voiceover:** "The agent loads my deposits from local storage, sends them to the scoring engine, and returns a detailed privacy analysis. Here's my privacy score -- broken down by anonymity set strength, time elapsed since deposit, deposits that happened after mine, and timing safety."
 
-**Voiceover:** "Step one: witness generation runs in the browser using noir_js WASM. Step two: the proof is generated using bb.js — this is a real UltraKeccakZKHonk proof, not a mock. Step three: the proof is converted to 2,835 Starknet-compatible calldata elements by the Garaga server."
+**Screen:** Show the privacy score card with animated score bar and per-factor breakdown. Show severity colors (green/yellow/red).
 
-**Screen:** Show the ZK pipeline progress (Witness → Proof → Calldata). Show the timer counting up during proof generation (~15-30 seconds).
+**Voiceover:** "I can also ask 'check pool health' -- the agent returns live on-chain data for all four tiers: anonymity set sizes, active tier count, overall health rating, and improvement suggestions."
 
-**Voiceover:** "The proof is submitted on-chain. The Garaga verifier contract validates it cryptographically. My WBTC arrives — with zero connection to my original deposit."
+**Screen:** Type "check pool health". Show the pool health card with tier grid and metrics.
 
-**Screen:** Show success. Show WBTC received. Open Voyager in second tab — show the transaction with the PrivateWithdrawal event.
+**Voiceover:** "And for strategies: '$50 max privacy' generates a structured deposit plan with projected privacy impact."
 
-### [2:10–2:35] AI Agent + Telegram (25s)
+**Screen:** Type "$50 max privacy". Show strategy response.
 
-**Voiceover:** "Veil also includes an AI Strategy Agent. I can type natural language — 'maximize privacy with 50 dollars' — and it generates a structured plan based on live pool analytics."
+### [2:10--2:35] x402 Premium + Unveil (25s)
 
-**Screen:** Go to Strategist tab. Type "maximize privacy $50". Show the strategy output with tier recommendations and privacy scores.
+**Voiceover:** "Premium features use x402 micropayments. A deep privacy audit costs 0.005 STRK -- settled on-chain. The Deposit Strategist tab offers premium analysis gated behind the same x402 protocol."
 
-**Voiceover:** "The same engine powers our Telegram bot. Strategies generate deep links that open the app with pre-filled parameters."
+**Screen:** Switch to Deposit Strategist tab. Show x402 payment flow for premium analysis.
 
-**Screen:** Quick flash of Telegram bot (@VeilStrategistBot) showing /strategy command.
+**Voiceover:** "And when you're ready to withdraw -- the Unveil tab generates a real ZK proof in your browser. The Garaga verifier validates it on-chain. Your WBTC arrives with zero connection to your original deposit."
 
-### [2:35–3:00] Technical Depth + Close (25s)
+**Screen:** Quick flash of Unveil tab showing the ZK pipeline progress steps.
 
-**Voiceover:** "Under the hood: Cairo smart contracts with 52 passing tests. A Noir ZK circuit verified on-chain by Garaga. Browser-side proof generation where secrets never leave your device. A gasless relayer for unlinkable withdrawals. And everything deployed on Starknet Sepolia with enforced ZK verification."
+### [2:35--3:00] Technical Depth + Close (25s)
 
-**Screen:** Quick montage: terminal showing `snforge test` with 52 passing, Voyager showing the deployed contracts, the docs site.
+**Voiceover:** "Under the hood: Cairo smart contracts with 52 passing tests. 90 frontend tests covering all API routes and components. A Noir ZK circuit verified by Garaga on mainnet. Browser-side proof generation. A gasless relayer. AI privacy scoring with four-dimension analysis. And x402 micropayments for sustainable protocol economics -- all deployed on Starknet mainnet with real assets."
 
-**Voiceover:** "Veil Protocol. Confidential Bitcoin accumulation. Built for the Re{define} Hackathon on Starknet."
+**Screen:** Quick montage: terminal showing test results (142 total), Voyager showing mainnet contracts, the Privacy Agent chat interface.
+
+**Voiceover:** "Veil Protocol. Privacy infrastructure with AI-powered analytics. Built for the Re{define} Hackathon on Starknet."
 
 **Screen:** Landing page with logo. GitHub link. End.
 
@@ -76,7 +77,8 @@
 
 ## Recording Tips
 - Use OBS Studio or QuickTime for screen recording
-- Record voiceover separately for clean audio (or use a good mic)
+- Record voiceover separately for clean audio
 - Keep mouse movements smooth and deliberate
-- If ZK proof takes too long (>30s), you can speed up that section in editing
+- The AI chat responses are instant (no LLM latency -- deterministic engine)
+- If ZK proof takes >30s, speed up that section in editing
 - Export at 1080p, upload to YouTube as unlisted

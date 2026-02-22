@@ -37,8 +37,11 @@ export function rateLimit(ip: string): NextResponse | null {
 
 const network = addresses.network ?? "sepolia";
 
+/** Strip literal \n that Vercel CLI sometimes appends to env vars */
+const cleanEnv = (v: string | undefined) => v?.trim().replace(/\\n/g, "");
+
 export const RPC_URL =
-  process.env.STARKNET_RPC_URL ??
+  cleanEnv(process.env.STARKNET_RPC_URL) ??
   (network === "mainnet"
     ? "https://rpc.starknet.lava.build"
     : "https://starknet-sepolia-rpc.publicnode.com");
@@ -48,13 +51,9 @@ export const USDC_ADDRESS = addresses.contracts.usdc;
 export const WBTC_ADDRESS = addresses.contracts.wbtc;
 export const FEE_BPS = Number(process.env.RELAYER_FEE_BPS ?? 200); // 2% relayer fee (legacy path)
 
-// x402-funded relay: flat fee instead of percentage deduction
-export const RELAY_FEE_USDC = Number(process.env.RELAY_FEE_USDC ?? 0.03);
-export const RELAY_FEE_STRK = Number(process.env.RELAY_FEE_STRK ?? 0.015);
-export const X402_RELAY_ENABLED = process.env.X402_RELAY_ENABLED !== "false";
 export const NETWORK = network;
 
-// Treasury address that receives x402 micropayments — set via env for mainnet
+// Treasury address that receives x402 micropayments (Agent tab only) — set via env for mainnet
 export const TREASURY_ADDRESS =
   process.env.X402_TREASURY_ADDRESS ??
   addresses.deployer;
@@ -65,8 +64,8 @@ export const AVNU_API_BASE =
     : "https://sepolia.api.avnu.fi";
 
 export function getRelayerAccount(): Account | null {
-  const privateKey = process.env.RELAYER_PRIVATE_KEY?.trim();
-  const accountAddress = process.env.RELAYER_ACCOUNT_ADDRESS?.trim();
+  const privateKey = cleanEnv(process.env.RELAYER_PRIVATE_KEY);
+  const accountAddress = cleanEnv(process.env.RELAYER_ACCOUNT_ADDRESS);
 
   if (!privateKey || !accountAddress) return null;
 

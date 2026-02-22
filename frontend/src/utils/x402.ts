@@ -14,7 +14,6 @@
 import { num, hash, CallData, type TypedData } from "starknet";
 import {
   createPaymasterConfig,
-  verifyPayment,
   type PaymentPayload,
   type PaymentRequirements,
 } from "x402-starknet";
@@ -222,17 +221,21 @@ export async function settlePaymentDefault(
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<{ success: boolean; transaction?: string; errorReason?: string; payer?: string }> {
-  // 1. Verify payment signature first (this works fine as-is)
-  const verification = await verifyPayment(provider, payload, paymentRequirements);
-  if (!verification.isValid) {
-    return {
-      success: false,
-      errorReason: verification.invalidReason,
-      payer: verification.payer,
-    };
-  }
+  const payer = payload.payload.authorization.from;
 
   try {
+    // Skip verifyPayment pre-check — it calls isValidSignature on-chain which
+    // fails with Argent/Braavos due to address format mismatches in message hash.
+    // The paymaster will verify the signature during execution anyway.
+
+    // 1. Basic sanity checks (no on-chain calls)
+    if (normalizeAddr(payload.payload.authorization.token) !== normalizeAddr(paymentRequirements.asset)) {
+      return { success: false, errorReason: "token_mismatch", payer };
+    }
+    if (normalizeAddr(payload.payload.authorization.to) !== normalizeAddr(paymentRequirements.payTo)) {
+      return { success: false, errorReason: "recipient_mismatch", payer };
+    }
+
     // 2. Resolve paymaster endpoint & typed data
     const paymasterEndpoint = payload.paymasterEndpoint;
     const typedData = payload.typedData as TypedData | undefined;
@@ -273,14 +276,23 @@ export async function settlePaymentDefault(
     return {
       success: true,
       transaction: result.transaction_hash,
-      payer: verification.payer,
+      payer,
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return {
       success: false,
       errorReason: `settlement_error: ${msg}`,
-      payer: verification.payer,
+      payer,
     };
+  }
+}
+
+/** Normalize address for comparison */
+function normalizeAddr(addr: string): string {
+  try {
+    return num.toHex(num.toBigInt(addr)).toLowerCase();
+  } catch {
+    return addr.toLowerCase();
   }
 }

@@ -1,10 +1,10 @@
 {
   "network": "mainnet",
   "contracts": {
-    "usdc": "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
+    "usdc": "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb",
     "wbtc": "0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac",
     "avnuRouter": "0x04270219d365d6b017231b52e92b3fb5d7c8378b05e9abc97724537a80e93b0f",
-    "shieldedPool": "0x3fe6c90b13d29826bc3c75f368c17719a475c2abbc3d9ebb7b2225ddadd5e21",
+    "shieldedPool": "0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38",
     "garagaVerifier": "0x5176db82a5995bbdc3390b4f189540b0119c8d4ac8114ca7e0d5185f6f0444c"
   },
   "deployer": "0x501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5",

@@ -1,30 +1,25 @@
 /**
- * x402-Gated Premium Strategy API
+ * Premium Strategy API — gated by direct STRK micropayment.
  *
- * Returns 402 Payment Required for unauthenticated requests.
- * After x402 payment verification, returns advanced AI strategy
- * with risk scoring, pool health analysis, and optimal timing.
+ * GET  → returns 402 with payment requirements (how much to pay, where)
+ * POST → accepts { input, payment_tx } — verifies the on-chain STRK transfer,
+ *        then returns premium AI strategy analysis.
  *
- * Cost: $0.01 USDC per analysis (paid via x402 micropayment)
+ * Cost: 0.005 STRK per analysis (~$0.0002)
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { RpcProvider, Contract, type Abi } from "starknet";
+import { RpcProvider, Contract, num, type Abi } from "starknet";
 import {
-  buildUSDCPayment,
   buildSTRKPayment,
-  decodePaymentSignature,
-  HTTP_HEADERS,
+  STRK_ADDRESSES,
   type PaymentRequirements,
-  type PaymentPayload,
 } from "x402-starknet";
-import { settlePaymentDefault } from "@/utils/x402";
 import { POOL_ADDRESS, RPC_URL, NETWORK, TREASURY_ADDRESS } from "../../relayer/shared";
 
 const x402Network = NETWORK === "mainnet" ? "starknet:mainnet" as const : "starknet:sepolia" as const;
 
-// Price per premium analysis: $0.01 USDC (or 0.005 STRK on sepolia)
-const PREMIUM_PRICE_USDC = Number(process.env.PREMIUM_PRICE_USDC ?? 0.01);
+// Price per premium analysis: 0.005 STRK (~$0.0002)
 const PREMIUM_PRICE_STRK = Number(process.env.PREMIUM_PRICE_STRK ?? 0.005);
 
 const POOL_ABI: Abi = [
@@ -35,6 +30,22 @@ const POOL_ABI: Abi = [
   { type: "function", name: "get_total_volume", inputs: [], outputs: [{ type: "core::integer::u256" }], state_mutability: "view" },
   { type: "function", name: "get_total_batches_executed", inputs: [], outputs: [{ type: "core::integer::u32" }], state_mutability: "view" },
 ];
+
+/** Normalize any hex address for comparison (strips leading zeros). */
+const norm = (a: string) => {
+  try { return num.toHex(num.toBigInt(a)).toLowerCase(); }
+  catch { return a.toLowerCase(); }
+};
+
+/** Expected fee in atomic units (STRK has 18 decimals). */
+function getExpectedFeeAtomic(): bigint {
+  return BigInt(Math.round(PREMIUM_PRICE_STRK * 1e18));
+}
+
+/** STRK token address for the current network. */
+function getStrkToken(): string {
+  return STRK_ADDRESSES[x402Network] ?? "";
+}
 
 /** Fetch BTC price. */
 async function fetchBtcPrice(): Promise<number> {
@@ -58,15 +69,8 @@ async function fetchBtcPrice(): Promise<number> {
   return 0;
 }
 
-/** Build the x402 payment requirements. */
+/** Build the payment requirements for the 402 response. */
 function getPaymentRequirements(): PaymentRequirements {
-  if (x402Network === "starknet:mainnet") {
-    return buildUSDCPayment({
-      network: x402Network,
-      amount: PREMIUM_PRICE_USDC,
-      payTo: TREASURY_ADDRESS,
-    });
-  }
   return buildSTRKPayment({
     network: x402Network,
     amount: PREMIUM_PRICE_STRK,
@@ -74,7 +78,7 @@ function getPaymentRequirements(): PaymentRequirements {
   });
 }
 
-/** Build the 402 response with x402-compliant headers. */
+/** Build the 402 response telling the client how to pay. */
 function build402Response(requirements: PaymentRequirements): NextResponse {
   const paymentRequired = {
     x402Version: 2,
@@ -87,16 +91,51 @@ function build402Response(requirements: PaymentRequirements): NextResponse {
     accepts: [requirements],
   };
 
-  // Encode the payment required header as base64
-  const encoded = Buffer.from(JSON.stringify(paymentRequired)).toString("base64");
+  return NextResponse.json(paymentRequired, { status: 402 });
+}
 
-  return new NextResponse(JSON.stringify(paymentRequired), {
-    status: 402,
-    headers: {
-      "Content-Type": "application/json",
-      [HTTP_HEADERS.PAYMENT_REQUIRED]: encoded,
-    },
-  });
+/**
+ * Verify a direct on-chain STRK transfer to the treasury.
+ * Returns the payer address if valid.
+ */
+async function verifyMicropayment(
+  provider: RpcProvider,
+  txHash: string,
+): Promise<{ valid: boolean; payer?: string; error?: string }> {
+  try {
+    const receipt = await provider.waitForTransaction(txHash, {
+      successStates: ["ACCEPTED_ON_L2", "ACCEPTED_ON_L1"],
+      retryInterval: 2000,
+    });
+
+    const expectedToken = norm(getStrkToken());
+    const expectedAmount = getExpectedFeeAtomic();
+    const treasuryNorm = norm(TREASURY_ADDRESS);
+
+    // Starknet Transfer event: keys[0]=selector, keys[1]=from, keys[2]=to; data[0..1]=amount(u256)
+    const TRANSFER_KEY = "0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9";
+
+    for (const event of (receipt as any).events ?? []) {
+      const fromAddr = norm(event.from_address ?? event.contract_address ?? "");
+      if (fromAddr !== expectedToken) continue;
+
+      const keys = (event.keys ?? []).map((k: string) => norm(k));
+      if (keys[0] !== TRANSFER_KEY) continue;
+
+      const to = keys[2] ?? "";
+      if (to !== treasuryNorm) continue;
+
+      const amountLow = BigInt(event.data?.[0] ?? "0");
+      if (amountLow >= expectedAmount) {
+        return { valid: true, payer: keys[1] ?? "" };
+      }
+    }
+
+    return { valid: false, error: "STRK transfer to treasury not found or amount too low" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { valid: false, error: `Tx verification failed: ${msg}` };
+  }
 }
 
 /** Generate the premium strategy analysis. */
@@ -206,59 +245,45 @@ async function generatePremiumAnalysis(userInput: string) {
   };
 }
 
-/** Verify x402 payment, settle via paymaster (default mode), return premium analysis. */
-async function handlePaidRequest(paymentHeader: string, userInput: string) {
-  const payload: PaymentPayload = decodePaymentSignature(paymentHeader);
-  const requirements = getPaymentRequirements();
-  const provider = new RpcProvider({ nodeUrl: RPC_URL });
-
-  const settlement = await settlePaymentDefault(provider, payload, requirements);
-  if (!settlement.success) {
-    return NextResponse.json(
-      { error: "Payment settlement failed", reason: settlement.errorReason },
-      { status: 402 },
-    );
-  }
-
-  const analysis = await generatePremiumAnalysis(userInput);
-  return NextResponse.json({
-    ...analysis,
-    payment: {
-      settled: true,
-      transaction: settlement.transaction,
-      payer: settlement.payer,
-      amount: x402Network === "starknet:mainnet" ? `$${PREMIUM_PRICE_USDC} USDC` : `${PREMIUM_PRICE_STRK} STRK`,
-    },
-  });
+/** GET: Return 402 with payment requirements. */
+export async function GET() {
+  return build402Response(getPaymentRequirements());
 }
 
-export async function GET(request: NextRequest) {
-  const paymentHeader = request.headers.get(HTTP_HEADERS.PAYMENT_SIGNATURE);
-
-  if (!paymentHeader) {
-    return build402Response(getPaymentRequirements());
-  }
-
-  try {
-    const userInput = request.nextUrl.searchParams.get("input") ?? "";
-    return await handlePaidRequest(paymentHeader, userInput);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[premium-strategy] Error:", msg);
-    return NextResponse.json({ error: "Premium strategy error", details: msg }, { status: 500 });
-  }
-}
-
+/** POST: Verify payment_tx, then return premium analysis. */
 export async function POST(request: NextRequest) {
-  const paymentHeader = request.headers.get(HTTP_HEADERS.PAYMENT_SIGNATURE);
-
-  if (!paymentHeader) {
-    return build402Response(getPaymentRequirements());
-  }
-
   try {
     const body = await request.json().catch(() => ({}));
-    return await handlePaidRequest(paymentHeader, body.input ?? "");
+    const { input, payment_tx } = body as { input?: string; payment_tx?: string };
+
+    if (!payment_tx) {
+      return build402Response(getPaymentRequirements());
+    }
+
+    // Verify the direct STRK transfer on-chain
+    const provider = new RpcProvider({ nodeUrl: RPC_URL });
+    const verification = await verifyMicropayment(provider, payment_tx);
+
+    if (!verification.valid) {
+      return NextResponse.json(
+        { error: verification.error ?? "Payment verification failed" },
+        { status: 402 },
+      );
+    }
+
+    // Payment verified — generate premium analysis
+    const analysis = await generatePremiumAnalysis(input ?? "analyze pool");
+
+    return NextResponse.json({
+      ...analysis,
+      payment: {
+        settled: true,
+        transaction: payment_tx,
+        payer: verification.payer,
+        amount: `${PREMIUM_PRICE_STRK} STRK`,
+        method: "direct_transfer",
+      },
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[premium-strategy] Error:", msg);

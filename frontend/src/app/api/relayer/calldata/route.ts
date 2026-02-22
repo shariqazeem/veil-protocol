@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "../shared";
 
-const VM_URL = process.env.CALLDATA_SERVER_URL?.trim();
+const VM_URL = process.env.CALLDATA_SERVER_URL?.trim().replace(/\\n/g, "");
 if (!VM_URL) {
   console.warn("[calldata] CALLDATA_SERVER_URL not set — calldata proxy will be unavailable");
 }

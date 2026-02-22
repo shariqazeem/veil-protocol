@@ -22,8 +22,6 @@ import {
   type PoolState,
 } from "@/utils/strategyEngine";
 import { EXPLORER_TX, RPC_URL } from "@/utils/network";
-import { createPaymentPayloadDefault } from "@/utils/x402";
-import { encodePaymentSignature, HTTP_HEADERS } from "x402-starknet";
 import addresses from "@/contracts/addresses.json";
 import { CallData, RpcProvider } from "starknet";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,7 +38,14 @@ import {
   AlertTriangle,
   CreditCard,
   Zap,
+  MessageCircle,
+  Eye,
+  Send,
 } from "lucide-react";
+import { loadNotes } from "@/utils/privacy";
+import type { ChatResponse, ChatCard } from "@/utils/privacyChat";
+import type { DepositInfo } from "@/utils/privacyScore";
+import type { PrivacyScore, PoolHealthScore, WithdrawalRecommendation, PrivacyThreat } from "@/utils/privacyScore";
 
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 const poolAddress = addresses.contracts.shieldedPool;
@@ -62,6 +67,36 @@ const EXAMPLE_PROMPTS = [
   "Quick $10 deposit",
   "Spread $200 across tiers",
 ];
+
+type AgentMode = "chat" | "deposit";
+
+// Chat message types
+interface ChatMessage {
+  id: number;
+  role: "user" | "agent";
+  text: string;
+  cards?: ChatCard[];
+  suggestions?: string[];
+  loading?: boolean;
+}
+
+// Severity color maps
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "text-red-500",
+  warning: "text-[#FF9900]",
+  info: "text-blue-400",
+};
+const SEVERITY_BG: Record<string, string> = {
+  critical: "bg-red-500/10 border-red-500/20",
+  warning: "bg-orange-500/10 border-orange-500/20",
+  info: "bg-blue-500/10 border-blue-500/20",
+};
+const FACTOR_STATUS_COLORS: Record<string, string> = {
+  safe: "bg-[var(--accent-emerald)]",
+  moderate: "bg-[#FF9900]",
+  warning: "bg-orange-500",
+  critical: "bg-red-500",
+};
 
 const LOG_DOT_COLORS: Record<AgentLogEntry["type"], string> = {
   observe: "bg-blue-400/60",
@@ -90,7 +125,6 @@ export default function AgentTab() {
   const [currentStepIdx, setCurrentStepIdx] = useState(-1);
   const [batchTxHash, setBatchTxHash] = useState<string | null>(null);
   const [btcPrice, setBtcPrice] = useState(0);
-  const [autonomousMode, setAutonomousMode] = useState(true);
   const [countdown, setCountdown] = useState(0);
 
   // Premium x402 analysis state
@@ -100,6 +134,16 @@ export default function AgentTab() {
   type X402Phase = "idle" | "requesting" | "signing" | "settling" | "complete";
   const [x402Phase, setX402Phase] = useState<X402Phase>("idle");
   const [x402TxHash, setX402TxHash] = useState<string | null>(null);
+
+  // Agent mode: chat (privacy AI) or deposit (strategist)
+  const [agentMode, setAgentMode] = useState<AgentMode>("chat");
+
+  // Chat state
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const chatIdRef = useRef(0);
 
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -182,6 +226,72 @@ export default function AgentTab() {
     setVisibleLogCount((c) => c + 1);
   }
 
+  // Auto-scroll chat
+  useEffect(() => {
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  // Send chat message
+  async function handleChatSend(overrideInput?: string) {
+    const msg = (overrideInput ?? chatInput).trim();
+    if (!msg || chatLoading) return;
+
+    const userMsg: ChatMessage = { id: ++chatIdRef.current, role: "user", text: msg };
+    const loadingMsg: ChatMessage = { id: ++chatIdRef.current, role: "agent", text: "", loading: true };
+    setChatMessages((prev) => [...prev, userMsg, loadingMsg]);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      // Load user deposits from localStorage and convert to DepositInfo[]
+      let deposits: DepositInfo[] = [];
+      try {
+        const notes = loadNotes();
+        deposits = notes
+          .filter((n) => !n.claimed)
+          .map((n) => ({
+            tier: n.denomination,
+            depositTimestamp: n.timestamp,
+            leafIndex: n.leafIndex,
+            claimed: n.claimed,
+          }));
+      } catch { /* localStorage may be unavailable */ }
+
+      const res = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: msg,
+          deposits,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Chat request failed");
+
+      const data: ChatResponse & { timestamp: number } = await res.json();
+
+      setChatMessages((prev) =>
+        prev.map((m) =>
+          m.id === loadingMsg.id
+            ? { ...m, text: data.message, cards: data.cards, suggestions: data.suggestions, loading: false }
+            : m,
+        ),
+      );
+    } catch {
+      setChatMessages((prev) =>
+        prev.map((m) =>
+          m.id === loadingMsg.id
+            ? { ...m, text: "Something went wrong. Please try again.", loading: false }
+            : m,
+        ),
+      );
+    }
+
+    setChatLoading(false);
+  }
+
   // Plan generation
   async function handlePlanStrategy() {
     const target = parseTargetUsdc(input);
@@ -242,21 +352,33 @@ export default function AgentTab() {
       const requirements = paymentRequired.accepts?.[0];
       if (!requirements) throw new Error("Invalid 402 response — no payment requirements");
 
-      // Step 2: Build x402 payment via paymaster (default mode — user pays gas in STRK)
+      // Step 2: Direct STRK transfer to treasury for premium access
       setX402Phase("signing");
 
-      const network = requirements.network?.includes("mainnet")
-        ? ("starknet:mainnet" as const)
-        : ("starknet:sepolia" as const);
-      const payload = await createPaymentPayloadDefault(account, requirements, network);
-      const x402Header = encodePaymentSignature(payload);
+      const strkToken = "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D";
+      const feeAmount = requirements.amount; // atomic units string
+      const transferResult = await sendAsync([{
+        contractAddress: strkToken,
+        entrypoint: "transfer",
+        calldata: CallData.compile({
+          recipient: requirements.payTo,
+          amount: { low: feeAmount, high: "0" },
+        }),
+      }]);
 
-      // Step 3: Re-request premium endpoint with x402 payment header — server settles
+      // Step 3: Re-request premium endpoint with payment tx hash
       setX402Phase("settling");
 
       const paidRes = await fetch(
-        `/api/agent/premium-strategy?input=${encodeURIComponent(input || "analyze pool")}`,
-        { headers: { [HTTP_HEADERS.PAYMENT_SIGNATURE]: x402Header } },
+        `/api/agent/premium-strategy`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            input: input || "analyze pool",
+            payment_tx: transferResult.transaction_hash,
+          }),
+        },
       );
 
       if (!paidRes.ok) {
@@ -503,30 +625,207 @@ export default function AgentTab() {
 
   return (
     <div className="space-y-5">
-      {/* Header with live indicators */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-[rgba(77,77,255,0.08)] border border-[#4D4DFF]/20 flex items-center justify-center">
-            <Brain size={14} strokeWidth={1.5} className="text-[#4D4DFF]" />
+      {/* Header with mode tabs */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[rgba(77,77,255,0.08)] border border-[#4D4DFF]/20 flex items-center justify-center">
+              <Shield size={14} strokeWidth={1.5} className="text-[#4D4DFF]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] tracking-tight">
+                Privacy Agent
+              </h3>
+              <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5 font-['JetBrains_Mono']">
+                {btcPrice > 0
+                  ? `BTC $${btcPrice.toLocaleString()}`
+                  : "Connecting..."
+                }
+                {poolState && ` · ${poolState.leafCount} notes`}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] tracking-tight">
-              AI Strategist
-            </h3>
-            <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5 font-['JetBrains_Mono']">
-              {btcPrice > 0
-                ? `BTC $${btcPrice.toLocaleString()}`
-                : "Connecting..."
-              }
-              {poolState && ` · ${poolState.leafCount} notes`}
-            </p>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--accent-emerald-dim)] border border-[var(--accent-emerald)]/15">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-emerald)] animate-pulse-dot" />
+            <span className="text-[10px] text-[var(--accent-emerald)] font-semibold uppercase tracking-wider">Live</span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--accent-emerald-dim)] border border-[var(--accent-emerald)]/15">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-emerald)] animate-pulse-dot" />
-          <span className="text-[10px] text-[var(--accent-emerald)] font-semibold uppercase tracking-wider">Live</span>
+
+        {/* Mode tabs */}
+        <div className="flex gap-1 p-0.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)]">
+          <button
+            onClick={() => setAgentMode("chat")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              agentMode === "chat"
+                ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
+                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+            }`}
+          >
+            <MessageCircle size={12} strokeWidth={1.5} />
+            Privacy Chat
+          </button>
+          <button
+            onClick={() => setAgentMode("deposit")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              agentMode === "deposit"
+                ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
+                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+            }`}
+          >
+            <Brain size={12} strokeWidth={1.5} />
+            Deposit Strategist
+          </button>
         </div>
       </div>
+
+      {/* ━━━ PRIVACY CHAT MODE ━━━ */}
+      {agentMode === "chat" && (
+        <div className="space-y-3">
+          {/* Chat messages */}
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] overflow-hidden">
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-[var(--border-subtle)]">
+              <div className="flex items-center gap-1.5">
+                <Eye size={12} strokeWidth={1.5} className="text-[#4D4DFF]" />
+                <span className="text-xs font-semibold text-[var(--text-secondary)]">Privacy Agent</span>
+              </div>
+              <span className="text-[10px] text-[var(--text-quaternary)] font-['JetBrains_Mono'] ml-auto">
+                on-chain analysis
+              </span>
+            </div>
+
+            <div ref={chatRef} className="max-h-96 overflow-y-auto scrollbar-thin p-4 space-y-4">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-6 space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[rgba(77,77,255,0.06)] border border-[#4D4DFF]/15 flex items-center justify-center mx-auto">
+                    <Shield size={20} strokeWidth={1.5} className="text-[#4D4DFF]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">
+                      Your Privacy Agent
+                    </p>
+                    <p className="text-xs text-[var(--text-tertiary)] mt-1 max-w-xs mx-auto leading-relaxed">
+                      Ask about your anonymity, withdrawal timing, pool health, or deposit strategies. All analysis is powered by real on-chain data.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {chatMessages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div className={`max-w-[85%] ${msg.role === "user" ? "order-1" : ""}`}>
+                    {/* Message bubble */}
+                    <div className={`rounded-2xl px-3.5 py-2.5 ${
+                      msg.role === "user"
+                        ? "bg-[#4D4DFF] text-white rounded-br-md"
+                        : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] rounded-bl-md"
+                    }`}>
+                      {msg.loading ? (
+                        <div className="flex items-center gap-1.5 py-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#4D4DFF] animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#4D4DFF] animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#4D4DFF] animate-bounce" style={{ animationDelay: "300ms" }} />
+                        </div>
+                      ) : (
+                        <div className="text-xs leading-relaxed whitespace-pre-wrap">
+                          {msg.text.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
+                            part.startsWith("**") && part.endsWith("**")
+                              ? <strong key={i}>{part.slice(2, -2)}</strong>
+                              : part,
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cards */}
+                    {msg.cards && msg.cards.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {msg.cards.map((card, ci) => (
+                          <ChatCardRenderer key={ci} card={card} />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Suggestions */}
+                    {msg.suggestions && msg.suggestions.length > 0 && !msg.loading && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {msg.suggestions.map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => handleChatSend(s)}
+                            className="px-2.5 py-1 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all cursor-pointer"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* Chat input */}
+          <div className="relative">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleChatSend();
+                }
+              }}
+              placeholder="Ask about your privacy, pool health, threats..."
+              className="w-full pl-4 pr-12 py-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] focus:outline-none focus:border-[#4D4DFF]/40 transition-colors"
+            />
+            <button
+              onClick={() => handleChatSend()}
+              disabled={!chatInput.trim() || chatLoading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-[#4D4DFF] hover:bg-[#4D4DFF]/80 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-all flex items-center justify-center"
+            >
+              {chatLoading ? (
+                <Loader2 size={13} strokeWidth={2} className="text-white animate-spin" />
+              ) : (
+                <Send size={13} strokeWidth={2} className="text-white" />
+              )}
+            </button>
+          </div>
+
+          {/* Quick prompts for empty state */}
+          {chatMessages.length === 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "Check pool health",
+                "How private am I?",
+                "When should I withdraw?",
+                "What is k-anonymity?",
+              ].map((prompt) => (
+                <motion.button
+                  key={prompt}
+                  onClick={() => handleChatSend(prompt)}
+                  className="px-3 py-1.5 rounded-full bg-[var(--bg-tertiary)] text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all cursor-pointer"
+                  whileHover={{ y: -2 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                >
+                  {prompt}
+                </motion.button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ━━━ DEPOSIT STRATEGIST MODE ━━━ */}
+      {agentMode === "deposit" && (<>
+
 
       {/* Input — idle state */}
       <AnimatePresence mode="wait">
@@ -915,7 +1214,7 @@ export default function AgentTab() {
                 {isConnected ? "Unlock Premium Analysis · $0.01" : "Connect Wallet to Unlock"}
               </motion.button>
               <p className="text-[10px] text-[var(--text-quaternary)] text-center">
-                Paid via x402 protocol — AVNU paymaster settles on Starknet
+                Paid via x402 protocol — direct STRK micropayment on Starknet
               </p>
             </div>
           )}
@@ -927,8 +1226,8 @@ export default function AgentTab() {
                 <div className="space-y-2.5">
                   {[
                     { id: "requesting" as X402Phase, label: "Request premium endpoint", detail: "Server responds with 402 Payment Required" },
-                    { id: "signing" as X402Phase, label: "Authorize $0.01 micropayment", detail: "Your wallet signs the x402 payment via AVNU paymaster" },
-                    { id: "settling" as X402Phase, label: "Verify & settle on-chain", detail: "Server verifies signature, settles payment, returns analysis" },
+                    { id: "signing" as X402Phase, label: "Authorize $0.01 micropayment", detail: "Your wallet sends STRK transfer to treasury" },
+                    { id: "settling" as X402Phase, label: "Verify & return analysis", detail: "Server verifies on-chain transfer, returns premium data" },
                   ].map(({ id, label, detail }, i) => {
                     const phases: X402Phase[] = ["requesting", "signing", "settling"];
                     const currentIdx = phases.indexOf(x402Phase);
@@ -1134,7 +1433,7 @@ export default function AgentTab() {
                 <div className="flex items-center gap-1.5">
                   <CreditCard size={9} className="text-[#FF9900]" />
                   <span className="text-[10px] text-[var(--text-quaternary)]">
-                    Paid via x402 on Starknet · AVNU paymaster
+                    Paid via x402 on Starknet · direct transfer
                   </span>
                 </div>
                 <button
@@ -1149,11 +1448,13 @@ export default function AgentTab() {
         </div>
       </motion.div>
 
+      </>)}
+
       {/* Persistent AI Strategist Status Bar */}
       <div className="sticky bottom-0 z-10 rounded-xl bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 px-4 py-2.5 flex items-center gap-3">
         <span className="w-2 h-2 rounded-full bg-[#12D483] animate-pulse-dot flex-shrink-0" />
         <span className="text-[11px] font-['JetBrains_Mono'] text-gray-300 font-medium tracking-wide">
-          VEIL STRATEGIST ONLINE
+          PRIVACY AGENT ONLINE
         </span>
         <span className="w-px h-3 bg-gray-600" />
         <span className="text-[11px] font-['JetBrains_Mono'] text-gray-400 font-tabular">
@@ -1164,6 +1465,171 @@ export default function AgentTab() {
           Pool: {poolState?.leafCount ?? 0} commits
         </span>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ChatCardRenderer — renders structured data cards in chat
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ChatCardRenderer({ card }: { card: ChatCard }) {
+  if (card.type === "privacy_score") return <PrivacyScoreCard score={card.data} tier={card.tier} />;
+  if (card.type === "pool_health") return <PoolHealthCard health={card.data} />;
+  if (card.type === "withdrawal_rec") return <WithdrawalRecCard rec={card.data} tier={card.tier} />;
+  if (card.type === "threats") return <ThreatsCard threats={card.data} />;
+  if (card.type === "metric") return <MetricCard label={card.label} value={card.value} status={card.status} />;
+  return null;
+}
+
+function PrivacyScoreCard({ score, tier }: { score: PrivacyScore; tier: number }) {
+  const tierLabel = ["$1", "$10", "$100", "$1,000"][tier];
+  const ratingColor = score.overall >= 75 ? "text-emerald-500" : score.overall >= 50 ? "text-[#FF9900]" : "text-red-500";
+
+  return (
+    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Shield size={12} strokeWidth={1.5} className="text-[#4D4DFF]" />
+          <span className="text-[11px] font-semibold text-[var(--text-secondary)]">{tierLabel} Privacy Score</span>
+        </div>
+        <span className={`text-lg font-bold font-['JetBrains_Mono'] ${ratingColor}`}>{score.overall}</span>
+      </div>
+
+      {/* Score bar */}
+      <div className="h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+        <motion.div
+          className={`h-full rounded-full ${score.overall >= 75 ? "bg-emerald-500" : score.overall >= 50 ? "bg-[#FF9900]" : "bg-red-500"}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${score.overall}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        />
+      </div>
+
+      {/* Factor breakdown */}
+      <div className="space-y-1.5">
+        {score.factors.map((f) => (
+          <div key={f.name} className="flex items-center gap-2">
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${FACTOR_STATUS_COLORS[f.status]}`} />
+            <span className="text-[10px] text-[var(--text-tertiary)] flex-1">{f.name}</span>
+            <span className="text-[10px] font-['JetBrains_Mono'] text-[var(--text-secondary)] font-semibold">{f.score}/{f.maxScore}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PoolHealthCard({ health }: { health: PoolHealthScore }) {
+  const ratingColor = health.overall >= 75 ? "text-emerald-500" : health.overall >= 50 ? "text-[#FF9900]" : "text-red-500";
+
+  return (
+    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Eye size={12} strokeWidth={1.5} className="text-[#4D4DFF]" />
+          <span className="text-[11px] font-semibold text-[var(--text-secondary)]">Pool Health</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-sm font-bold ${ratingColor}`}>{health.rating}</span>
+          <span className="text-[10px] font-['JetBrains_Mono'] text-[var(--text-quaternary)]">{health.overall}/100</span>
+        </div>
+      </div>
+
+      {/* Tier grid */}
+      <div className="grid grid-cols-4 gap-1.5">
+        {health.tiers.map((t) => (
+          <div key={t.tier} className="text-center rounded-lg bg-[var(--bg-tertiary)] p-1.5">
+            <div className="text-[10px] font-['JetBrains_Mono'] font-bold text-[var(--text-secondary)]">{t.label}</div>
+            <div className="text-[11px] font-bold font-['JetBrains_Mono'] text-[#4D4DFF]">{t.participants}</div>
+            <div className={`text-[8px] font-semibold ${
+              t.unlinkability === "Strong" || t.unlinkability === "Excellent" ? "text-emerald-500" :
+              t.unlinkability === "Good" || t.unlinkability === "Moderate" ? "text-[#FF9900]" : "text-red-400"
+            }`}>{t.unlinkability}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Metrics */}
+      <div className="flex flex-wrap gap-1.5">
+        {health.metrics.slice(0, 3).map((m) => (
+          <span key={m.label} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[9px] text-[var(--text-tertiary)]">
+            <span className={`w-1 h-1 rounded-full ${m.status === "good" ? "bg-emerald-500" : m.status === "moderate" ? "bg-[#FF9900]" : "bg-red-500"}`} />
+            {m.label}: {m.value}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WithdrawalRecCard({ rec, tier }: { rec: WithdrawalRecommendation; tier: number }) {
+  const tierLabel = ["$1", "$10", "$100", "$1,000"][tier];
+
+  return (
+    <div className={`rounded-xl border p-3 space-y-2 ${
+      rec.shouldWithdraw
+        ? "border-emerald-200/50 bg-emerald-50/30"
+        : "border-orange-200/50 bg-orange-50/30"
+    }`}>
+      <div className="flex items-center gap-2">
+        {rec.shouldWithdraw ? (
+          <Check size={14} strokeWidth={2} className="text-emerald-500" />
+        ) : (
+          <AlertTriangle size={14} strokeWidth={1.5} className="text-[#FF9900]" />
+        )}
+        <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
+          {tierLabel}: {rec.shouldWithdraw ? "Safe to withdraw" : "Wait recommended"}
+        </span>
+        <span className="ml-auto text-[10px] font-['JetBrains_Mono'] text-[var(--text-tertiary)]">
+          {rec.currentScore}/100
+        </span>
+      </div>
+
+      <p className="text-[10px] text-[var(--text-tertiary)] leading-relaxed">
+        {rec.waitRecommendation}
+      </p>
+
+      {rec.risks.length > 0 && (
+        <div className="space-y-0.5">
+          {rec.risks.map((r, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[9px] text-red-500/80">
+              <span className="mt-0.5">!</span> {r}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThreatsCard({ threats }: { threats: PrivacyThreat[] }) {
+  if (threats.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <AlertTriangle size={12} strokeWidth={1.5} className="text-[#FF9900]" />
+        <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
+          {threats.length} Privacy Concern{threats.length > 1 ? "s" : ""}
+        </span>
+      </div>
+      {threats.map((t, i) => (
+        <div key={i} className={`rounded-lg border p-2 ${SEVERITY_BG[t.severity]}`}>
+          <div className={`text-[10px] font-semibold ${SEVERITY_COLORS[t.severity]}`}>{t.title}</div>
+          <div className="text-[9px] text-[var(--text-tertiary)] mt-0.5">{t.description}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, status }: { label: string; value: string; status: "good" | "moderate" | "warning" }) {
+  return (
+    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)]">
+      <span className={`w-1.5 h-1.5 rounded-full ${status === "good" ? "bg-emerald-500" : status === "moderate" ? "bg-[#FF9900]" : "bg-red-500"}`} />
+      <span className="text-[10px] text-[var(--text-tertiary)]">{label}</span>
+      <span className="text-[11px] font-['JetBrains_Mono'] font-bold text-[var(--text-secondary)]">{value}</span>
     </div>
   );
 }

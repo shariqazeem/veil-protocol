@@ -16,12 +16,6 @@ const mockWaitForTransaction = vi.fn();
 vi.mock("@/app/api/relayer/shared", () => ({
   POOL_ADDRESS: "0xPOOL",
   FEE_BPS: 200,
-  NETWORK: "sepolia",
-  X402_RELAY_ENABLED: true,
-  RELAY_FEE_USDC: 0.03,
-  RELAY_FEE_STRK: 0.015,
-  RPC_URL: "https://mock-rpc.test",
-  TREASURY_ADDRESS: "0xTREASURY",
   rateLimit: vi.fn((_ip: string) => {
     rateLimitCallCount++;
     if (rateLimitShouldBlock) {
@@ -47,19 +41,6 @@ vi.mock("starknet", () => ({
   Contract: vi.fn(),
   CallData: { compile: vi.fn((data: any) => data) },
   RpcProvider: vi.fn(),
-}));
-
-vi.mock("x402-starknet", () => ({
-  verifyPayment: vi.fn().mockResolvedValue({ isValid: true, payer: "0xPAYER" }),
-  settlePayment: vi.fn().mockResolvedValue({ success: true, transaction: "0xSETTLE" }),
-  decodePaymentSignature: vi.fn().mockReturnValue({ payload: "mock" }),
-  buildUSDCPayment: vi.fn().mockReturnValue({ type: "usdc" }),
-  buildSTRKPayment: vi.fn().mockReturnValue({ type: "strk" }),
-  HTTP_HEADERS: { PAYMENT_REQUIRED: "X-Payment-Required", PAYMENT_SIGNATURE: "X-Payment" },
-}));
-
-vi.mock("@/utils/x402", () => ({
-  settlePaymentDefault: vi.fn().mockResolvedValue({ success: true, transaction: "0xSETTLE", payer: "0xPAYER" }),
 }));
 
 function buildValidBody() {

@@ -1,105 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RpcProvider, Contract, CallData, num, type Abi } from "starknet";
+import { CallData, type Abi } from "starknet";
 import {
   POOL_ADDRESS, FEE_BPS, getRelayerAccount, getProvider, rateLimit,
-  X402_RELAY_ENABLED, RELAY_FEE_USDC, RELAY_FEE_STRK, NETWORK, RPC_URL,
-  TREASURY_ADDRESS,
 } from "../shared";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
-import {
-  verifyPayment,
-  decodePaymentSignature,
-  buildUSDCPayment,
-  buildSTRKPayment,
-  HTTP_HEADERS,
-  STRK_ADDRESSES,
-  USDC_ADDRESSES,
-  type PaymentPayload,
-  type PaymentRequirements,
-} from "x402-starknet";
-import { settlePaymentDefault } from "@/utils/x402";
-
-const x402Network = NETWORK === "mainnet"
-  ? "starknet:mainnet" as const
-  : "starknet:sepolia" as const;
-
-function getRelayPaymentRequirements(): PaymentRequirements {
-  if (x402Network === "starknet:mainnet") {
-    return buildUSDCPayment({
-      network: x402Network,
-      amount: RELAY_FEE_USDC,
-      payTo: TREASURY_ADDRESS,
-    });
-  }
-  return buildSTRKPayment({
-    network: x402Network,
-    amount: RELAY_FEE_STRK,
-    payTo: TREASURY_ADDRESS,
-  });
-}
-
-/** Get the expected relay fee in atomic units for the current network */
-function getExpectedFeeAtomic(): bigint {
-  if (x402Network === "starknet:mainnet") {
-    return BigInt(Math.round(RELAY_FEE_USDC * 1_000_000)); // USDC 6 decimals
-  }
-  return BigInt(Math.round(RELAY_FEE_STRK * 1e18)); // STRK 18 decimals
-}
-
-/** Get the relay fee token address for the current network */
-function getRelayFeeToken(): string {
-  if (x402Network === "starknet:mainnet") {
-    return USDC_ADDRESSES[x402Network] ?? "";
-  }
-  return STRK_ADDRESSES[x402Network] ?? "";
-}
-
-/**
- * Verify a direct on-chain transfer payment.
- * Checks that the tx transferred at least the required fee to the treasury.
- */
-async function verifyDirectPayment(
-  provider: RpcProvider,
-  txHash: string,
-): Promise<{ valid: boolean; payer?: string; error?: string }> {
-  try {
-    const receipt = await provider.waitForTransaction(txHash, {
-      successStates: ["ACCEPTED_ON_L2", "ACCEPTED_ON_L1"],
-      retryInterval: 2000,
-    });
-
-    // Check events for a Transfer to our treasury
-    const expectedToken = getRelayFeeToken().toLowerCase();
-    const expectedAmount = getExpectedFeeAtomic();
-    const treasuryNorm = num.toHex(TREASURY_ADDRESS).toLowerCase();
-
-    // Starknet Transfer event: keys[0]=selector, keys[1]=from, keys[2]=to; data[0..1]=amount(u256)
-    const TRANSFER_KEY = "0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9";
-    let payer = "";
-
-    for (const event of (receipt as any).events ?? []) {
-      const fromAddr = event.from_address ?? event.contract_address ?? "";
-      if (fromAddr.toLowerCase() !== expectedToken) continue;
-
-      const keys = (event.keys ?? []).map((k: string) => k.toLowerCase());
-      if (keys[0] !== TRANSFER_KEY) continue;
-
-      const to = keys[2] ?? "";
-      if (to.toLowerCase() !== treasuryNorm) continue;
-
-      const amountLow = BigInt(event.data?.[0] ?? "0");
-      if (amountLow >= expectedAmount) {
-        payer = keys[1] ?? "";
-        return { valid: true, payer };
-      }
-    }
-
-    return { valid: false, error: "Transfer to treasury not found or amount too low" };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { valid: false, error: `Tx verification failed: ${msg}` };
-  }
-}
 
 export async function POST(req: NextRequest) {
   const rateLimited = rateLimit(req.headers.get("x-forwarded-for") ?? "unknown");
@@ -124,7 +28,6 @@ export async function POST(req: NextRequest) {
       path_indices,
       recipient,
       btc_recipient_hash,
-      payment_tx, // Direct transfer tx hash (alternative to x402 header)
     } = body;
 
     if (denomination == null || !zk_nullifier || !zk_commitment || !proof || !merkle_path || !path_indices || !recipient) {
@@ -136,52 +39,8 @@ export async function POST(req: NextRequest) {
 
     const relayerAddress = account.address;
 
-    // Determine fee path: x402 header → direct payment_tx → legacy 2%
-    const paymentHeader = req.headers.get(HTTP_HEADERS.PAYMENT_SIGNATURE);
-    let feeBps = FEE_BPS; // default: 2% legacy fee
-    let paymentReceipt: { settled: boolean; transaction?: string; payer?: string; method?: string } | null = null;
-
-    if (paymentHeader && X402_RELAY_ENABLED) {
-      // Path 1: x402 paymaster flow (header-based, default fee mode)
-      const payload: PaymentPayload = decodePaymentSignature(paymentHeader);
-      const requirements = getRelayPaymentRequirements();
-      const provider = new RpcProvider({ nodeUrl: RPC_URL });
-
-      const settlement = await settlePaymentDefault(provider, payload, requirements);
-      if (!settlement.success) {
-        return NextResponse.json(
-          { success: false, error: "x402 payment settlement failed", reason: settlement.errorReason },
-          { status: 402 },
-        );
-      }
-
-      feeBps = 0;
-      paymentReceipt = {
-        settled: true,
-        transaction: settlement.transaction,
-        payer: settlement.payer,
-        method: "x402_paymaster",
-      };
-    } else if (payment_tx && X402_RELAY_ENABLED) {
-      // Path 2: Direct on-chain transfer verified by tx hash
-      const provider = new RpcProvider({ nodeUrl: RPC_URL });
-      const verification = await verifyDirectPayment(provider, payment_tx);
-
-      if (!verification.valid) {
-        return NextResponse.json(
-          { success: false, error: verification.error ?? "Payment verification failed" },
-          { status: 402 },
-        );
-      }
-
-      feeBps = 0;
-      paymentReceipt = {
-        settled: true,
-        transaction: payment_tx,
-        payer: verification.payer,
-        method: "direct_transfer",
-      };
-    }
+    // Gasless relay: relayer executes the withdrawal and takes 2% fee from the output
+    const feeBps = FEE_BPS;
 
     // Convert all values to strings to avoid BigInt mixing in starknet.js internals
     const compiledCalldata = CallData.compile({
@@ -207,14 +66,70 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // Execute with full stack trace on error
+    // Execute with resource bounds capping to avoid "exceeds balance" errors.
+    // ZK verification calldata is huge (~2837 felts) so starknet.js overestimates.
     let result;
     try {
       result = await account.execute(calls);
     } catch (execErr) {
-      const stack = execErr instanceof Error ? execErr.stack : String(execErr);
-      console.error("[relayer/relay] account.execute failed:", stack);
-      throw execErr;
+      const errMsg = execErr instanceof Error ? execErr.message : String(execErr);
+      console.error("[relayer/relay] First execute attempt failed:", errMsg.slice(0, 300));
+
+      // If resource bounds exceed balance, retry with capped bounds
+      if (errMsg.includes("Resources bounds") && errMsg.includes("exceed balance")) {
+        console.log("[relayer/relay] Retrying with capped resource bounds...");
+        const provider = getProvider();
+
+        // Get relayer STRK balance
+        const strkToken = "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D";
+        const balResult = await provider.callContract({
+          contractAddress: strkToken,
+          entrypoint: "balanceOf",
+          calldata: [account.address],
+        });
+        const balance = BigInt(balResult[0]);
+        // Use 90% of balance as budget (leave 10% safety margin)
+        const budget = (balance * 90n) / 100n;
+        console.log("[relayer/relay] STRK balance:", balance.toString(), "budget:", budget.toString());
+
+        // Estimate fee with skipValidate to get realistic amounts
+        const estimate = await account.estimateInvokeFee(calls, { skipValidate: true });
+        console.log("[relayer/relay] Estimate:", JSON.stringify({
+          l2_max: estimate.resourceBounds.l2_gas.max_amount.toString(),
+          l2_price: estimate.resourceBounds.l2_gas.max_price_per_unit.toString(),
+          l1_data_max: estimate.resourceBounds.l1_data_gas.max_amount.toString(),
+          l1_data_price: estimate.resourceBounds.l1_data_gas.max_price_per_unit.toString(),
+        }));
+
+        // Calculate total cost of the estimate
+        const l2Amount = BigInt(estimate.resourceBounds.l2_gas.max_amount);
+        const l2Price = BigInt(estimate.resourceBounds.l2_gas.max_price_per_unit);
+        const l1dAmount = BigInt(estimate.resourceBounds.l1_data_gas.max_amount);
+        const l1dPrice = BigInt(estimate.resourceBounds.l1_data_gas.max_price_per_unit);
+        const totalCost = l2Amount * l2Price + l1dAmount * l1dPrice;
+
+        let resourceBounds = estimate.resourceBounds;
+        if (totalCost > budget) {
+          // Scale down proportionally to fit budget
+          const scale = Number(budget * 1000n / totalCost) / 1000; // e.g. 0.65
+          console.log("[relayer/relay] Scaling bounds by", scale, "to fit budget");
+          resourceBounds = {
+            l1_gas: estimate.resourceBounds.l1_gas, // keep L1 gas from estimate
+            l2_gas: {
+              max_amount: BigInt(Math.ceil(Number(l2Amount) * scale)),
+              max_price_per_unit: l2Price,
+            },
+            l1_data_gas: {
+              max_amount: l1dAmount, // don't reduce data gas — it's required
+              max_price_per_unit: l1dPrice,
+            },
+          };
+        }
+
+        result = await account.execute(calls, { resourceBounds });
+      } else {
+        throw execErr;
+      }
     }
     const provider = getProvider();
     await provider.waitForTransaction(result.transaction_hash);
@@ -222,7 +137,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       txHash: result.transaction_hash,
-      ...(paymentReceipt ? { x402: paymentReceipt } : {}),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

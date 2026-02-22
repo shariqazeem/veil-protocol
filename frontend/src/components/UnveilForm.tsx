@@ -15,8 +15,7 @@ import {
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import { EXPLORER_TX, RPC_URL } from "@/utils/network";
-import { createPaymentPayloadDefault } from "@/utils/x402";
-import { encodePaymentSignature, HTTP_HEADERS } from "x402-starknet";
+
 import { CallData, RpcProvider, Contract, type Abi, num } from "starknet";
 
 type WithdrawMode = "wbtc" | "btc_intent";
@@ -212,8 +211,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
   const [claimedWbtcAmount, setClaimedWbtcAmount] = useState<string | null>(null);
   const [btcWithdrawAddress, setBtcWithdrawAddress] = useState<string>("");
   const [tokenAdded, setTokenAdded] = useState(false);
-  const [useRelayer, setUseRelayer] = useState(true);
-  const [useX402Relay, setUseX402Relay] = useState(true);
+  const [useRelayer, setUseRelayer] = useState(false);
   const [relayerFee, setRelayerFee] = useState<number | null>(null);
   const [proofDetails, setProofDetails] = useState<ProofDetails | null>(null);
   const [zkTimer, setZkTimer] = useState<number>(0);
@@ -417,7 +415,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
 
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           } else if (useRelayer) {
-            console.log("[unveil] Step 3: using relayer path, x402:", useX402Relay);
+            console.log("[unveil] Step 3: using gasless relayer (2% fee)");
             setProofDetails({
               calldataElements: proof.length,
               zkCommitment: note.zkCommitment!,
@@ -426,44 +424,10 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
             });
             setClaimPhase("withdrawing");
 
-            // Build relay request — add x402 payment if enabled
-            let x402Header: string | undefined;
-            let paymentTxHash: string | undefined;
-
-            if (useX402Relay && account) {
-              try {
-                // 1. Get x402 payment requirements from relay-quote
-                const quoteRes = await fetch(`${RELAYER_URL}/relay-quote`);
-                const paymentRequired = await quoteRes.json();
-                const requirements = paymentRequired.accepts?.[0];
-
-                if (requirements) {
-                  // 2. Build signed x402 payload via paymaster (default mode — user pays gas in STRK)
-                  const network = requirements.network?.includes("mainnet")
-                    ? ("starknet:mainnet" as const)
-                    : ("starknet:sepolia" as const);
-                  const payload = await createPaymentPayloadDefault(account, requirements, network);
-                  x402Header = encodePaymentSignature(payload);
-                }
-              } catch (x402Err) {
-                const msg = x402Err instanceof Error ? x402Err.message : String(x402Err);
-                if (msg.includes("reject") || msg.includes("abort") || msg.includes("cancel") || msg.includes("denied")) {
-                  throw new Error("Fee payment rejected — withdrawal cancelled.");
-                }
-                console.warn("[unveil] x402 flat fee payment failed, falling back to 2% deduction:", x402Err);
-                // Fall through to legacy relay (2% deduction)
-              }
-            }
-
-            const relayHeaders: Record<string, string> = { "Content-Type": "application/json" };
-            if (x402Header) {
-              relayHeaders[HTTP_HEADERS.PAYMENT_SIGNATURE] = x402Header;
-            }
-
             console.log("[unveil] Step 4: sending relay request...");
             const relayRes = await fetch(`${RELAYER_URL}/relay`, {
               method: "POST",
-              headers: relayHeaders,
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 denomination,
                 zk_nullifier: zkNullifier,
@@ -473,7 +437,6 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                 path_indices: pathIndices.map(Number),
                 recipient: address,
                 btc_recipient_hash: btcRecipientHash,
-                ...(paymentTxHash ? { payment_tx: paymentTxHash } : {}),
               }),
             });
             const relayData = await relayRes.json();
@@ -513,11 +476,8 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           console.error("[unveil] Withdrawal error:", zkErr);
           const errMsg = zkErr instanceof Error ? zkErr.message : String(zkErr);
           // Provide more specific error messages based on the failure point
-          if (errMsg.includes("addInvokeTransaction") || errMsg.includes("estimateFee") || errMsg.includes("Paymaster")) {
-            throw new Error(`x402 fee payment failed: ${errMsg.slice(0, 150)}. Try disabling "x402 Flat Fee" and use the 2% gasless relay instead.`);
-          }
-          if (errMsg.includes("relay") || errMsg.includes("Relayer") || errMsg.includes("Resources bounds") || errMsg.includes("Cannot mix BigInt")) {
-            throw new Error(`Relay execution failed: ${errMsg.slice(0, 200)}`);
+          if (errMsg.includes("addInvokeTransaction") || errMsg.includes("estimateFee") || errMsg.includes("relay") || errMsg.includes("Relayer") || errMsg.includes("Resources bounds") || errMsg.includes("Cannot mix BigInt")) {
+            throw new Error(`Withdrawal failed: ${errMsg.slice(0, 250)}`);
           }
           if (errMsg.includes("Calldata") || errMsg.includes("calldata") || errMsg.includes("503")) {
             throw new Error(`Garaga calldata generation failed: ${errMsg.slice(0, 150)}. The ZK proof server may be unavailable.`);
@@ -794,33 +754,13 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
             </div>
           </button>
           {useRelayer && (
-            <div className="mt-3 pt-3 border-t border-indigo-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-[#FF9900]">x402 Flat Fee</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold">SAVE</span>
-                </div>
-                <button
-                  onClick={() => setUseX402Relay(!useX402Relay)}
-                  className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 cursor-pointer ${
-                    useX402Relay ? "bg-[#FF9900]" : "bg-[var(--bg-elevated)]"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                      useX402Relay ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
+            <div className="mt-3 pt-3 border-t border-indigo-200">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[#4D4DFF]">
-                  {useX402Relay
-                    ? "Fee: 0.015 STRK flat (wallet approval)"
-                    : `Fee: ${relayerFee ? `${relayerFee / 100}%` : "2%"} of WBTC`}
+                  Fee: {relayerFee ? `${relayerFee / 100}%` : "2%"} of WBTC deducted from withdrawal
                 </span>
                 <span className="text-xs text-[var(--text-tertiary)]">
-                  {useX402Relay ? "Privacy-preserving" : "Deducted from withdrawal"}
+                  Best for $100+ withdrawals
                 </span>
               </div>
             </div>
