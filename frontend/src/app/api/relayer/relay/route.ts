@@ -202,67 +202,10 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // Estimate fee with skipValidate to avoid "resources exceed balance" rejection,
-    // then cap resource bounds to fit within the relayer's actual STRK balance.
+    // Relayer has sufficient STRK for default fee estimation (~37 STRK).
+    // Simply execute — starknet.js will estimate and submit.
+    const result = await account.execute(calls);
     const provider = getProvider();
-
-    const estimate = await account.estimateInvokeFee(calls, { skipValidate: true });
-    const eb = estimate.resourceBounds;
-
-    // Ensure all values are bigint (starknet.js may return numbers, strings, or bigints)
-    const toBig = (v: unknown): bigint => {
-      if (typeof v === "bigint") return v;
-      if (typeof v === "number") return BigInt(v);
-      if (typeof v === "string") return BigInt(v);
-      return 0n;
-    };
-
-    const estBounds = {
-      l1_gas: { max_amount: toBig(eb.l1_gas.max_amount), max_price_per_unit: toBig(eb.l1_gas.max_price_per_unit) },
-      l2_gas: { max_amount: toBig(eb.l2_gas.max_amount), max_price_per_unit: toBig(eb.l2_gas.max_price_per_unit) },
-      l1_data_gas: { max_amount: toBig(eb.l1_data_gas.max_amount), max_price_per_unit: toBig(eb.l1_data_gas.max_price_per_unit) },
-    };
-
-    // Query relayer STRK balance
-    const STRK_TOKEN = "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D";
-    const balResult = await provider.callContract({
-      contractAddress: STRK_TOKEN,
-      entrypoint: "balanceOf",
-      calldata: [account.address],
-    });
-    const strkBalance = BigInt(balResult[0]);
-
-    // Total cost across all gas types must fit within balance
-    const totalCost =
-      estBounds.l1_gas.max_amount * estBounds.l1_gas.max_price_per_unit +
-      estBounds.l2_gas.max_amount * estBounds.l2_gas.max_price_per_unit +
-      estBounds.l1_data_gas.max_amount * estBounds.l1_data_gas.max_price_per_unit;
-
-    // If total fits, use as-is; otherwise scale down proportionally
-    let resourceBounds = estBounds;
-    if (totalCost > 0n && totalCost > strkBalance) {
-      // Scale factor: use 90% of balance / totalCost
-      const numerator = (strkBalance * 90n) / 100n;
-      const scaleBounds = (b: { max_amount: bigint; max_price_per_unit: bigint }) => {
-        const scaled = (b.max_amount * numerator) / totalCost;
-        return {
-          max_amount: scaled > 0n ? scaled : 1n,
-          max_price_per_unit: b.max_price_per_unit,
-        };
-      };
-      resourceBounds = {
-        l1_gas: scaleBounds(estBounds.l1_gas),
-        l2_gas: scaleBounds(estBounds.l2_gas),
-        l1_data_gas: scaleBounds(estBounds.l1_data_gas),
-      };
-    }
-
-    console.log("[relayer/relay] STRK balance:", strkBalance.toString(),
-      "| totalCost:", totalCost.toString(),
-      "| l2_gas:", resourceBounds.l2_gas.max_amount.toString(), "x", resourceBounds.l2_gas.max_price_per_unit.toString(),
-      "| l1_gas:", resourceBounds.l1_gas.max_amount.toString(), "x", resourceBounds.l1_gas.max_price_per_unit.toString());
-
-    const result = await account.execute(calls, { resourceBounds });
     await provider.waitForTransaction(result.transaction_hash);
 
     return NextResponse.json({

@@ -350,6 +350,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           const zkStart = Date.now();
           const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
           setClaimPhase("generating_zk");
+          console.log("[unveil] Step 1: generating ZK proof...");
           const { proof, zkNullifier } = await generateWithdrawalProof({
             secret: BigInt(note.secret),
             blinder: BigInt(note.blinder),
@@ -358,6 +359,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           });
           clearInterval(timer);
           usedZK = true;
+          console.log("[unveil] Step 2: ZK proof generated, proof length:", proof.length);
 
           if (isBtcIntent) {
             setProofDetails({
@@ -415,6 +417,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
 
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           } else if (useRelayer) {
+            console.log("[unveil] Step 3: using relayer path, x402:", useX402Relay);
             setProofDetails({
               calldataElements: proof.length,
               zkCommitment: note.zkCommitment!,
@@ -457,6 +460,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
               relayHeaders[HTTP_HEADERS.PAYMENT_SIGNATURE] = x402Header;
             }
 
+            console.log("[unveil] Step 4: sending relay request...");
             const relayRes = await fetch(`${RELAYER_URL}/relay`, {
               method: "POST",
               headers: relayHeaders,
@@ -473,6 +477,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
               }),
             });
             const relayData = await relayRes.json();
+            console.log("[unveil] Step 5: relay response:", relayData);
             if (!relayData.success) throw new Error(relayData.error ?? "Relayer failed");
             setClaimTxHash(relayData.txHash);
             setClaimedWbtcAmount(note.wbtcShare ?? null);
