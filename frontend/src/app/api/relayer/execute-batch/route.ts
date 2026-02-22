@@ -33,7 +33,7 @@ const POOL_ABI: Abi = [
 ];
 
 // ---------------------------------------------------------------------------
-// AVNU API types & helpers (ported from scripts/keeper.ts)
+// AVNU API types & helpers
 // ---------------------------------------------------------------------------
 
 interface AvnuQuote {
@@ -52,6 +52,7 @@ interface AvnuRoute {
   sellTokenAddress: string;
   buyTokenAddress: string;
   routes: AvnuSubRoute[];
+  routeInfo?: Record<string, string>;
 }
 
 interface AvnuSubRoute {
@@ -95,23 +96,50 @@ async function fetchAvnuQuote(
 }
 
 /**
- * Convert AVNU API route data into on-chain Route struct format.
- * Route = { token_from, token_to, exchange_address, percent, additional_swap_params }
+ * Use AVNU build API to get the exact multi_route_swap calldata,
+ * then extract the routes array portion.
+ *
+ * multi_route_swap calldata layout (11 header felts + routes):
+ *   [0]  sell_token
+ *   [1-2] sell_amount (u256: low, high)
+ *   [3]  buy_token
+ *   [4-5] buy_amount (u256)
+ *   [6-7] min_amount (u256)
+ *   [8]  beneficiary
+ *   [9]  integrator_fee_bps
+ *   [10] integrator_fee_recipient
+ *   [11+] routes_len + route data (already serialized for on-chain Route struct)
  */
-function buildOnChainRoutes(quote: AvnuQuote): object[] {
-  const routes: object[] = [];
-  for (const route of quote.routes) {
-    for (const sub of route.routes) {
-      routes.push({
-        token_from: sub.sellTokenAddress,
-        token_to: sub.buyTokenAddress,
-        exchange_address: sub.address,
-        percent: Math.floor(sub.percent * 100),
-        additional_swap_params: sub.additionalSwapParams ?? [],
-      });
-    }
+async function fetchRouteFeltsFromBuild(
+  quoteId: string,
+  takerAddress: string,
+): Promise<string[] | null> {
+  const res = await fetch(`${AVNU_API_BASE}/swap/v2/build`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      quoteId,
+      takerAddress,
+      slippage: SLIPPAGE_BPS / 10_000,
+    }),
+  });
+
+  if (!res.ok) {
+    console.error(`[execute-batch] AVNU build error: ${res.status}`);
+    return null;
   }
-  return routes;
+
+  const data = await res.json();
+  const calls = data.calls ?? [];
+  const swapCall = calls.find((c: { entrypoint: string }) => c.entrypoint === "multi_route_swap");
+  if (!swapCall) {
+    console.error("[execute-batch] No multi_route_swap call in AVNU build response");
+    return null;
+  }
+
+  // Extract routes portion (everything from index 11 onwards)
+  const calldata: string[] = swapCall.calldata;
+  return calldata.slice(11);
 }
 
 // ---------------------------------------------------------------------------
@@ -172,11 +200,9 @@ export async function POST(req: NextRequest) {
 
     const provider = getProvider();
     let btcPrice: number | undefined;
-    let minOut = 0n;
-    let onChainRoutes: object[] = [];
 
     if (isMainnet) {
-      // ---- Mainnet: use AVNU for real swap routes ----
+      // ---- Mainnet: use AVNU build API for exact route calldata ----
       const pool = new Contract({ abi: POOL_ABI, address: POOL_ADDRESS, providerOrAccount: provider });
       const pendingRaw = await pool.get_pending_usdc();
       const pendingUsdc = BigInt(pendingRaw.toString());
@@ -203,12 +229,38 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "No AVNU quote available — try again later" }, { status: 502 });
       }
 
-      const buyAmount = BigInt(quote.buyAmount);
-      minOut = (buyAmount * BigInt(10_000 - SLIPPAGE_BPS)) / BigInt(10_000);
-      onChainRoutes = buildOnChainRoutes(quote);
+      // Use AVNU build API to get exact serialized route data
+      const routeFelts = await fetchRouteFeltsFromBuild(quote.quoteId, POOL_ADDRESS);
+      if (!routeFelts || routeFelts.length === 0) {
+        return NextResponse.json({ success: false, error: "Failed to build AVNU swap routes" }, { status: 502 });
+      }
 
+      const buyAmount = BigInt(quote.buyAmount);
+      const minOut = (buyAmount * BigInt(10_000 - SLIPPAGE_BPS)) / BigInt(10_000);
       btcPrice = await getBtcPrice().catch(() => undefined);
-      console.log(`[execute-batch] Expected WBTC: ${buyAmount}, min out: ${minOut} (${SLIPPAGE_BPS / 100}% slippage), ${onChainRoutes.length} hop(s)`);
+
+      console.log(`[execute-batch] Expected WBTC: ${buyAmount}, min out: ${minOut}, route felts: ${routeFelts.length}`);
+
+      // Build execute_batch calldata manually: min_wbtc_out (u256) + route felts
+      const minOutHex = "0x" + minOut.toString(16);
+      const rawCalldata = [minOutHex, "0x0", ...routeFelts];
+
+      const calls = [
+        {
+          contractAddress: POOL_ADDRESS,
+          entrypoint: "execute_batch",
+          calldata: rawCalldata,
+        },
+      ];
+
+      const result = await account.execute(calls);
+      await provider.waitForTransaction(result.transaction_hash);
+
+      return NextResponse.json({
+        success: true,
+        txHash: result.transaction_hash,
+        btcPrice,
+      });
     } else {
       // ---- Testnet: update mock router rate, empty routes ----
       try {
@@ -216,30 +268,27 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.warn("[execute-batch] Rate update failed, using existing rate:", err);
       }
-      // Contract requires min_wbtc_out > 0
-      minOut = 1n;
+
+      const calls = [
+        {
+          contractAddress: POOL_ADDRESS,
+          entrypoint: "execute_batch",
+          calldata: CallData.compile({
+            min_wbtc_out: { low: 1n, high: 0n },
+            routes: [],
+          }),
+        },
+      ];
+
+      const result = await account.execute(calls);
+      await provider.waitForTransaction(result.transaction_hash);
+
+      return NextResponse.json({
+        success: true,
+        txHash: result.transaction_hash,
+        btcPrice,
+      });
     }
-
-    // Execute batch
-    const calls = [
-      {
-        contractAddress: POOL_ADDRESS,
-        entrypoint: "execute_batch",
-        calldata: CallData.compile({
-          min_wbtc_out: { low: minOut, high: 0n },
-          routes: onChainRoutes,
-        }),
-      },
-    ];
-
-    const result = await account.execute(calls);
-    await provider.waitForTransaction(result.transaction_hash);
-
-    return NextResponse.json({
-      success: true,
-      txHash: result.transaction_hash,
-      btcPrice,
-    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[relayer/execute-batch] Error:", msg);

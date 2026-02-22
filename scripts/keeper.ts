@@ -168,7 +168,7 @@ interface AvnuSubRoute {
 }
 
 interface AvnuBuildResult {
-  calldata: string[];
+  calls: { contractAddress: string; entrypoint: string; calldata: string[] }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -348,13 +348,29 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
     }
   }
 
+  let routeFelts: string[] | null = null;
+
   if (quote) {
     const buyAmount = BigInt(quote.buyAmount);
     minOut = (buyAmount * BigInt(10_000 - SLIPPAGE_BPS)) / BigInt(10_000);
-    onChainRoutes = buildOnChainRoutes(quote);
     console.log(`  Expected WBTC:   ${buyAmount}`);
     console.log(`  Min WBTC out:    ${minOut} (${SLIPPAGE_BPS / 100}% slippage)`);
-    console.log(`  Routes: ${onChainRoutes.length} hop(s)`);
+
+    // Use AVNU build API to get exact serialized route calldata
+    const buildResult = await buildAvnuSwap(quote.quoteId, POOL_ADDRESS, SLIPPAGE_BPS);
+    if (buildResult?.calls) {
+      const swapCall = buildResult.calls.find((c: any) => c.entrypoint === "multi_route_swap");
+      if (swapCall) {
+        // Extract routes portion (skip 11 header felts of multi_route_swap)
+        routeFelts = swapCall.calldata.slice(11);
+        console.log(`  Route felts: ${routeFelts.length} elements`);
+      }
+    }
+    if (!routeFelts) {
+      // Fallback: try legacy buildOnChainRoutes
+      onChainRoutes = buildOnChainRoutes(quote);
+      console.log(`  Routes (legacy): ${onChainRoutes.length} hop(s)`);
+    }
   } else if (deployedNetwork !== "mainnet") {
     // Testnet mock router fallback — fetch live BTC price and set rate
     console.log(`  No AVNU quote — using mock router with live BTC price...`);
@@ -395,11 +411,24 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
   console.log(`  Calling execute_batch...`);
 
   try {
-    pool.connect(account);
-    const tx = await pool.execute_batch(
-      { low: minOut, high: 0n },
-      onChainRoutes
-    );
+    let tx;
+    if (routeFelts) {
+      // Use raw calldata with exact AVNU-serialized routes
+      const minOutHex = "0x" + minOut.toString(16);
+      const rawCalldata = [minOutHex, "0x0", ...routeFelts];
+      tx = await account.execute([{
+        contractAddress: POOL_ADDRESS,
+        entrypoint: "execute_batch",
+        calldata: rawCalldata,
+      }]);
+    } else {
+      // Legacy path (testnet mock router with empty routes)
+      pool.connect(account);
+      tx = await pool.execute_batch(
+        { low: minOut, high: 0n },
+        onChainRoutes
+      );
+    }
     console.log(`  tx: ${tx.transaction_hash}`);
     console.log(`  Waiting for confirmation...`);
     await provider.waitForTransaction(tx.transaction_hash);
