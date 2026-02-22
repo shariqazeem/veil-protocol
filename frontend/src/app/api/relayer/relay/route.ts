@@ -207,7 +207,21 @@ export async function POST(req: NextRequest) {
     const provider = getProvider();
 
     const estimate = await account.estimateInvokeFee(calls, { skipValidate: true });
-    const estBounds = estimate.resourceBounds;
+    const eb = estimate.resourceBounds;
+
+    // Ensure all values are bigint (starknet.js may return numbers, strings, or bigints)
+    const toBig = (v: unknown): bigint => {
+      if (typeof v === "bigint") return v;
+      if (typeof v === "number") return BigInt(v);
+      if (typeof v === "string") return BigInt(v);
+      return 0n;
+    };
+
+    const estBounds = {
+      l1_gas: { max_amount: toBig(eb.l1_gas.max_amount), max_price_per_unit: toBig(eb.l1_gas.max_price_per_unit) },
+      l2_gas: { max_amount: toBig(eb.l2_gas.max_amount), max_price_per_unit: toBig(eb.l2_gas.max_price_per_unit) },
+      l1_data_gas: { max_amount: toBig(eb.l1_data_gas.max_amount), max_price_per_unit: toBig(eb.l1_data_gas.max_price_per_unit) },
+    };
 
     // Query relayer STRK balance
     const STRK_TOKEN = "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D";
@@ -218,29 +232,33 @@ export async function POST(req: NextRequest) {
     });
     const strkBalance = BigInt(balResult[0]);
 
-    // Cap each gas type's reservation: max_amount * max_price_per_unit must fit in balance
-    // Leave 10% margin for safety
-    const usableBal = (strkBalance * 90n) / 100n;
+    // Total cost across all gas types must fit within balance
+    const totalCost =
+      estBounds.l1_gas.max_amount * estBounds.l1_gas.max_price_per_unit +
+      estBounds.l2_gas.max_amount * estBounds.l2_gas.max_price_per_unit +
+      estBounds.l1_data_gas.max_amount * estBounds.l1_data_gas.max_price_per_unit;
 
-    function capBounds(bounds: { max_amount: bigint; max_price_per_unit: bigint }) {
-      const cost = bounds.max_amount * bounds.max_price_per_unit;
-      if (cost <= 0n || bounds.max_price_per_unit <= 0n) return bounds;
-      if (cost <= usableBal) return bounds;
-      // Reduce max_amount to fit within budget, keep price_per_unit unchanged
-      const cappedAmount = usableBal / bounds.max_price_per_unit;
-      return {
-        max_amount: cappedAmount > 0n ? cappedAmount : 1n,
-        max_price_per_unit: bounds.max_price_per_unit,
+    // If total fits, use as-is; otherwise scale down proportionally
+    let resourceBounds = estBounds;
+    if (totalCost > 0n && totalCost > strkBalance) {
+      // Scale factor: use 90% of balance / totalCost
+      const numerator = (strkBalance * 90n) / 100n;
+      const scaleBounds = (b: { max_amount: bigint; max_price_per_unit: bigint }) => {
+        const scaled = (b.max_amount * numerator) / totalCost;
+        return {
+          max_amount: scaled > 0n ? scaled : 1n,
+          max_price_per_unit: b.max_price_per_unit,
+        };
+      };
+      resourceBounds = {
+        l1_gas: scaleBounds(estBounds.l1_gas),
+        l2_gas: scaleBounds(estBounds.l2_gas),
+        l1_data_gas: scaleBounds(estBounds.l1_data_gas),
       };
     }
 
-    const resourceBounds = {
-      l1_gas: capBounds(estBounds.l1_gas),
-      l2_gas: capBounds(estBounds.l2_gas),
-      l1_data_gas: capBounds(estBounds.l1_data_gas),
-    };
-
     console.log("[relayer/relay] STRK balance:", strkBalance.toString(),
+      "| totalCost:", totalCost.toString(),
       "| l2_gas:", resourceBounds.l2_gas.max_amount.toString(), "x", resourceBounds.l2_gas.max_price_per_unit.toString(),
       "| l1_gas:", resourceBounds.l1_gas.max_amount.toString(), "x", resourceBounds.l1_gas.max_price_per_unit.toString());
 
