@@ -183,28 +183,39 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    // Convert all values to strings to avoid BigInt mixing in starknet.js internals
+    const compiledCalldata = CallData.compile({
+      denomination: String(denomination),
+      zk_nullifier,
+      zk_commitment,
+      proof,
+      merkle_path,
+      path_indices: path_indices.map(String),
+      recipient,
+      relayer: relayerAddress,
+      fee_bps: { low: String(feeBps), high: "0" },
+      btc_recipient_hash: btc_recipient_hash ?? "0x0",
+    });
+
+    console.log("[relayer/relay] Compiled calldata length:", compiledCalldata.length, "feeBps:", feeBps);
+
     const calls = [
       {
         contractAddress: POOL_ADDRESS,
         entrypoint: "withdraw_private_via_relayer",
-        calldata: CallData.compile({
-          denomination,
-          zk_nullifier,
-          zk_commitment,
-          proof,
-          merkle_path,
-          path_indices,
-          recipient,
-          relayer: relayerAddress,
-          fee_bps: { low: feeBps, high: 0 },
-          btc_recipient_hash: btc_recipient_hash ?? "0x0",
-        }),
+        calldata: compiledCalldata,
       },
     ];
 
-    // Relayer has sufficient STRK for default fee estimation (~37 STRK).
-    // Simply execute — starknet.js will estimate and submit.
-    const result = await account.execute(calls);
+    // Execute with full stack trace on error
+    let result;
+    try {
+      result = await account.execute(calls);
+    } catch (execErr) {
+      const stack = execErr instanceof Error ? execErr.stack : String(execErr);
+      console.error("[relayer/relay] account.execute failed:", stack);
+      throw execErr;
+    }
     const provider = getProvider();
     await provider.waitForTransaction(result.transaction_hash);
 
