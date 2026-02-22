@@ -202,17 +202,49 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // Use manual resource bounds to avoid over-estimation that exceeds relayer balance.
-    // ZK proof withdrawal is calldata-heavy (~2800 felts) but actual gas cost is ~1-2 STRK.
-    // Auto-estimation reserves up to 34 STRK which may exceed balance.
+    // Estimate fee with skipValidate to avoid "resources exceed balance" rejection,
+    // then cap resource bounds to fit within the relayer's actual STRK balance.
+    const provider = getProvider();
+
+    const estimate = await account.estimateInvokeFee(calls, { skipValidate: true });
+    const estBounds = estimate.resourceBounds;
+
+    // Query relayer STRK balance
+    const STRK_TOKEN = "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D";
+    const balResult = await provider.callContract({
+      contractAddress: STRK_TOKEN,
+      entrypoint: "balanceOf",
+      calldata: [account.address],
+    });
+    const strkBalance = BigInt(balResult[0]);
+
+    // Cap each gas type's reservation: max_amount * max_price_per_unit must fit in balance
+    // Leave 10% margin for safety
+    const usableBal = (strkBalance * 90n) / 100n;
+
+    function capBounds(bounds: { max_amount: bigint; max_price_per_unit: bigint }) {
+      const cost = bounds.max_amount * bounds.max_price_per_unit;
+      if (cost <= 0n || bounds.max_price_per_unit <= 0n) return bounds;
+      if (cost <= usableBal) return bounds;
+      // Reduce max_amount to fit within budget, keep price_per_unit unchanged
+      const cappedAmount = usableBal / bounds.max_price_per_unit;
+      return {
+        max_amount: cappedAmount > 0n ? cappedAmount : 1n,
+        max_price_per_unit: bounds.max_price_per_unit,
+      };
+    }
+
     const resourceBounds = {
-      l1_gas: { max_amount: "0x0", max_price_per_unit: "0x3E7EF8C48300" },         // 0 amount, ~69T Fri price floor
-      l2_gas: { max_amount: "0x1E848000", max_price_per_unit: "0x6FC23AC00" },      // 512M units @ 30 gwei = ~15 STRK max
-      l1_data_gas: { max_amount: "0x400", max_price_per_unit: "0x40023B214" },      // 1024 units @ ~17 gwei
+      l1_gas: capBounds(estBounds.l1_gas),
+      l2_gas: capBounds(estBounds.l2_gas),
+      l1_data_gas: capBounds(estBounds.l1_data_gas),
     };
 
-    const result = await account.execute(calls, { resourceBounds } as any);
-    const provider = getProvider();
+    console.log("[relayer/relay] STRK balance:", strkBalance.toString(),
+      "| l2_gas:", resourceBounds.l2_gas.max_amount.toString(), "x", resourceBounds.l2_gas.max_price_per_unit.toString(),
+      "| l1_gas:", resourceBounds.l1_gas.max_amount.toString(), "x", resourceBounds.l1_gas.max_price_per_unit.toString());
+
+    const result = await account.execute(calls, { resourceBounds });
     await provider.waitForTransaction(result.transaction_hash);
 
     return NextResponse.json({
