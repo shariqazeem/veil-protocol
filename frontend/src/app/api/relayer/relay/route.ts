@@ -202,7 +202,16 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    const result = await account.execute(calls);
+    // Use manual resource bounds to avoid over-estimation that exceeds relayer balance.
+    // ZK proof withdrawal is calldata-heavy (~2800 felts) but actual gas cost is ~1-2 STRK.
+    // Auto-estimation reserves up to 34 STRK which may exceed balance.
+    const resourceBounds = {
+      l1_gas: { max_amount: "0x0", max_price_per_unit: "0x3E7EF8C48300" },         // 0 amount, ~69T Fri price floor
+      l2_gas: { max_amount: "0x1E848000", max_price_per_unit: "0x6FC23AC00" },      // 512M units @ 30 gwei = ~15 STRK max
+      l1_data_gas: { max_amount: "0x400", max_price_per_unit: "0x40023B214" },      // 1024 units @ ~17 gwei
+    };
+
+    const result = await account.execute(calls, { resourceBounds } as any);
     const provider = getProvider();
     await provider.waitForTransaction(result.transaction_hash);
 

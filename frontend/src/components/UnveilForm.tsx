@@ -505,8 +505,15 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           }
         } catch (zkErr) {
-          console.error("[unveil] ZK proof error:", zkErr);
+          console.error("[unveil] Withdrawal error:", zkErr);
           const errMsg = zkErr instanceof Error ? zkErr.message : String(zkErr);
+          // Provide more specific error messages based on the failure point
+          if (errMsg.includes("addInvokeTransaction") || errMsg.includes("estimateFee") || errMsg.includes("Paymaster")) {
+            throw new Error(`x402 fee payment failed: ${errMsg.slice(0, 150)}. Try disabling "x402 Flat Fee" and use the 2% gasless relay instead.`);
+          }
+          if (errMsg.includes("relay") || errMsg.includes("Relayer")) {
+            throw new Error(`Relay submission failed: ${errMsg.slice(0, 150)}`);
+          }
           throw new Error(`ZK proof generation failed: ${errMsg.slice(0, 120)}. Please try again or check that the relayer is running.`);
         }
       }
