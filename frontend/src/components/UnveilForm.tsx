@@ -511,8 +511,11 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           if (errMsg.includes("addInvokeTransaction") || errMsg.includes("estimateFee") || errMsg.includes("Paymaster")) {
             throw new Error(`x402 fee payment failed: ${errMsg.slice(0, 150)}. Try disabling "x402 Flat Fee" and use the 2% gasless relay instead.`);
           }
-          if (errMsg.includes("relay") || errMsg.includes("Relayer")) {
-            throw new Error(`Relay submission failed: ${errMsg.slice(0, 150)}`);
+          if (errMsg.includes("relay") || errMsg.includes("Relayer") || errMsg.includes("Resources bounds") || errMsg.includes("Cannot mix BigInt")) {
+            throw new Error(`Relay execution failed: ${errMsg.slice(0, 200)}`);
+          }
+          if (errMsg.includes("Calldata") || errMsg.includes("calldata") || errMsg.includes("503")) {
+            throw new Error(`Garaga calldata generation failed: ${errMsg.slice(0, 150)}. The ZK proof server may be unavailable.`);
           }
           throw new Error(`ZK proof generation failed: ${errMsg.slice(0, 120)}. Please try again or check that the relayer is running.`);
         }
