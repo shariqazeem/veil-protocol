@@ -42,7 +42,7 @@ import {
   Eye,
   Send,
 } from "lucide-react";
-import { loadNotes } from "@/utils/privacy";
+import { loadNotes, loadNotesEncrypted } from "@/utils/privacy";
 import type { ChatResponse, ChatCard } from "@/utils/privacyChat";
 import type { DepositInfo } from "@/utils/privacyScore";
 import type { PrivacyScore, PoolHealthScore, WithdrawalRecommendation, PrivacyThreat } from "@/utils/privacyScore";
@@ -245,10 +245,10 @@ export default function AgentTab() {
     setChatLoading(true);
 
     try {
-      // Load user deposits from localStorage and convert to DepositInfo[]
+      // Load user deposits from localStorage (encrypted if wallet connected)
       let deposits: DepositInfo[] = [];
       try {
-        const notes = loadNotes();
+        const notes = address ? await loadNotesEncrypted(address) : loadNotes();
         deposits = notes
           .filter((n) => !n.claimed)
           .map((n) => ({
@@ -369,10 +369,10 @@ export default function AgentTab() {
       // Step 3: Re-request premium endpoint with payment tx hash
       setX402Phase("settling");
 
-      // Load deposits from localStorage
+      // Load deposits from localStorage (encrypted if wallet connected)
       let userDeposits: Array<{ tier: number; depositTimestamp: number; leafIndex: number; claimed: boolean }> = [];
       try {
-        const notes = loadNotes();
+        const notes = address ? await loadNotesEncrypted(address) : loadNotes();
         userDeposits = notes.filter(n => !n.claimed).map(n => ({
           tier: n.denomination,
           depositTimestamp: n.timestamp,
