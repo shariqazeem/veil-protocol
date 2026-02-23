@@ -518,11 +518,9 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
     }
   }
 
-  // Batch exit: build proofs and send per-chunk to avoid timeouts
-  // Each Groth16 ZK verification is very expensive (~millions of steps).
-  // Max 2 per tx to stay within Starknet's computation limit.
-  const BATCH_CHUNK_SIZE = 2;
-
+  // Auto-exit: process all ready notes one-by-one in sequence.
+  // Groth16 verification is too expensive to batch (multicall costs MORE).
+  // This automates clicking "Execute Exit" on each — one button, sequential txs.
   async function handleBatchClaim() {
     if (!isConnected || !address || !poolAddress) return;
 
@@ -530,8 +528,6 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
       (n) => n.status === "READY" && !n.claimed && !!n.zkCommitment,
     );
     if (readyNotes.length < 2) return;
-
-    const totalChunks = Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE);
 
     setBatchClaiming(true);
     setBatchProgress({ current: 0, total: readyNotes.length });
@@ -560,113 +556,92 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
       let lastTxHash = "";
       let totalClaimed = 0;
 
-      // Process chunk by chunk: build proofs → send tx → next chunk
-      for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
-        const chunkStart = chunkIdx * BATCH_CHUNK_SIZE;
-        const chunkNotes = readyNotes.slice(chunkStart, chunkStart + BATCH_CHUNK_SIZE);
+      // Process each note individually: build proof → send tx → next
+      for (let i = 0; i < readyNotes.length; i++) {
+        const note = readyNotes[i];
+        setBatchProgress({ current: i + 1, total: readyNotes.length });
+        setClaimPhase("generating_zk");
 
-        const chunkCalls: Array<{
-          contractAddress: string;
-          entrypoint: string;
-          calldata: string[];
-        }> = [];
-        const provenChunkNotes: NoteWithStatus[] = [];
-
-        // Build proofs for this chunk only
-        for (let i = 0; i < chunkNotes.length; i++) {
-          const note = chunkNotes[i];
-          const globalIdx = chunkStart + i;
-          setBatchProgress({ current: globalIdx + 1, total: readyNotes.length });
-
-          // Resolve leaf index
-          let validIndex = note.leafIndex ?? 0;
-          if (
-            validIndex >= allCommitments.length ||
-            allCommitments[validIndex] !== note.commitment
-          ) {
-            const found = allCommitments.indexOf(note.commitment);
-            if (found === -1) continue;
-            validIndex = found;
-          }
-
-          const { path: merklePath, indices: pathIndices } = buildMerkleProof(
-            validIndex,
-            allCommitments,
-          );
-
-          const denomination = note.denomination ?? 1;
-
-          try {
-            setClaimPhase("generating_zk");
-            const { proof, zkNullifier } = await generateWithdrawalProof({
-              secret: BigInt(note.secret),
-              blinder: BigInt(note.blinder),
-              denomination: BigInt(denomination),
-              recipient: BigInt(address),
-            });
-
-            chunkCalls.push({
-              contractAddress: poolAddress,
-              entrypoint: "withdraw_private",
-              calldata: CallData.compile({
-                denomination,
-                zk_nullifier: zkNullifier,
-                zk_commitment: note.zkCommitment!,
-                proof,
-                merkle_path: merklePath,
-                path_indices: pathIndices,
-                recipient: address,
-                btc_recipient_hash: btcRecipientHash,
-              }),
-            });
-            provenChunkNotes.push(note);
-          } catch (err) {
-            console.error(`[batch-exit] Proof failed for note ${globalIdx}:`, err);
-          }
+        // Resolve leaf index
+        let validIndex = note.leafIndex ?? 0;
+        if (
+          validIndex >= allCommitments.length ||
+          allCommitments[validIndex] !== note.commitment
+        ) {
+          const found = allCommitments.indexOf(note.commitment);
+          if (found === -1) continue;
+          validIndex = found;
         }
 
-        if (chunkCalls.length === 0) continue;
+        const { path: merklePath, indices: pathIndices } = buildMerkleProof(
+          validIndex,
+          allCommitments,
+        );
 
-        // Send this chunk immediately
-        setClaimPhase("withdrawing");
-        setBatchProgress({ current: chunkIdx + 1, total: totalChunks });
-        const result = await sendAsync(chunkCalls);
-        lastTxHash = result.transaction_hash;
+        const denomination = note.denomination ?? 1;
 
-        for (const note of provenChunkNotes) {
+        try {
+          const { proof, zkNullifier } = await generateWithdrawalProof({
+            secret: BigInt(note.secret),
+            blinder: BigInt(note.blinder),
+            denomination: BigInt(denomination),
+            recipient: BigInt(address),
+          });
+
+          setClaimPhase("withdrawing");
+          const result = await sendAsync([{
+            contractAddress: poolAddress,
+            entrypoint: "withdraw_private",
+            calldata: CallData.compile({
+              denomination,
+              zk_nullifier: zkNullifier,
+              zk_commitment: note.zkCommitment!,
+              proof,
+              merkle_path: merklePath,
+              path_indices: pathIndices,
+              recipient: address,
+              btc_recipient_hash: btcRecipientHash,
+            }),
+          }]);
+
+          lastTxHash = result.transaction_hash;
           await markNoteClaimed(note.commitment, address);
-        }
-        totalClaimed += provenChunkNotes.length;
+          totalClaimed++;
 
-        // Reset phase for next chunk's proof building
-        if (chunkIdx < totalChunks - 1) {
-          setClaimPhase("building_proof");
+          // Brief pause between txs
+          if (i < readyNotes.length - 1) {
+            setClaimPhase("building_proof");
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("User abort") || msg.includes("cancelled") || msg.includes("rejected")) {
+            throw err; // Stop the whole batch if user rejects
+          }
+          console.error(`[auto-exit] Note ${i} failed:`, err);
+          // Continue with remaining notes
         }
       }
 
       if (totalClaimed === 0) {
-        throw new Error("No proofs could be generated. Try individual exits.");
+        throw new Error("No exits succeeded. Try individual exits.");
       }
 
       setClaimTxHash(lastTxHash);
       setClaimPhase("success");
       toast(
         "success",
-        `Batch exit: ${totalClaimed} positions claimed in ${totalChunks} tx${totalChunks > 1 ? "s" : ""}`,
+        `Auto-exit: ${totalClaimed}/${readyNotes.length} positions claimed`,
       );
       await refreshNotes();
     } catch (err: unknown) {
       setClaimPhase("error");
-      const msg = err instanceof Error ? err.message : "Batch exit failed";
+      const msg = err instanceof Error ? err.message : "Auto-exit failed";
       if (msg.includes("User abort") || msg.includes("cancelled") || msg.includes("rejected")) {
         setClaimError("Transaction rejected in wallet.");
         toast("error", "Transaction rejected");
-      } else if (msg.includes("Timeout") || msg.includes("timeout")) {
-        setClaimError("Transaction timed out. Some positions may have been claimed — refresh to check.");
-        toast("error", "Transaction timed out");
       } else {
         setClaimError(msg);
-        toast("error", "Batch exit failed");
+        toast("error", "Auto-exit failed");
       }
     } finally {
       setBatchClaiming(false);
@@ -1087,25 +1062,20 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Batch Exit — shown when 2+ notes are ready */}
+          {/* Auto Exit — shown when 2+ notes are ready */}
           {readyNotes.length >= 2 && !batchClaiming && claimPhase === "idle" && (
             <motion.div
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               className="rounded-xl p-4 bg-[var(--bg-tertiary)] border border-[var(--accent-emerald)]/20 space-y-2"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-[var(--text-secondary)]">
-                    Batch Exit Available
-                  </span>
-                  <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
-                    Claim {readyNotes.length} positions in {Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE)} tx{Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE) > 1 ? "s" : ""} — pay gas {Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE) === 1 ? "once" : `${Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE)}x instead of ${readyNotes.length}x`}
-                  </p>
-                </div>
-                <span className="text-[10px] font-['JetBrains_Mono'] text-[var(--accent-emerald)] bg-[var(--accent-emerald-dim)] px-2 py-0.5 rounded-full">
-                  ~${((readyNotes.length - Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE)) * 0.6).toFixed(1)} saved
+              <div>
+                <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                  Auto Exit All
                 </span>
+                <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
+                  Claim all {readyNotes.length} positions sequentially — one click, approve each tx in wallet
+                </p>
               </div>
               <motion.button
                 onClick={handleBatchClaim}
@@ -1116,12 +1086,12 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                 transition={spring}
               >
                 <Zap size={14} strokeWidth={1.5} />
-                Batch Exit All ({readyNotes.length} positions)
+                Auto Exit All ({readyNotes.length} positions)
               </motion.button>
             </motion.div>
           )}
 
-          {/* Batch progress indicator */}
+          {/* Auto-exit progress indicator */}
           {batchClaiming && batchProgress && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -1132,7 +1102,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                 <Loader size={14} className="animate-spin text-[#4D4DFF]" strokeWidth={1.5} />
                 <span>
                   {claimPhase === "withdrawing"
-                    ? `Sending tx ${batchProgress.current}/${batchProgress.total} — confirm in wallet...`
+                    ? `Exit ${batchProgress.current}/${batchProgress.total} — confirm in wallet...`
                     : `Building proof ${batchProgress.current}/${batchProgress.total}...`}
                 </span>
               </div>
