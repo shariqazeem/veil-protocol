@@ -133,10 +133,10 @@ describe("premium-strategy", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.premium).toBe(true);
-    expect(body.pool).toBeDefined();
-    expect(body.tier_analysis).toBeDefined();
-    expect(body.timing).toBeDefined();
+    expect(body.your_deposits).toBeDefined();
+    expect(body.optimal_plan).toBeDefined();
     expect(body.recommendations).toBeDefined();
+    expect(body.pool_summary).toBeDefined();
     expect(body.payment).toBeDefined();
     expect(body.payment.settled).toBe(true);
     expect(body.payment.transaction).toBe("0xTX123");

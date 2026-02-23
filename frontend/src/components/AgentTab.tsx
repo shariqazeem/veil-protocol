@@ -369,6 +369,21 @@ export default function AgentTab() {
       // Step 3: Re-request premium endpoint with payment tx hash
       setX402Phase("settling");
 
+      // Load deposits from localStorage
+      let userDeposits: Array<{ tier: number; depositTimestamp: number; leafIndex: number; claimed: boolean }> = [];
+      try {
+        const notes = loadNotes();
+        userDeposits = notes.filter(n => !n.claimed).map(n => ({
+          tier: n.denomination,
+          depositTimestamp: n.timestamp,
+          leafIndex: n.leafIndex,
+          claimed: n.claimed,
+        }));
+      } catch { /* localStorage may be unavailable */ }
+
+      // Parse target amount from user input
+      const targetUsdc = parseTargetUsdc(input || "") ?? 100;
+
       const paidRes = await fetch(
         `/api/agent/premium-strategy`,
         {
@@ -377,6 +392,8 @@ export default function AgentTab() {
           body: JSON.stringify({
             input: input || "analyze pool",
             payment_tx: transferResult.transaction_hash,
+            target_usdc: targetUsdc,
+            deposits: userDeposits,
           }),
         },
       );
@@ -1333,100 +1350,159 @@ export default function AgentTab() {
                 )}
               </div>
 
-              {/* Pool Health + CSI */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-[var(--bg-tertiary)] p-3">
-                  <div className="text-[10px] text-[var(--text-quaternary)] mb-1">Pool Health</div>
-                  <div className="text-lg font-bold text-emerald-600">
-                    {String(((premiumData as Record<string, unknown>).pool as Record<string, unknown>)?.health && (((premiumData as Record<string, unknown>).pool as Record<string, unknown>).health as Record<string, unknown>)?.rating || "—")}
-                  </div>
-                  <div className="text-[10px] text-[var(--text-quaternary)] font-['JetBrains_Mono']">
-                    Score: {String(((premiumData as Record<string, unknown>).pool as Record<string, unknown>)?.health && (((premiumData as Record<string, unknown>).pool as Record<string, unknown>).health as Record<string, unknown>)?.score || "0")}/100
-                  </div>
-                </div>
-                <div className="rounded-xl bg-[var(--bg-tertiary)] p-3">
-                  <div className="text-[10px] text-[var(--text-quaternary)] mb-1">CSI Score</div>
-                  <div className="text-lg font-bold font-['JetBrains_Mono'] text-[#4D4DFF]">
-                    {String(((premiumData as Record<string, unknown>).pool as Record<string, unknown>)?.csi ?? "—")}
-                  </div>
-                  <div className="text-[10px] text-[var(--text-quaternary)]">Composite Security Index</div>
-                </div>
-              </div>
+              {/* YOUR PRIVACY POSITION */}
+              {(() => {
+                const pd = premiumData as Record<string, unknown>;
+                const yourDeposits = pd.your_deposits as Record<string, unknown> | undefined;
+                const depositList = (yourDeposits?.deposits ?? []) as Array<Record<string, unknown>>;
+                const optPlan = pd.optimal_plan as Record<string, unknown> | undefined;
+                const planSteps = (optPlan?.steps ?? []) as Array<Record<string, unknown>>;
+                const btcProj = pd.btc_projection as Record<string, unknown> | undefined;
+                const threatList = (pd.threats ?? []) as string[];
+                const recs = (pd.recommendations ?? []) as string[];
+                const yourAmount = Number(pd.your_amount ?? 0);
 
-              {/* Tier Analysis */}
-              {Array.isArray((premiumData as Record<string, unknown>).tier_analysis) && (
-                <div className="rounded-xl bg-[var(--bg-tertiary)] p-3">
-                  <div className="text-[10px] font-semibold text-[var(--text-tertiary)] mb-2">Per-Tier Unlinkability</div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {((premiumData as Record<string, unknown>).tier_analysis as Array<Record<string, unknown>>).map((tier) => (
-                      <div key={String(tier.label)} className="text-center">
-                        <div className="text-[11px] font-['JetBrains_Mono'] font-bold text-[var(--text-secondary)]">{String(tier.label)}</div>
-                        <div className={`text-[10px] font-semibold ${
-                          String(tier.unlinkability) === "Strong" ? "text-emerald-500" :
-                          String(tier.unlinkability) === "Good" ? "text-blue-500" :
-                          String(tier.unlinkability) === "Moderate" ? "text-[#FF9900]" : "text-red-400"
-                        }`}>
-                          {String(tier.unlinkability)}
-                        </div>
-                        <div className="text-[9px] text-[var(--text-quaternary)]">{String(tier.participants)} deposits</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* BTC Projections */}
-              {!!(premiumData as Record<string, unknown>).btc && (() => {
-                const btcData = (premiumData as Record<string, unknown>).btc as Record<string, unknown>;
-                const projections = btcData?.projections as Record<string, string> | undefined;
-                const slippage = btcData?.slippage_estimate ? String(btcData.slippage_estimate) : "";
                 return (
-                  <div className="rounded-xl bg-amber-50/60 border border-orange-200/30 p-2.5">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Sparkles size={10} className="text-[#FF9900]" />
-                      <span className="text-[10px] font-semibold text-[#FF9900]">BTC Projections</span>
-                    </div>
-                    {projections && (
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        {Object.entries(projections).map(([label, btcAmt]) => (
-                          <div key={label}>
-                            <div className="text-[10px] text-[var(--text-quaternary)]">{label.replace("_deposit", "").replace("$", "")}</div>
-                            <div className="text-[10px] font-['JetBrains_Mono'] font-bold text-orange-700">{btcAmt} BTC</div>
+                  <>
+                    {/* Privacy Score Summary */}
+                    {depositList.length > 0 && (
+                      <div className="rounded-xl bg-[var(--bg-tertiary)] p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-[10px] font-semibold text-[var(--text-tertiary)]">Your Privacy Position</div>
+                          <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            Number(yourDeposits?.avg_privacy_score ?? 0) >= 70 ? "bg-emerald-100 text-emerald-700" :
+                            Number(yourDeposits?.avg_privacy_score ?? 0) >= 45 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                          }`}>
+                            {String(yourDeposits?.avg_privacy_score ?? 0)}/100 {String(yourDeposits?.overall_rating ?? "")}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {depositList.map((dep, i) => (
+                            <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--bg-primary)]">
+                              <div className="text-[11px] font-['JetBrains_Mono'] font-bold text-[var(--text-secondary)] w-8">{String(dep.label)}</div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${
+                                      Number(dep.privacyScore) >= 70 ? "bg-emerald-500" :
+                                      Number(dep.privacyScore) >= 45 ? "bg-amber-500" : "bg-red-500"
+                                    }`} style={{ width: `${dep.privacyScore}%` }} />
+                                  </div>
+                                  <span className="text-[9px] font-['JetBrains_Mono'] text-[var(--text-quaternary)] w-6">{String(dep.privacyScore)}</span>
+                                </div>
+                                <div className="flex gap-3 mt-0.5">
+                                  <span className="text-[8px] text-[var(--text-quaternary)]">{String(dep.hoursElapsed)}h elapsed</span>
+                                  <span className="text-[8px] text-[var(--text-quaternary)]">{String(dep.depositsSince)} deposits since</span>
+                                </div>
+                              </div>
+                              <div className={`text-[8px] font-semibold px-1.5 py-0.5 rounded ${
+                                dep.withdrawSafe ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                              }`}>
+                                {dep.withdrawSafe ? "SAFE" : "WAIT"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {depositList.length === 0 && (
+                      <div className="rounded-xl bg-blue-50/60 border border-blue-200/30 p-2.5">
+                        <div className="text-[10px] font-semibold text-blue-600 mb-1">No Deposits Detected</div>
+                        <div className="text-[10px] text-blue-500/80">Shield USDC first, then premium analysis will score each deposit individually.</div>
+                      </div>
+                    )}
+
+                    {/* Threats */}
+                    {threatList.length > 0 && (
+                      <div className="rounded-xl bg-red-50/60 border border-red-200/30 p-2.5">
+                        <div className="text-[10px] font-semibold text-red-600 mb-1.5">Threats Detected</div>
+                        {threatList.map((t, i) => (
+                          <div key={i} className="flex items-start gap-1.5 text-[10px] text-red-500/90 mb-0.5">
+                            <span className="flex-shrink-0">!</span>{t}
                           </div>
                         ))}
                       </div>
                     )}
-                    {slippage && (
-                      <div className="text-[9px] text-[var(--text-quaternary)] mt-1.5">
-                        Slippage: {slippage}
+
+                    {/* Optimal Plan for YOUR Amount */}
+                    {planSteps.length > 0 && yourAmount > 0 && (
+                      <div className="rounded-xl bg-[var(--bg-tertiary)] p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-[10px] font-semibold text-[var(--text-tertiary)]">Optimal Plan for ${yourAmount}</div>
+                          <div className="text-[9px] font-['JetBrains_Mono'] text-[var(--text-quaternary)]">
+                            {String(optPlan?.deposit_count ?? 0)} deposits
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          {planSteps.map((step, i) => (
+                            <div key={i} className="flex items-center justify-between p-1.5 rounded-lg bg-[var(--bg-primary)]">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-['JetBrains_Mono'] font-bold text-[#FF9900]">{String(step.count)}x</span>
+                                <span className="text-[11px] font-semibold text-[var(--text-secondary)]">{String(step.label)}</span>
+                              </div>
+                              <div className="text-[9px] text-emerald-600">{String(step.privacyGain)}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-[var(--border-subtle)]">
+                          <span className="text-[10px] text-[var(--text-quaternary)]">Total: ${String(optPlan?.total_usdc ?? 0)}</span>
+                          <span className="text-[10px] font-['JetBrains_Mono'] text-[#FF9900] font-semibold">
+                            ≈ {String(optPlan?.estimated_btc ?? "0")} BTC
+                          </span>
+                        </div>
                       </div>
                     )}
-                  </div>
+
+                    {/* YOUR BTC Projection */}
+                    {btcProj && (
+                      <div className="rounded-xl bg-amber-50/60 border border-orange-200/30 p-2.5">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Sparkles size={10} className="text-[#FF9900]" />
+                          <span className="text-[10px] font-semibold text-[#FF9900]">Your BTC Projection</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <div className="text-[9px] text-[var(--text-quaternary)]">Single ${String(btcProj.your_amount)}</div>
+                            <div className="text-[11px] font-['JetBrains_Mono'] font-bold text-orange-700">{String(btcProj.btc_estimate)}</div>
+                            <div className="text-[8px] text-[var(--text-quaternary)]">BTC</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-[var(--text-quaternary)]">30-day DCA</div>
+                            <div className="text-[11px] font-['JetBrains_Mono'] font-bold text-orange-700">{String(btcProj.dca_projection_30d)}</div>
+                            <div className="text-[8px] text-[var(--text-quaternary)]">BTC</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-[var(--text-quaternary)]">90-day DCA</div>
+                            <div className="text-[11px] font-['JetBrains_Mono'] font-bold text-orange-700">{String(btcProj.dca_projection_90d)}</div>
+                            <div className="text-[8px] text-[var(--text-quaternary)]">BTC</div>
+                          </div>
+                        </div>
+                        <div className="text-[8px] text-[var(--text-quaternary)] mt-1.5">
+                          BTC @ ${Number(btcProj.btc_price).toLocaleString()} · {String(btcProj.slippage)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Personalized Recommendations */}
+                    {recs.length > 0 && (
+                      <div className="rounded-xl bg-emerald-50/60 border border-emerald-200/30 p-2.5">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <TrendingUp size={10} className="text-emerald-500" />
+                          <span className="text-[10px] font-semibold text-emerald-600">Your Next Steps</span>
+                        </div>
+                        <div className="space-y-1">
+                          {recs.map((rec, i) => (
+                            <div key={i} className="flex items-start gap-1.5 text-[10px] text-[var(--text-secondary)]">
+                              <span className="text-emerald-500 mt-0.5 flex-shrink-0">{i + 1}.</span>{rec}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
-
-              {/* Timing */}
-              <div className="rounded-xl bg-emerald-50/60 border border-emerald-200/30 p-2.5">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingUp size={10} className="text-emerald-500" />
-                  <span className="text-[10px] font-semibold text-emerald-600">Optimal Timing</span>
-                </div>
-                <p className="text-[11px] text-[var(--text-secondary)]">
-                  {String(((premiumData as Record<string, unknown>).timing as Record<string, unknown>)?.advice ?? "—")}
-                </p>
-              </div>
-
-              {/* Recommendations */}
-              {Array.isArray((premiumData as Record<string, unknown>).recommendations) && (
-                <div className="space-y-1">
-                  {((premiumData as Record<string, unknown>).recommendations as string[]).slice(0, 3).map((rec, i) => (
-                    <div key={i} className="flex items-start gap-2 text-[11px] text-[var(--text-tertiary)]">
-                      <span className="text-[#FF9900] mt-0.5 flex-shrink-0">•</span>
-                      {rec}
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {/* Footer */}
               <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]">
