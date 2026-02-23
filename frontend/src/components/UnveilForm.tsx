@@ -518,7 +518,11 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
     }
   }
 
-  // Batch exit: build all proofs, then send one multicall transaction
+  // Batch exit: build all proofs, then send chunked multicall transactions
+  // Each ZK withdrawal uses ~2,835 calldata elements; Starknet limit is 10,000
+  // So we chunk at max 3 calls per transaction
+  const BATCH_CHUNK_SIZE = 3;
+
   async function handleBatchClaim() {
     if (!isConnected || !address || !poolAddress) return;
 
@@ -615,27 +619,48 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
         throw new Error("No proofs could be generated. Try individual exits.");
       }
 
-      // Execute all withdrawals in a single transaction
+      // Execute in chunks of BATCH_CHUNK_SIZE to stay under 10,000 calldata limit
       setClaimPhase("withdrawing");
-      const result = await sendAsync(allCalls);
-      setClaimTxHash(result.transaction_hash);
+      const txCount = Math.ceil(allCalls.length / BATCH_CHUNK_SIZE);
+      let lastTxHash = "";
+      let totalClaimed = 0;
 
-      // Mark all as claimed
-      for (const note of provenNotes) {
-        await markNoteClaimed(note.commitment, address);
+      for (let c = 0; c < allCalls.length; c += BATCH_CHUNK_SIZE) {
+        const chunk = allCalls.slice(c, c + BATCH_CHUNK_SIZE);
+        const chunkNotes = provenNotes.slice(c, c + BATCH_CHUNK_SIZE);
+        const chunkIdx = Math.floor(c / BATCH_CHUNK_SIZE) + 1;
+
+        if (txCount > 1) {
+          setBatchProgress({ current: chunkIdx, total: txCount });
+        }
+
+        const result = await sendAsync(chunk);
+        lastTxHash = result.transaction_hash;
+
+        // Mark this chunk as claimed
+        for (const note of chunkNotes) {
+          await markNoteClaimed(note.commitment, address);
+        }
+        totalClaimed += chunkNotes.length;
       }
 
+      setClaimTxHash(lastTxHash);
       setClaimPhase("success");
       toast(
         "success",
-        `Batch exit: ${provenNotes.length} positions claimed in 1 transaction`,
+        `Batch exit: ${totalClaimed} positions claimed in ${txCount} tx${txCount > 1 ? "s" : ""}`,
       );
       await refreshNotes();
     } catch (err: unknown) {
       setClaimPhase("error");
       const msg = err instanceof Error ? err.message : "Batch exit failed";
-      setClaimError(msg);
-      toast("error", "Batch exit failed");
+      if (msg.includes("User abort") || msg.includes("cancelled") || msg.includes("rejected")) {
+        setClaimError("Transaction rejected in wallet.");
+        toast("error", "Transaction rejected");
+      } else {
+        setClaimError(msg);
+        toast("error", "Batch exit failed");
+      }
     } finally {
       setBatchClaiming(false);
       setBatchProgress(null);
@@ -1068,11 +1093,11 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                     Batch Exit Available
                   </span>
                   <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
-                    Claim {readyNotes.length} positions in 1 transaction — pay gas once
+                    Claim {readyNotes.length} positions in {Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE)} tx{Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE) > 1 ? "s" : ""} — pay gas {Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE) === 1 ? "once" : `${Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE)}x instead of ${readyNotes.length}x`}
                   </p>
                 </div>
                 <span className="text-[10px] font-['JetBrains_Mono'] text-[var(--accent-emerald)] bg-[var(--accent-emerald-dim)] px-2 py-0.5 rounded-full">
-                  ~{(readyNotes.length - 1) * 0.6 > 0.5 ? `$${((readyNotes.length - 1) * 0.6).toFixed(1)}` : "$0.60"} saved
+                  ~${((readyNotes.length - Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE)) * 0.6).toFixed(1)} saved
                 </span>
               </div>
               <motion.button
