@@ -42,7 +42,7 @@ User C deposits $100 USDC ──┘       |                                     
                                                               OR native BTC (intent)
 ```
 
-1. **Shield** -- Pick a denomination ($1 / $10 / $100 USDC). Pedersen + Poseidon BN254 commitments computed client-side. Bitcoin wallet signs the commitment.
+1. **Shield** -- Pick a denomination ($1 / $10 / $100 / $1,000 USDC). Pedersen + Poseidon BN254 commitments computed client-side. Bitcoin wallet signs the commitment.
 
 2. **Batch** -- Keeper aggregates deposits into a single USDC-to-WBTC swap via Avnu DEX, using live BTC pricing from CoinGecko. Individual intent hidden in the batch.
 
@@ -91,6 +91,6 @@ Strategies planned in Telegram can be executed on the web app via deep links.
 | Telegram Bot | Grammy framework with live pool state and deep links |
 | Wallets | Starknet (Argent/Braavos) + Bitcoin (Xverse via sats-connect) |
 | Cryptography | Pedersen (Stark), Poseidon BN254, AES-GCM |
-| Testing | snforge 0.56.0 (52 passing tests) |
-| Deployment | Vercel (frontend), Starknet Sepolia (contracts) |
-| Explorer | [Voyager](https://sepolia.voyager.online) |
+| Testing | snforge (37 Cairo tests) + Vitest (90 frontend tests) = 127 total |
+| Deployment | Vercel (frontend), **Starknet Mainnet** (contracts) |
+| Explorer | [Voyager](https://voyager.online) |

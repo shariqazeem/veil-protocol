@@ -1,16 +1,16 @@
 # Deployed Contracts
 
-All contracts are deployed on **Starknet Sepolia** testnet.
+All contracts are deployed on **Starknet Mainnet** with real assets.
 
 ## Contract Addresses
 
 | Contract | Address | Explorer |
 |----------|---------|----------|
-| **ShieldedPool** | `0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210` | [Voyager](https://sepolia.voyager.online/contract/0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210) |
-| **GaragaVerifier** | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` | [Voyager](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
-| **USDC (Mock)** | `0x4cf76a48cda7d5e99d987e1506a0090caee3350a0d4fcedb5f39dea9c7d192b` | [Voyager](https://sepolia.voyager.online/contract/0x4cf76a48cda7d5e99d987e1506a0090caee3350a0d4fcedb5f39dea9c7d192b) |
-| **WBTC (Mock)** | `0x73bcbf56714ac25619f59335ecaf967d657e67050b1b26f46087893aa21a2a2` | [Voyager](https://sepolia.voyager.online/contract/0x73bcbf56714ac25619f59335ecaf967d657e67050b1b26f46087893aa21a2a2) |
-| **AvnuRouter (Mock)** | `0x4502b6fe4463a18062a32c788e64b622cf9f08d77d5135f4c10dc2c95caeed1` | [Voyager](https://sepolia.voyager.online/contract/0x4502b6fe4463a18062a32c788e64b622cf9f08d77d5135f4c10dc2c95caeed1) |
+| **ShieldedPool** | `0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38` | [Voyager](https://voyager.online/contract/0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38) |
+| **GaragaVerifier** | `0x5176db82a5995bbdc3390b4f189540b0119c8d4ac8114ca7e0d5185f6f0444c` | [Voyager](https://voyager.online/contract/0x5176db82a5995bbdc3390b4f189540b0119c8d4ac8114ca7e0d5185f6f0444c) |
+| **USDC** | `0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb` | [Voyager](https://voyager.online/contract/0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb) |
+| **WBTC** | `0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac` | [Voyager](https://voyager.online/contract/0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac) |
+| **AVNU Router** | `0x04270219d365d6b017231b52e92b3fb5d7c8378b05e9abc97724537a80e93b0f` | [Voyager](https://voyager.online/contract/0x04270219d365d6b017231b52e92b3fb5d7c8378b05e9abc97724537a80e93b0f) |
 
 ## Deployer Account
 
@@ -19,7 +19,7 @@ All contracts are deployed on **Starknet Sepolia** testnet.
 | Address | `0x501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5` |
 | Account Name | `veil-deployer` |
 | Type | OpenZeppelin |
-| Network | Starknet Sepolia |
+| Network | Starknet Mainnet |
 
 ## Constructor Parameters
 
@@ -27,11 +27,11 @@ The ShieldedPool was deployed with:
 
 ```
 constructor(
-    usdc_address:   0x4cf76a48cda7d5e99d987e1506a0090caee3350a0d4fcedb5f39dea9c7d192b
-    wbtc_address:   0x73bcbf56714ac25619f59335ecaf967d657e67050b1b26f46087893aa21a2a2
+    usdc_address:   0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb
+    wbtc_address:   0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac
     owner:          0x501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5
-    avnu_router:    0x4502b6fe4463a18062a32c788e64b622cf9f08d77d5135f4c10dc2c95caeed1
-    zk_verifier:    0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07
+    avnu_router:    0x04270219d365d6b017231b52e92b3fb5d7c8378b05e9abc97724537a80e93b0f
+    zk_verifier:    0x5176db82a5995bbdc3390b4f189540b0119c8d4ac8114ca7e0d5185f6f0444c
 )
 ```
 
@@ -41,21 +41,21 @@ constructor(
 
 ```bash
 # Read pending USDC
-sncast --account veil-deployer \
-  call --url https://starknet-sepolia-rpc.publicnode.com \
-  --contract-address 0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210 \
+sncast call \
+  --url https://starknet-mainnet.public.blastapi.io/rpc/v0_7 \
+  --contract-address 0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38 \
   --function get_pending_usdc
 
 # Read Merkle root
-sncast --account veil-deployer \
-  call --url https://starknet-sepolia-rpc.publicnode.com \
-  --contract-address 0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210 \
+sncast call \
+  --url https://starknet-mainnet.public.blastapi.io/rpc/v0_7 \
+  --contract-address 0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38 \
   --function get_merkle_root
 
 # Read anonymity set for $10 tier
-sncast --account veil-deployer \
-  call --url https://starknet-sepolia-rpc.publicnode.com \
-  --contract-address 0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210 \
+sncast call \
+  --url https://starknet-mainnet.public.blastapi.io/rpc/v0_7 \
+  --contract-address 0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38 \
   --function get_anonymity_set \
   --calldata 1
 ```
@@ -67,14 +67,14 @@ import { Contract, RpcProvider } from "starknet";
 import { SHIELDED_POOL_ABI } from "./contracts/abi";
 
 const provider = new RpcProvider({
-  nodeUrl: "https://starknet-sepolia-rpc.publicnode.com",
+  nodeUrl: "https://starknet-mainnet.public.blastapi.io/rpc/v0_7",
 });
 
-const pool = new Contract(
-  SHIELDED_POOL_ABI,
-  "0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210",
-  provider,
-);
+const pool = new Contract({
+  abi: SHIELDED_POOL_ABI,
+  address: "0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38",
+  providerOrAccount: provider,
+});
 
 const pendingUsdc = await pool.get_pending_usdc();
 const merkleRoot = await pool.get_merkle_root();
@@ -87,27 +87,13 @@ Contract addresses are stored in `frontend/src/contracts/addresses.json`:
 
 ```json
 {
-  "network": "sepolia",
+  "network": "mainnet",
   "contracts": {
-    "usdc": "0x4cf76a48cda7d5e99d987e1506a0090caee3350a0d4fcedb5f39dea9c7d192b",
-    "wbtc": "0x73bcbf56714ac25619f59335ecaf967d657e67050b1b26f46087893aa21a2a2",
-    "avnuRouter": "0x4502b6fe4463a18062a32c788e64b622cf9f08d77d5135f4c10dc2c95caeed1",
-    "shieldedPool": "0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210",
-    "garagaVerifier": "0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07"
-  },
-  "deployer": "0x501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5",
-  "classHashes": {
-    "ShieldedPool": "0x35d7b2485d281bbb24a9901908dcc6bdf81fbbbcb7013b25ac63fca98cf7487",
-    "MockERC20": "0x6f3e7e7a6293ea1d027c730d8487335420b2f519f65375338990d4503f36f35",
-    "MockAvnuRouter": "0x18f0070c5840824330f7cb436f01abc8144540e94e550eb50cff09d99b15bd4"
+    "usdc": "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb",
+    "wbtc": "0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac",
+    "avnuRouter": "0x04270219d365d6b017231b52e92b3fb5d7c8378b05e9abc97724537a80e93b0f",
+    "shieldedPool": "0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38",
+    "garagaVerifier": "0x5176db82a5995bbdc3390b4f189540b0119c8d4ac8114ca7e0d5185f6f0444c"
   }
 }
 ```
-
-## Class Hashes
-
-| Contract | Class Hash |
-|----------|-----------|
-| ShieldedPool | `0x35d7b2485d281bbb24a9901908dcc6bdf81fbbbcb7013b25ac63fca98cf7487` |
-| MockERC20 | `0x6f3e7e7a6293ea1d027c730d8487335420b2f519f65375338990d4503f36f35` |
-| MockAvnuRouter | `0x18f0070c5840824330f7cb436f01abc8144540e94e550eb50cff09d99b15bd4` |

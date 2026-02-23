@@ -31,7 +31,7 @@ The Privacy Agent processes 8 distinct intents via natural language: privacy sco
 - **Dual commitment scheme**: Pedersen + Poseidon BN254, bridging Starknet-native and ZK domains.
 - **Privacy scoring engine**: Weighted multi-factor privacy scores computed from live on-chain pool state.
 - **x402 micropayment-gated APIs**: HTTP 402 for premium AI features. Pay-per-query privacy analytics.
-- **142 tests**: 52 Cairo contract tests + 90 Vitest frontend tests.
+- **127 tests**: 37 Cairo contract tests + 90 Vitest frontend tests.
 
 **Deployed on Mainnet.** ShieldedPool and GaragaVerifier are live on Starknet mainnet with real USDC, WBTC, and AVNU integration. This is not a testnet demo.
 

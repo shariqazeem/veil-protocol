@@ -17,15 +17,15 @@
 ```bash
 cd contracts
 scarb build        # Compile Cairo contracts
-snforge test       # Run 52 tests
+snforge test       # Run 37 Cairo tests
 ```
 
-All 52 contract tests cover deposits, withdrawals, batch execution, Merkle tree operations, ZK proof verification, intent escrow, and privacy guarantees.
+All 37 contract tests cover deposits, withdrawals, batch execution, Merkle tree operations, ZK proof verification, intent escrow, and privacy guarantees. The frontend has 90 additional tests (Vitest) covering API routes, components, and utilities -- 127 tests total.
 
 ## ZK Circuit
 
 ```bash
-cd circuits/ghostsats
+cd circuits/veil
 nargo test         # Run circuit tests
 nargo compile      # Compile to ACIR
 nargo execute      # Generate witness (with Prover.toml)
@@ -85,7 +85,7 @@ Connect both:
 ### 2. Shield (Deposit)
 
 1. Go to the **Shield** tab
-2. Select a denomination ($1 / $10 / $100 USDC)
+2. Select a denomination ($1 / $10 / $100 / $1,000 USDC)
 3. Approve USDC spending
 4. Confirm the deposit transaction
 5. **Save your encrypted note** -- you will need it for withdrawal
@@ -124,7 +124,7 @@ Use the Telegram bot for mobile strategy planning:
 - `/strategy Accumulate $50 in BTC, maximize privacy` -- streams a thinking log and generates a strategy
 - `/status` -- pool state and BTC price
 - `/price` -- live BTC with per-tier conversion rates
-- `/pool` -- detailed protocol analytics with a link to view the contract on [Voyager](https://sepolia.voyager.online)
+- `/pool` -- detailed protocol analytics with a link to view the contract on [Voyager](https://voyager.online)
 
 Tap the **"Execute on Web"** button in the bot's response to deep-link into the web app with the strategy pre-loaded.
 

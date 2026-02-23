@@ -6,7 +6,7 @@ Veil Protocol provides multiple layers of privacy protection, each addressing a 
 
 | Property | Mechanism |
 |----------|-----------|
-| **Deposit unlinkability** | Fixed denominations ($1 / $10 / $100 USDC) -- all deposits in a tier are indistinguishable |
+| **Deposit unlinkability** | Fixed denominations ($1 / $10 / $100 / $1,000 USDC) -- all deposits in a tier are indistinguishable |
 | **Withdrawal unlinkability** | ZK proof + different recipient address + optional gasless relayer |
 | **No secrets in calldata** | Noir ZK circuit proves knowledge; Garaga verifier validates on-chain |
 | **In-browser proving** | bb.js WASM -- secrets (secret, blinder) never leave the browser |
@@ -28,6 +28,7 @@ Veil Protocol provides multiple layers of privacy protection, each addressing a 
 | 0 | $1 USDC | 1,000,000 | Micro-transactions, testing |
 | 1 | $10 USDC | 10,000,000 | Standard privacy deposits |
 | 2 | $100 USDC | 100,000,000 | Larger accumulation |
+| 3 | $1,000 USDC | 1,000,000,000 | Whale-scale privacy |
 
 Fixed denominations ensure all deposits within a tier are identical on-chain. An observer cannot distinguish one $10 deposit from another.
 
@@ -108,8 +109,6 @@ The AI Strategist displays CSI impact for every plan, showing how your deposits 
 - **In-browser proving requires WASM support** -- The bb.js WASM prover runs client-side in modern browsers, keeping secrets fully local. Older browsers or restricted environments fall back to the server-side prover, which sees secrets temporarily in memory (never persisted). In both modes, **secrets never appear in on-chain calldata**.
 
 - **Keeper centralization** -- Batch execution is currently owner-only. The embedded relayer API can trigger batches, but only with the configured keeper key. Decentralized keeper networks would be the next step.
-
-- **Mock tokens** -- USDC/WBTC are MockERC20 on Sepolia for demonstration purposes.
 
 - **Intent settlement trust assumption** -- BTC intent settlement relies on a solver network to fill BTC orders. The escrow mechanism protects against solver default (WBTC is returned if the intent is not filled), but settlement time depends on solver availability.
 

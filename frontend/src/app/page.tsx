@@ -117,7 +117,7 @@ export default function LandingPage() {
           </span>
           <div className="flex items-center gap-4">
             <a
-              href="https://theveilprotocol-docs.vercel.app"
+              href="https://veilprotocol-docs.vercel.app"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors"

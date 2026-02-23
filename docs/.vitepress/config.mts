@@ -17,8 +17,8 @@ export default defineConfig({
       {
         text: "Links",
         items: [
-          { text: "GitHub", link: "https://github.com/shariqazeem/ghost-sats" },
-          { text: "Explorer", link: "https://sepolia.voyager.online/contract/0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210" },
+          { text: "GitHub", link: "https://github.com/shariqazeem/veil-protocol" },
+          { text: "Explorer", link: "https://voyager.online/contract/0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38" },
         ],
       },
     ],
@@ -52,7 +52,7 @@ export default defineConfig({
       },
     ],
     socialLinks: [
-      { icon: "github", link: "https://github.com/shariqazeem/ghost-sats" },
+      { icon: "github", link: "https://github.com/shariqazeem/veil-protocol" },
     ],
     footer: {
       message: "Built for Re{define} Starknet Hackathon 2026",

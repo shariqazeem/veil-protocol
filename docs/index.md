@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Veil Protocol
-  text: Confidential Bitcoin Accumulation
-  tagline: Private USDC-to-BTC execution on Starknet with on-chain ZK proofs, an AI strategy agent, and a Telegram bot. Gasless. Unlinkable. Verifiable.
+  text: Privacy Infrastructure on Starknet
+  tagline: Private USDC-to-BTC execution on Starknet mainnet with on-chain ZK proofs, an AI Privacy Agent, x402 micropayments, and a Telegram bot. Gasless. Unlinkable. Verifiable.
   actions:
     - theme: brand
       text: How It Works
@@ -21,8 +21,8 @@ features:
     title: ZK Proofs Verified On-Chain
     details: Noir circuit compiled to UltraKeccakZKHonk proof via bb.js WASM, verified on-chain by Garaga. 2,835 felt252 calldata elements. In-browser proving -- secrets never leave your device.
   - icon: "\uD83E\uDDE0"
-    title: AI Strategy Agent
-    details: Five strategy types -- privacy-first, efficiency, stealth DCA, whale distribution, and balanced. Natural language input generates optimized accumulation plans with live pool analytics.
+    title: AI Privacy Agent + x402
+    details: "Natural language privacy analysis: \"How private am I?\" returns per-deposit scoring. Premium features gated by x402 micropayments (0.005 STRK). Five strategy types with projected privacy impact."
   - icon: "\u26A1"
     title: Gasless Withdrawals
     details: Relayer submits your withdrawal transaction. You never sign. No gas payment means no on-chain footprint linking you to the original deposit.
@@ -31,7 +31,7 @@ features:
     details: "@VeilStrategistBot -- plan and execute accumulation strategies directly from Telegram. Live BTC price, pool analytics, and deep-link execution to the web app."
   - icon: "\uD83C\uDF0A"
     title: Anonymity Sets
-    details: "Fixed denominations ($1 / $10 / $100 USDC) make all deposits in a tier indistinguishable. More participants per tier means exponentially stronger privacy."
+    details: "Fixed denominations ($1 / $10 / $100 / $1,000 USDC) make all deposits in a tier indistinguishable. More participants per tier means exponentially stronger privacy."
   - icon: "\u20BF"
     title: Bitcoin Identity Binding
     details: Dual wallet -- Starknet (Argent/Braavos) + Bitcoin (Xverse). Your BTC wallet cryptographically signs each deposit commitment. Intent settlement bridges to native Bitcoin.

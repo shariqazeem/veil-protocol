@@ -1,59 +1,29 @@
 # Testing
 
-Veil Protocol has 52 passing tests covering the full protocol.
+Veil Protocol has **127 passing tests** -- 37 Cairo contract tests and 90 frontend tests.
+
+## Cairo Contract Tests (37 tests)
 
 ```bash
 cd contracts && snforge test
-# Tests: 52 passed, 0 failed, 0 ignored, 0 filtered out
+# Tests: 37 passed, 0 failed, 0 ignored, 0 filtered out
 ```
 
-## Test Suites
-
-### Core Engine (14 tests)
+### Core Engine (7 tests)
 
 **File**: `tests/test_dark_engine.cairo`
 
 Tests the fundamental protocol mechanics:
 
 - Three-user deposit and batch execution flow
-- Multiple sequential batches
-- Non-owner batch execution rejection
-- Empty batch rejection
-- Duplicate commitment rejection
-- Invalid denomination rejection
-- Denomination amounts ($1 / $10 / $100 USDC)
 - Merkle root updates on deposit
+- Denomination amounts ($1 / $10 / $100 / $1,000 USDC)
 - View key registration
-- Correct leaf retrieval by index
 - Anonymity set tracking per denomination tier
 - BTC identity hash stored on deposit
-- Zero BTC identity not counted
 - BTC-linked deposit counter increments
 
-### Withdrawal (16 tests)
-
-**File**: `tests/test_withdrawal.cairo`
-
-Tests the complete deposit-execute-withdraw cycle:
-
-- Full lifecycle: deposit, batch execute, withdraw with Merkle proof
-- Two-user withdrawal with independent Merkle proofs
-- Withdrawal with exchange rate computation
-- Double-spend prevention (nullifier reuse)
-- Invalid preimage rejection
-- Cannot withdraw before batch finalized
-- Wrong nullifier rejection
-- Relayer withdrawal with fee calculation (2% default)
-- Relayer withdrawal with zero fee
-- Excessive relayer fee rejection (5% cap)
-- Withdrawal too early (timing delay enforcement, 60s minimum)
-- Withdrawal delay view function
-- Max relayer fee view function
-- Withdrawal with BTC intent creates escrow
-- Merkle proof wrong length rejection
-- Relayer withdrawal with BTC intent creates escrow
-
-### ZK Privacy (11 tests)
+### ZK Privacy (16 tests)
 
 **File**: `tests/test_zk_privacy.cairo`
 
@@ -71,7 +41,7 @@ Tests the ZK-specific functionality:
 - Zero ZK commitment rejection
 - ZK withdrawal with BTC intent creates escrow
 
-### Intent Escrow (11 tests)
+### Intent Escrow (9 tests)
 
 **File**: `tests/test_intent_escrow.cairo`
 
@@ -83,83 +53,102 @@ Tests the BTC intent settlement system:
 - Intent expiration refunds recipient
 - Double claim rejection
 - Non-oracle confirmation rejection
-- Cannot expire before timeout
-- Oracle configuration update
-- Oracle revocation on reconfiguration
-- Minimum timeout enforcement
 - Full intent lifecycle (create, claim, confirm, release)
+
+### Withdrawal (2 tests)
+
+**File**: `tests/test_withdrawal.cairo`
+
+- Full lifecycle: deposit, batch execute, withdraw with Merkle proof
+- Two-user withdrawal with independent Merkle proofs
+
+## Frontend Tests (90 tests)
+
+```bash
+cd frontend && npx vitest run
+# Test Files  16 passed (16)
+#      Tests  90 passed (90)
+```
+
+### API Route Tests (36 tests)
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `chat.test.ts` | 6 | Greeting, pool analysis, privacy check, strategy |
+| `privacy-score.test.ts` | 2 | Pool health metrics + error handling |
+| `privacy-audit.test.ts` | 6 | x402 payment flow + verification |
+| `premium-strategy.test.ts` | 4 | x402 payment + personalized analysis |
+| `relay.test.ts` | 7 | Transaction execution + error handling |
+| `relayer-shared.test.ts` | 5 | Rate limiting, account setup |
+| `notify.test.ts` | 3 | Telegram webhook validation |
+| `validate-init.test.ts` | 7 | Bot init validation |
+
+### Utility Tests (27 tests)
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `strategyEngine.test.ts` | 15 | Strategy parsing, plan generation, all 5 types |
+| `privacy.test.ts` | 12 | Merkle proof generation, Pedersen hashing |
+
+### Component Tests (17 tests)
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `TransactionHistory.test.tsx` | 5 | Transaction display |
+| `PrivacyScore.test.tsx` | 6 | Animated score circle |
+| `OnboardingBanner.test.tsx` | 4 | First-time user guide |
+| `TelegramAppShell.test.tsx` | 3 | Telegram Mini App |
+
+### Context Tests (4 tests)
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `TelegramContext.test.tsx` | 4 | Telegram context provider |
 
 ## Running Tests
 
 ### Full Suite
 
 ```bash
-cd contracts
-snforge test
+# Cairo contracts
+cd contracts && snforge test
+
+# Frontend
+cd frontend && npx vitest run
 ```
 
 ### Specific Test File
 
 ```bash
+# Cairo
 snforge test --filter test_dark_engine       # Core engine tests
-snforge test --filter test_withdrawal        # Withdrawal tests
 snforge test --filter test_zk_privacy        # ZK privacy tests
 snforge test --filter test_intent_escrow     # Intent escrow tests
+
+# Frontend
+npx vitest run src/__tests__/api/chat.test.ts
+npx vitest run src/__tests__/utils/strategyEngine.test.ts
 ```
-
-### Garaga Verifier Fork Test
-
-The Garaga verifier has a separate fork test that runs against Starknet Sepolia:
-
-```bash
-cd circuits/ghostsats/zk_verifier
-snforge test
-```
-
-This test:
-1. Deploys the verifier contract on a Sepolia fork
-2. Submits a real proof (2835 felt252 values)
-3. Verifies the proof passes on-chain
-4. Checks public inputs match expected values
 
 ## Test Architecture
+
+### Cairo Tests
 
 Tests use `snforge_std` utilities:
 
 - `deploy_syscall` for contract deployment
 - `start_cheat_caller_address` for caller impersonation
 - `start_cheat_block_timestamp_global` for time manipulation
-- Mock contracts for USDC, WBTC, and Avnu router
+- Mock contracts for USDC, WBTC, and Avnu router in test environment
 
-### Mock Contracts
+### Frontend Tests
 
-| Contract | Purpose |
-|----------|---------|
-| MockERC20 | USDC and WBTC with public mint |
-| MockAvnuRouter | Simulates Avnu swap at a fixed rate |
+Tests use Vitest + React Testing Library:
 
-### Test Flow Example
-
-```cairo
-// 1. Deploy mock tokens + pool
-let (pool, usdc, wbtc, router) = deploy_test_suite();
-
-// 2. Mint USDC to depositor ($10 = 10,000,000 raw)
-usdc.mint(depositor, 10_000_000);
-
-// 3. Approve + deposit
-usdc.approve(pool, 10_000_000);
-pool.deposit_private(commitment, 1, btc_hash, zk_commitment);
-
-// 4. Execute batch
-pool.execute_batch(0, routes);
-
-// 5. Advance time past cooldown
-set_block_timestamp(current_time + 61);
-
-// 6. Withdraw with ZK proof
-pool.withdraw_private(1, nullifier, zk_commitment, proof, merkle_path, indices, recipient, 0);
-```
+- `vi.mock()` for starknet contract mocking
+- JSDOM environment for component tests
+- Proper async state management testing
+- x402 payment verification tested with mock Transfer events
 
 ### Denomination Reference for Tests
 
@@ -168,3 +157,4 @@ pool.withdraw_private(1, nullifier, zk_commitment, proof, merkle_path, indices, 
 | 0 | $1 | 1,000,000 |
 | 1 | $10 | 10,000,000 |
 | 2 | $100 | 100,000,000 |
+| 3 | $1,000 | 1,000,000,000 |
