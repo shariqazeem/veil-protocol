@@ -111,29 +111,52 @@ async function verifyMicropayment(
     const expectedToken = norm(getStrkToken());
     const expectedAmount = getExpectedFeeAtomic();
     const treasuryNorm = norm(TREASURY_ADDRESS);
+    const TRANSFER_KEY = norm("0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9");
 
-    // Starknet Transfer event: keys[0]=selector, keys[1]=from, keys[2]=to; data[0..1]=amount(u256)
-    const TRANSFER_KEY = "0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9";
+    const events = (receipt as any).events ?? [];
+    console.log(`[premium-strategy] Verifying tx ${txHash}, ${events.length} events`);
 
-    for (const event of (receipt as any).events ?? []) {
-      const fromAddr = norm(event.from_address ?? event.contract_address ?? "");
-      if (fromAddr !== expectedToken) continue;
-
+    for (const event of events) {
+      const emitter = norm(event.from_address ?? "");
       const keys = (event.keys ?? []).map((k: string) => norm(k));
-      if (keys[0] !== TRANSFER_KEY) continue;
+      const data = (event.data ?? []).map((d: string) => d);
 
-      const to = keys[2] ?? "";
+      if (keys[0] !== TRANSFER_KEY) continue;
+      if (emitter !== expectedToken) continue;
+
+      // Starknet Transfer event format (current):
+      //   keys: [selector]
+      //   data: [from, to, amount_low, amount_high]
+      // Legacy format had from/to in keys — handle both
+      let from: string, to: string, amountLow: bigint, amountHigh: bigint;
+
+      if (keys.length >= 3) {
+        // Legacy: keys=[selector, from, to], data=[amount_low, amount_high]
+        from = keys[1];
+        to = keys[2];
+        amountLow = BigInt(data[0] ?? "0");
+        amountHigh = BigInt(data[1] ?? "0");
+      } else {
+        // Current: keys=[selector], data=[from, to, amount_low, amount_high]
+        from = norm(data[0] ?? "0");
+        to = norm(data[1] ?? "0");
+        amountLow = BigInt(data[2] ?? "0");
+        amountHigh = BigInt(data[3] ?? "0");
+      }
+
       if (to !== treasuryNorm) continue;
 
-      const amountLow = BigInt(event.data?.[0] ?? "0");
-      if (amountLow >= expectedAmount) {
-        return { valid: true, payer: keys[1] ?? "" };
+      const totalAmount = amountLow + (amountHigh << 128n);
+      if (totalAmount >= expectedAmount) {
+        return { valid: true, payer: from };
       }
+      console.log(`[premium-strategy] Amount too low: ${totalAmount} < ${expectedAmount}`);
     }
 
     return { valid: false, error: "STRK transfer to treasury not found or amount too low" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[premium-strategy] Tx verification error: ${msg}`);
     return { valid: false, error: `Tx verification failed: ${msg}` };
   }
 }

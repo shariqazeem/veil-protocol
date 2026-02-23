@@ -107,12 +107,7 @@ export function parseTargetUsdc(input: string, btcPrice?: number): number | null
     }
   }
 
-  // Shorthand: "all in", "max out" -> $1,000
-  if (/all\s*in|max\s*out|maximum/i.test(lower)) {
-    return 1000;
-  }
-
-  // Standard dollar patterns
+  // Standard dollar patterns — check BEFORE shorthand so "$5 max privacy" parses $5
   const patterns = [
     /\$\s?([\d,]+(?:\.\d+)?)/,
     /([\d,]+(?:\.\d+)?)\s*(?:dollars?|usd|usdc)/i,
@@ -127,6 +122,11 @@ export function parseTargetUsdc(input: string, btcPrice?: number): number | null
     if (match) {
       return parseFloat(match[1].replace(/,/g, ""));
     }
+  }
+
+  // Shorthand: "all in", "max out", "maximum" (only when no explicit $ amount)
+  if (/\ball\s*in\b|\bmax\s*out\b|\bmaximum\b/i.test(lower)) {
+    return 1000;
   }
 
   // Word numbers: "fifty dollars", "a hundred", "a thousand"
