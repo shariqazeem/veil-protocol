@@ -1,14 +1,35 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ShieldCheck, Shield, Unlock, Brain } from "lucide-react";
+import { ShieldCheck, Shield, Unlock, Brain, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTelegram } from "@/context/TelegramContext";
-import ShieldForm from "./ShieldForm";
-import UnveilForm from "./UnveilForm";
 import ComplianceTab from "./ComplianceTab";
-import AgentTab from "./AgentTab";
+
+function TabSkeleton() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 size={20} className="animate-spin text-[var(--text-tertiary)]" />
+    </div>
+  );
+}
+
+const ShieldForm = dynamic(() => import("./ShieldForm"), {
+  loading: () => <TabSkeleton />,
+  ssr: false,
+});
+
+const UnveilForm = dynamic(() => import("./UnveilForm"), {
+  loading: () => <TabSkeleton />,
+  ssr: false,
+});
+
+const AgentTab = dynamic(() => import("./AgentTab"), {
+  loading: () => <TabSkeleton />,
+  ssr: false,
+});
 
 type Step = 1 | 2 | "agent";
 

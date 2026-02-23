@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useReadContract } from "@starknet-react/core";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, useMotionValue, animate } from "framer-motion";
 import { Play, Loader2, Check, ExternalLink, Zap, Lock, Bitcoin, ArrowRightLeft, Sparkles, Brain, CreditCard, Shield } from "lucide-react";
 import PrivacyScore from "./PrivacyScore";
@@ -192,66 +191,84 @@ function IntentExplorer({ poolAddress }: { poolAddress: string }) {
   );
 }
 
+interface PoolData {
+  pendingUsdc: number;
+  batchCount: number;
+  totalVolume: number;
+  totalBatches: number;
+  leafCount: number;
+  anonSet0: number;
+  anonSet1: number;
+  anonSet2: number;
+  anonSet3: number;
+  btcLinkedCount: number;
+}
+
+function usePoolData(poolAddress: string) {
+  const [data, setData] = useState<PoolData | null>(null);
+
+  const fetchData = useCallback(async () => {
+    if (!poolAddress) return;
+    try {
+      const provider = new RpcProvider({ nodeUrl: RPC_URL });
+      const pool = new Contract({ abi: SHIELDED_POOL_ABI as unknown as Abi, address: poolAddress, providerOrAccount: provider });
+
+      const [
+        pendingUsdc, batchCount, totalVolume, totalBatches, leafCount,
+        anonSet0, anonSet1, anonSet2, anonSet3, btcLinkedCount,
+      ] = await Promise.all([
+        pool.call("get_pending_usdc", []),
+        pool.call("get_batch_count", []),
+        pool.call("get_total_volume", []),
+        pool.call("get_total_batches_executed", []),
+        pool.call("get_leaf_count", []),
+        pool.call("get_anonymity_set", [0]),
+        pool.call("get_anonymity_set", [1]),
+        pool.call("get_anonymity_set", [2]),
+        pool.call("get_anonymity_set", [3]),
+        pool.call("get_btc_linked_count", []),
+      ]);
+
+      setData({
+        pendingUsdc: Number(pendingUsdc),
+        batchCount: Number(batchCount),
+        totalVolume: Number(totalVolume),
+        totalBatches: Number(totalBatches),
+        leafCount: Number(leafCount),
+        anonSet0: Number(anonSet0),
+        anonSet1: Number(anonSet1),
+        anonSet2: Number(anonSet2),
+        anonSet3: Number(anonSet3),
+        btcLinkedCount: Number(btcLinkedCount),
+      });
+    } catch { /* RPC unavailable — keep showing skeleton */ }
+  }, [poolAddress]);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 15_000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  return data;
+}
+
 export default function Dashboard() {
   const poolAddress = addresses.contracts.shieldedPool as `0x${string}` | "";
+  const poolData = usePoolData(poolAddress);
 
-  const { data: pendingUsdc } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_pending_usdc",
-    args: [], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
+  const safe = (v: number | undefined, div = 1) => { const n = Number(v); return Number.isFinite(n) ? n / div : 0; };
+  const pending = safe(poolData?.pendingUsdc, 1_000_000);
+  const deposits = safe(poolData?.batchCount);
+  const dataLoaded = poolData !== null;
 
-  const { data: batchCount } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_batch_count",
-    args: [], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-
-  const { data: totalVolume } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_total_volume",
-    args: [], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-
-  const { data: totalBatches } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_total_batches_executed",
-    args: [], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-
-  const { data: leafCount } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_leaf_count",
-    args: [], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-
-  const { data: anonSet0 } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_anonymity_set",
-    args: [0], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-
-  const { data: anonSet1 } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_anonymity_set",
-    args: [1], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-
-  const { data: anonSet2 } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_anonymity_set",
-    args: [2], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-
-  const { data: anonSet3 } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_anonymity_set",
-    args: [3], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-
-  const safe = (v: unknown, div = 1) => { const n = Number(v); return Number.isFinite(n) ? n / div : 0; };
-  const pending = safe(pendingUsdc, 1_000_000);
-  const deposits = safe(batchCount);
-  const dataLoaded = totalVolume !== undefined;
-
-  const volume = safe(totalVolume, 1_000_000);
-  const batches = safe(totalBatches);
-  const leaves = safe(leafCount);
-  const anon0 = safe(anonSet0);
-  const anon1 = safe(anonSet1);
-  const anon2 = safe(anonSet2);
-  const anon3 = safe(anonSet3);
+  const volume = safe(poolData?.totalVolume, 1_000_000);
+  const batches = safe(poolData?.totalBatches);
+  const leaves = safe(poolData?.leafCount);
+  const anon0 = safe(poolData?.anonSet0);
+  const anon1 = safe(poolData?.anonSet1);
+  const anon2 = safe(poolData?.anonSet2);
+  const anon3 = safe(poolData?.anonSet3);
 
   const [proverStatus, setProverStatus] = useState<"checking" | "online" | "offline">("checking");
   useEffect(() => {
@@ -293,11 +310,7 @@ export default function Dashboard() {
     setBatchExecuting(false);
   }
 
-  const { data: btcLinkedCount } = useReadContract({
-    address: poolAddress || undefined, abi: SHIELDED_POOL_ABI, functionName: "get_btc_linked_count",
-    args: [], enabled: !!poolAddress, refetchInterval: 10_000,
-  } as unknown as Parameters<typeof useReadContract>[0]);
-  const btcLinked = safe(btcLinkedCount);
+  const btcLinked = safe(poolData?.btcLinkedCount);
 
   const stats = [
     { label: "Batches", value: batches },

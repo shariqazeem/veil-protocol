@@ -2,8 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
-import { StarknetProvider } from "@/components/StarknetProvider";
-import { WalletProvider } from "@/context/WalletContext";
 import { TelegramProvider } from "@/context/TelegramContext";
 import { ToastProvider } from "@/context/ToastContext";
 
@@ -52,15 +50,11 @@ export default function RootLayout({
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <StarknetProvider>
-          <WalletProvider>
-            <TelegramProvider>
-              <ToastProvider>
-                {children}
-              </ToastProvider>
-            </TelegramProvider>
-          </WalletProvider>
-        </StarknetProvider>
+        <TelegramProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </TelegramProvider>
       </body>
     </html>
   );
