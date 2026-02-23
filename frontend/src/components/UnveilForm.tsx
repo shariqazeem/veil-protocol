@@ -519,9 +519,9 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
   }
 
   // Batch exit: build proofs and send per-chunk to avoid timeouts
-  // Each ZK withdrawal uses ~2,835 calldata elements; Starknet limit is 10,000
-  // Max 3 per tx. Build proofs per-chunk then send immediately.
-  const BATCH_CHUNK_SIZE = 3;
+  // Each Groth16 ZK verification is very expensive (~millions of steps).
+  // Max 2 per tx to stay within Starknet's computation limit.
+  const BATCH_CHUNK_SIZE = 2;
 
   async function handleBatchClaim() {
     if (!isConnected || !address || !poolAddress) return;
