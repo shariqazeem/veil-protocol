@@ -518,9 +518,9 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
     }
   }
 
-  // Batch exit: build all proofs, then send chunked multicall transactions
+  // Batch exit: build proofs and send per-chunk to avoid timeouts
   // Each ZK withdrawal uses ~2,835 calldata elements; Starknet limit is 10,000
-  // So we chunk at max 3 calls per transaction
+  // Max 3 per tx. Build proofs per-chunk then send immediately.
   const BATCH_CHUNK_SIZE = 3;
 
   async function handleBatchClaim() {
@@ -530,6 +530,8 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
       (n) => n.status === "READY" && !n.claimed && !!n.zkCommitment,
     );
     if (readyNotes.length < 2) return;
+
+    const totalChunks = Math.ceil(readyNotes.length / BATCH_CHUNK_SIZE);
 
     setBatchClaiming(true);
     setBatchProgress({ current: 0, total: readyNotes.length });
@@ -555,100 +557,102 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
         ? computeBtcIdentityHash(btcWithdrawAddress)
         : "0x0";
 
-      // Build all proofs sequentially
-      const allCalls: Array<{
-        contractAddress: string;
-        entrypoint: string;
-        calldata: string[];
-      }> = [];
-      const provenNotes: NoteWithStatus[] = [];
-
-      for (let i = 0; i < readyNotes.length; i++) {
-        const note = readyNotes[i];
-        setBatchProgress({ current: i + 1, total: readyNotes.length });
-
-        // Resolve leaf index
-        let validIndex = note.leafIndex ?? 0;
-        if (
-          validIndex >= allCommitments.length ||
-          allCommitments[validIndex] !== note.commitment
-        ) {
-          const found = allCommitments.indexOf(note.commitment);
-          if (found === -1) continue; // skip — not on-chain yet
-          validIndex = found;
-        }
-
-        const { path: merklePath, indices: pathIndices } = buildMerkleProof(
-          validIndex,
-          allCommitments,
-        );
-
-        const denomination = note.denomination ?? 1;
-
-        try {
-          setClaimPhase("generating_zk");
-          const { proof, zkNullifier } = await generateWithdrawalProof({
-            secret: BigInt(note.secret),
-            blinder: BigInt(note.blinder),
-            denomination: BigInt(denomination),
-            recipient: BigInt(address),
-          });
-
-          allCalls.push({
-            contractAddress: poolAddress,
-            entrypoint: "withdraw_private",
-            calldata: CallData.compile({
-              denomination,
-              zk_nullifier: zkNullifier,
-              zk_commitment: note.zkCommitment!,
-              proof,
-              merkle_path: merklePath,
-              path_indices: pathIndices,
-              recipient: address,
-              btc_recipient_hash: btcRecipientHash,
-            }),
-          });
-          provenNotes.push(note);
-        } catch (err) {
-          console.error(`[batch-exit] Proof failed for note ${i}:`, err);
-          // Skip this note, continue with others
-        }
-      }
-
-      if (allCalls.length === 0) {
-        throw new Error("No proofs could be generated. Try individual exits.");
-      }
-
-      // Execute in chunks of BATCH_CHUNK_SIZE to stay under 10,000 calldata limit
-      setClaimPhase("withdrawing");
-      const txCount = Math.ceil(allCalls.length / BATCH_CHUNK_SIZE);
       let lastTxHash = "";
       let totalClaimed = 0;
 
-      for (let c = 0; c < allCalls.length; c += BATCH_CHUNK_SIZE) {
-        const chunk = allCalls.slice(c, c + BATCH_CHUNK_SIZE);
-        const chunkNotes = provenNotes.slice(c, c + BATCH_CHUNK_SIZE);
-        const chunkIdx = Math.floor(c / BATCH_CHUNK_SIZE) + 1;
+      // Process chunk by chunk: build proofs → send tx → next chunk
+      for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+        const chunkStart = chunkIdx * BATCH_CHUNK_SIZE;
+        const chunkNotes = readyNotes.slice(chunkStart, chunkStart + BATCH_CHUNK_SIZE);
 
-        if (txCount > 1) {
-          setBatchProgress({ current: chunkIdx, total: txCount });
+        const chunkCalls: Array<{
+          contractAddress: string;
+          entrypoint: string;
+          calldata: string[];
+        }> = [];
+        const provenChunkNotes: NoteWithStatus[] = [];
+
+        // Build proofs for this chunk only
+        for (let i = 0; i < chunkNotes.length; i++) {
+          const note = chunkNotes[i];
+          const globalIdx = chunkStart + i;
+          setBatchProgress({ current: globalIdx + 1, total: readyNotes.length });
+
+          // Resolve leaf index
+          let validIndex = note.leafIndex ?? 0;
+          if (
+            validIndex >= allCommitments.length ||
+            allCommitments[validIndex] !== note.commitment
+          ) {
+            const found = allCommitments.indexOf(note.commitment);
+            if (found === -1) continue;
+            validIndex = found;
+          }
+
+          const { path: merklePath, indices: pathIndices } = buildMerkleProof(
+            validIndex,
+            allCommitments,
+          );
+
+          const denomination = note.denomination ?? 1;
+
+          try {
+            setClaimPhase("generating_zk");
+            const { proof, zkNullifier } = await generateWithdrawalProof({
+              secret: BigInt(note.secret),
+              blinder: BigInt(note.blinder),
+              denomination: BigInt(denomination),
+              recipient: BigInt(address),
+            });
+
+            chunkCalls.push({
+              contractAddress: poolAddress,
+              entrypoint: "withdraw_private",
+              calldata: CallData.compile({
+                denomination,
+                zk_nullifier: zkNullifier,
+                zk_commitment: note.zkCommitment!,
+                proof,
+                merkle_path: merklePath,
+                path_indices: pathIndices,
+                recipient: address,
+                btc_recipient_hash: btcRecipientHash,
+              }),
+            });
+            provenChunkNotes.push(note);
+          } catch (err) {
+            console.error(`[batch-exit] Proof failed for note ${globalIdx}:`, err);
+          }
         }
 
-        const result = await sendAsync(chunk);
+        if (chunkCalls.length === 0) continue;
+
+        // Send this chunk immediately
+        setClaimPhase("withdrawing");
+        setBatchProgress({ current: chunkIdx + 1, total: totalChunks });
+        const result = await sendAsync(chunkCalls);
         lastTxHash = result.transaction_hash;
 
-        // Mark this chunk as claimed
-        for (const note of chunkNotes) {
+        for (const note of provenChunkNotes) {
           await markNoteClaimed(note.commitment, address);
         }
-        totalClaimed += chunkNotes.length;
+        totalClaimed += provenChunkNotes.length;
+
+        // Reset phase for next chunk's proof building
+        if (chunkIdx < totalChunks - 1) {
+          setClaimPhase("building_proof");
+        }
+      }
+
+      if (totalClaimed === 0) {
+        throw new Error("No proofs could be generated. Try individual exits.");
       }
 
       setClaimTxHash(lastTxHash);
       setClaimPhase("success");
       toast(
         "success",
-        `Batch exit: ${totalClaimed} positions claimed in ${txCount} tx${txCount > 1 ? "s" : ""}`,
+        `Batch exit: ${totalClaimed} positions claimed in ${totalChunks} tx${totalChunks > 1 ? "s" : ""}`,
       );
       await refreshNotes();
     } catch (err: unknown) {
@@ -657,6 +661,9 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
       if (msg.includes("User abort") || msg.includes("cancelled") || msg.includes("rejected")) {
         setClaimError("Transaction rejected in wallet.");
         toast("error", "Transaction rejected");
+      } else if (msg.includes("Timeout") || msg.includes("timeout")) {
+        setClaimError("Transaction timed out. Some positions may have been claimed — refresh to check.");
+        toast("error", "Transaction timed out");
       } else {
         setClaimError(msg);
         toast("error", "Batch exit failed");
@@ -1123,7 +1130,11 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
             >
               <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                 <Loader size={14} className="animate-spin text-[#4D4DFF]" strokeWidth={1.5} />
-                <span>Building proof {batchProgress.current}/{batchProgress.total}...</span>
+                <span>
+                  {claimPhase === "withdrawing"
+                    ? `Sending tx ${batchProgress.current}/${batchProgress.total} — confirm in wallet...`
+                    : `Building proof ${batchProgress.current}/${batchProgress.total}...`}
+                </span>
               </div>
               <div className="w-full bg-[var(--bg-secondary)] rounded-full h-1.5">
                 <div
