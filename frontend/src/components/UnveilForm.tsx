@@ -218,6 +218,8 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
   const [withdrawMode, setWithdrawMode] = useState<WithdrawMode>("wbtc");
   const [intentStatus, setIntentStatus] = useState<string | null>(null);
   const [intentId, setIntentId] = useState<number | null>(null);
+  const [batchClaiming, setBatchClaiming] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
 
   const poolAddress = addresses.contracts.shieldedPool;
 
@@ -516,8 +518,133 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
     }
   }
 
+  // Batch exit: build all proofs, then send one multicall transaction
+  async function handleBatchClaim() {
+    if (!isConnected || !address || !poolAddress) return;
+
+    const readyNotes = notes.filter(
+      (n) => n.status === "READY" && !n.claimed && !!n.zkCommitment,
+    );
+    if (readyNotes.length < 2) return;
+
+    setBatchClaiming(true);
+    setBatchProgress({ current: 0, total: readyNotes.length });
+    setClaimError(null);
+    setClaimTxHash(null);
+    setClaimPhase("building_proof");
+
+    try {
+      // Fetch on-chain leaves once (shared across all proofs)
+      const rpc = new RpcProvider({ nodeUrl: RPC_URL });
+      const pool = new Contract({
+        abi: SHIELDED_POOL_ABI as unknown as Abi,
+        address: poolAddress,
+        providerOrAccount: rpc,
+      });
+      const onChainLeafCount = Number(await pool.call("get_leaf_count", []));
+      const leafPromises = Array.from({ length: onChainLeafCount }, (_, i) =>
+        pool.call("get_leaf", [i]).then((leaf) => num.toHex(leaf as bigint)),
+      );
+      const allCommitments = await Promise.all(leafPromises);
+
+      const btcRecipientHash = btcWithdrawAddress
+        ? computeBtcIdentityHash(btcWithdrawAddress)
+        : "0x0";
+
+      // Build all proofs sequentially
+      const allCalls: Array<{
+        contractAddress: string;
+        entrypoint: string;
+        calldata: string[];
+      }> = [];
+      const provenNotes: NoteWithStatus[] = [];
+
+      for (let i = 0; i < readyNotes.length; i++) {
+        const note = readyNotes[i];
+        setBatchProgress({ current: i + 1, total: readyNotes.length });
+
+        // Resolve leaf index
+        let validIndex = note.leafIndex ?? 0;
+        if (
+          validIndex >= allCommitments.length ||
+          allCommitments[validIndex] !== note.commitment
+        ) {
+          const found = allCommitments.indexOf(note.commitment);
+          if (found === -1) continue; // skip — not on-chain yet
+          validIndex = found;
+        }
+
+        const { path: merklePath, indices: pathIndices } = buildMerkleProof(
+          validIndex,
+          allCommitments,
+        );
+
+        const denomination = note.denomination ?? 1;
+
+        try {
+          setClaimPhase("generating_zk");
+          const { proof, zkNullifier } = await generateWithdrawalProof({
+            secret: BigInt(note.secret),
+            blinder: BigInt(note.blinder),
+            denomination: BigInt(denomination),
+            recipient: BigInt(address),
+          });
+
+          allCalls.push({
+            contractAddress: poolAddress,
+            entrypoint: "withdraw_private",
+            calldata: CallData.compile({
+              denomination,
+              zk_nullifier: zkNullifier,
+              zk_commitment: note.zkCommitment!,
+              proof,
+              merkle_path: merklePath,
+              path_indices: pathIndices,
+              recipient: address,
+              btc_recipient_hash: btcRecipientHash,
+            }),
+          });
+          provenNotes.push(note);
+        } catch (err) {
+          console.error(`[batch-exit] Proof failed for note ${i}:`, err);
+          // Skip this note, continue with others
+        }
+      }
+
+      if (allCalls.length === 0) {
+        throw new Error("No proofs could be generated. Try individual exits.");
+      }
+
+      // Execute all withdrawals in a single transaction
+      setClaimPhase("withdrawing");
+      const result = await sendAsync(allCalls);
+      setClaimTxHash(result.transaction_hash);
+
+      // Mark all as claimed
+      for (const note of provenNotes) {
+        await markNoteClaimed(note.commitment, address);
+      }
+
+      setClaimPhase("success");
+      toast(
+        "success",
+        `Batch exit: ${provenNotes.length} positions claimed in 1 transaction`,
+      );
+      await refreshNotes();
+    } catch (err: unknown) {
+      setClaimPhase("error");
+      const msg = err instanceof Error ? err.message : "Batch exit failed";
+      setClaimError(msg);
+      toast("error", "Batch exit failed");
+    } finally {
+      setBatchClaiming(false);
+      setBatchProgress(null);
+    }
+  }
+
   const activeNotes = notes.filter((n) => !n.claimed);
   const claimedNotes = notes.filter((n) => n.claimed);
+  const readyNotes = activeNotes.filter((n) => n.status === "READY" && !!n.zkCommitment);
 
   return (
     <div className="space-y-4">
@@ -928,6 +1055,60 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
         </div>
       ) : (
         <div className="space-y-2">
+          {/* Batch Exit — shown when 2+ notes are ready */}
+          {readyNotes.length >= 2 && !batchClaiming && claimPhase === "idle" && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl p-4 bg-[var(--bg-tertiary)] border border-[var(--accent-emerald)]/20 space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                    Batch Exit Available
+                  </span>
+                  <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
+                    Claim {readyNotes.length} positions in 1 transaction — pay gas once
+                  </p>
+                </div>
+                <span className="text-[10px] font-['JetBrains_Mono'] text-[var(--accent-emerald)] bg-[var(--accent-emerald-dim)] px-2 py-0.5 rounded-full">
+                  ~{(readyNotes.length - 1) * 0.6 > 0.5 ? `$${((readyNotes.length - 1) * 0.6).toFixed(1)}` : "$0.60"} saved
+                </span>
+              </div>
+              <motion.button
+                onClick={handleBatchClaim}
+                className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold
+                           flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                whileHover={{ y: -2, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
+                whileTap={{ scale: 0.98 }}
+                transition={spring}
+              >
+                <Zap size={14} strokeWidth={1.5} />
+                Batch Exit All ({readyNotes.length} positions)
+              </motion.button>
+            </motion.div>
+          )}
+
+          {/* Batch progress indicator */}
+          {batchClaiming && batchProgress && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="rounded-xl p-4 bg-[var(--bg-tertiary)] border border-[#4D4DFF]/20 space-y-2"
+            >
+              <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <Loader size={14} className="animate-spin text-[#4D4DFF]" strokeWidth={1.5} />
+                <span>Building proof {batchProgress.current}/{batchProgress.total}...</span>
+              </div>
+              <div className="w-full bg-[var(--bg-secondary)] rounded-full h-1.5">
+                <div
+                  className="h-1.5 rounded-full bg-[#4D4DFF] transition-all"
+                  style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                />
+              </div>
+            </motion.div>
+          )}
+
           {activeNotes.map((note) => (
             <NoteCard
               key={note.commitment}
