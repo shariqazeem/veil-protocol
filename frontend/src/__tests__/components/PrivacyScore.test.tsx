@@ -77,7 +77,7 @@ describe("PrivacyScore", () => {
 
     // The main score is inside the span with font-bold class (the large center number)
     const scoreSpan = container.querySelector(
-      "span.text-xl",
+      "span.text-2xl",
     );
     expect(scoreSpan).not.toBeNull();
     expect(scoreSpan!.textContent).toBe("0");

@@ -700,7 +700,7 @@ export default function AgentTab() {
         <div className="space-y-3">
           {/* Chat messages */}
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] overflow-hidden">
-            <div className="px-4 py-3 flex items-center gap-2 border-b border-[var(--border-subtle)]">
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-[var(--border-subtle)] bg-gradient-to-r from-[rgba(77,77,255,0.03)] to-transparent">
               <div className="flex items-center gap-1.5">
                 <Eye size={12} strokeWidth={1.5} className="text-[#4D4DFF]" />
                 <span className="text-xs font-semibold text-[var(--text-secondary)]">Privacy Agent</span>
@@ -735,18 +735,23 @@ export default function AgentTab() {
                   transition={{ duration: 0.2 }}
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[85%] ${msg.role === "user" ? "order-1" : ""}`}>
+                  <div className={`max-w-[85%] flex ${msg.role === "user" ? "order-1" : "gap-2"}`}>
+                    {/* Agent avatar */}
+                    {msg.role === "agent" && (
+                      <div className="w-5 h-5 rounded-full bg-[#4D4DFF]/10 border border-[#4D4DFF]/20 flex items-center justify-center flex-shrink-0 mt-1">
+                        <Shield size={10} strokeWidth={2} className="text-[#4D4DFF]" />
+                      </div>
+                    )}
+                    <div>
                     {/* Message bubble */}
                     <div className={`rounded-2xl px-3.5 py-2.5 ${
                       msg.role === "user"
-                        ? "bg-[#4D4DFF] text-white rounded-br-md"
-                        : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] rounded-bl-md"
+                        ? "bg-[#4D4DFF] text-white rounded-br-md shadow-[var(--shadow-indigo)]"
+                        : "bg-white text-[var(--text-secondary)] rounded-bl-md shadow-sm border-l-2 border-[#4D4DFF]/20"
                     }`}>
                       {msg.loading ? (
-                        <div className="flex items-center gap-1.5 py-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#4D4DFF] animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#4D4DFF] animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#4D4DFF] animate-bounce" style={{ animationDelay: "300ms" }} />
+                        <div className="flex items-center gap-1 py-1">
+                          <span className="text-xs text-[#4D4DFF] font-medium animate-pulse">Analyzing...</span>
                         </div>
                       ) : (
                         <div className="text-xs leading-relaxed whitespace-pre-wrap">
@@ -782,6 +787,7 @@ export default function AgentTab() {
                         ))}
                       </div>
                     )}
+                  </div>
                   </div>
                 </motion.div>
               ))}

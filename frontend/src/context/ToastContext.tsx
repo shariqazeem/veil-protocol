@@ -34,7 +34,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    }, 5000);
   }, []);
 
   const dismiss = useCallback((id: number) => {
@@ -42,20 +42,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const icons = {
-    success: <CheckCircle size={14} strokeWidth={1.5} className="text-[var(--accent-emerald)] flex-shrink-0" />,
-    error: <AlertTriangle size={14} strokeWidth={1.5} className="text-[var(--accent-red)] flex-shrink-0" />,
-    info: <Info size={14} strokeWidth={1.5} className="text-[var(--text-secondary)] flex-shrink-0" />,
+    success: <CheckCircle size={16} strokeWidth={1.5} className="text-[var(--accent-emerald)] flex-shrink-0" />,
+    error: <AlertTriangle size={16} strokeWidth={1.5} className="text-[var(--accent-red)] flex-shrink-0" />,
+    info: <Info size={16} strokeWidth={1.5} className="text-[var(--text-secondary)] flex-shrink-0" />,
   };
 
   const styles = {
-    success: "bg-[var(--bg-secondary)] border-[var(--accent-emerald)]/30 text-[var(--accent-emerald)]",
-    error: "bg-[var(--bg-secondary)] border-[var(--accent-red)]/30 text-[var(--accent-red)]",
-    info: "bg-[var(--bg-secondary)] border-[var(--border-medium)] text-[var(--text-primary)]",
+    success: "bg-[var(--bg-secondary)] border-[var(--accent-emerald)]/30 text-[var(--accent-emerald)] border-l-2 border-l-[var(--accent-emerald)]",
+    error: "bg-[var(--bg-secondary)] border-[var(--accent-red)]/30 text-[var(--accent-red)] border-l-2 border-l-[var(--accent-red)]",
+    info: "bg-[var(--bg-secondary)] border-[var(--border-medium)] text-[var(--text-primary)] border-l-2 border-l-[#4D4DFF]",
   };
 
   const glows = {
-    success: "shadow-[0_0_30px_rgba(52,211,153,0.15)]",
-    error: "shadow-[0_0_30px_rgba(239,68,68,0.15)]",
+    success: "shadow-[0_0_40px_rgba(52,211,153,0.20)]",
+    error: "shadow-[0_0_40px_rgba(239,68,68,0.20)]",
     info: "shadow-xl",
   };
 
@@ -71,10 +71,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border backdrop-blur-xl ${styles[t.type]} ${glows[t.type]}`}
+              className={`flex items-center gap-2.5 px-5 py-3.5 rounded-xl border backdrop-blur-xl ${styles[t.type]} ${glows[t.type]}`}
             >
               {icons[t.type]}
-              <span className="text-[12px] font-medium flex-1">{t.message}</span>
+              <span className="text-[13px] font-medium flex-1">{t.message}</span>
               <button
                 onClick={() => dismiss(t.id)}
                 className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] cursor-pointer flex-shrink-0"

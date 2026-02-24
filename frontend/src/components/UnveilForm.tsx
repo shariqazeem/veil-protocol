@@ -172,11 +172,11 @@ function NoteCard({
         <motion.button
           onClick={() => onClaim(note)}
           disabled={isClaiming}
-          className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold
+          className="btn-shimmer w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold
                      disabled:opacity-50 disabled:cursor-not-allowed
                      flex items-center justify-center gap-2 cursor-pointer
-                     shadow-lg"
-          whileHover={{ y: -2, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
+                     shadow-lg hover:shadow-[var(--shadow-emerald)] transition-all duration-300"
+          whileHover={{ y: -2, boxShadow: "0 20px 40px rgba(18,212,131,0.18)" }}
           whileTap={{ scale: 0.98 }}
           transition={spring}
         >
@@ -685,45 +685,70 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
               </div>
             )}
             {claimPhase === "generating_zk" && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                    <Fingerprint size={14} strokeWidth={1.5} className="text-[#4D4DFF]" />
-                    <span className="font-medium">Generating Zero-Knowledge Proof</span>
+              <div className="space-y-0">
+                {/* Terminal chrome — macOS style dots */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 rounded-t-lg border-b border-gray-700/50">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
                   </div>
-                  <span className="text-xs font-['JetBrains_Mono'] text-[#4D4DFF] font-tabular animate-pulse">
-                    {zkTimer}s
+                  <span className="ml-2 text-[10px] text-gray-500 font-['JetBrains_Mono']">
+                    veil-zk-prover
+                  </span>
+                  <span className="ml-auto text-[10px] font-['JetBrains_Mono'] text-emerald-400 font-tabular animate-pulse">
+                    [{String(Math.floor(zkTimer / 60)).padStart(2, "0")}:{String(zkTimer % 60).padStart(2, "0")}]
                   </span>
                 </div>
-                {/* 3-step ZK pipeline — cinematic visualization */}
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { label: "Witness", sub: "browser WASM", icon: "W" },
-                    { label: "Proof", sub: "browser WASM", icon: "P" },
-                    { label: "Calldata", sub: "garaga server", icon: "C" },
-                  ].map((step, i) => (
-                    <motion.div
-                      key={step.label}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.15 }}
-                      className="rounded-lg p-3 text-center border bg-indigo-50 border-indigo-200/50 animate-glow-pulse"
-                    >
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <Loader size={10} className="animate-spin text-[#4D4DFF]" strokeWidth={2} />
-                        <span className="text-xs font-bold text-[#4D4DFF]">
-                          {step.label}
+
+                {/* Terminal body with streaming log entries */}
+                <div className="relative bg-gray-900 rounded-b-lg p-3 overflow-hidden">
+                  {/* Scan-line overlay */}
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.03]">
+                    <div className="w-full h-8 bg-gradient-to-b from-white to-transparent animate-scan-line" />
+                  </div>
+
+                  <div className="space-y-1.5 font-['JetBrains_Mono'] text-[11px]">
+                    {[
+                      { time: 0, msg: "Initializing Noir witness computation..." },
+                      { time: 2, msg: "Computing Pedersen commitment hash..." },
+                      { time: 4, msg: "Generating UltraKeccakZKHonk proof via bb.js WASM..." },
+                      { time: 6, msg: "Serializing proof for Garaga on-chain verifier..." },
+                    ].map((entry, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: zkTimer >= entry.time ? 1 : 0.3, x: 0 }}
+                        transition={{ duration: 0.3, delay: i * 0.15 }}
+                        className="flex items-start gap-2"
+                      >
+                        <span className="text-gray-600 flex-shrink-0">
+                          [{String(Math.floor(entry.time / 60)).padStart(2, "0")}:{String(entry.time % 60).padStart(2, "0")}]
                         </span>
-                      </div>
-                      <div className="text-[11px] font-['JetBrains_Mono'] text-[var(--text-tertiary)]">
-                        {step.sub}
-                      </div>
-                    </motion.div>
-                  ))}
+                        <span className={zkTimer >= entry.time ? "text-emerald-400" : "text-gray-600"}>
+                          {entry.msg}
+                        </span>
+                        {zkTimer >= entry.time && zkTimer < (entry.time + 2) && i === Math.min(Math.floor(zkTimer / 2), 3) && (
+                          <Loader size={10} className="animate-spin text-emerald-400 flex-shrink-0 mt-0.5" strokeWidth={2} />
+                        )}
+                      </motion.div>
+                    ))}
+
+                    {/* Blinking cursor */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600">[{String(Math.floor(zkTimer / 60)).padStart(2, "0")}:{String(zkTimer % 60).padStart(2, "0")}]</span>
+                      <span className="w-1.5 h-3.5 bg-emerald-400/80 rounded-sm typewriter-cursor" />
+                    </div>
+                  </div>
+
+                  {/* Footer badge */}
+                  <div className="mt-3 pt-2 border-t border-gray-700/40 flex items-center justify-center gap-1.5">
+                    <Lock size={9} strokeWidth={2} className="text-gray-500" />
+                    <span className="text-[10px] text-gray-500">
+                      Secrets never leave your browser — only the proof is sent
+                    </span>
+                  </div>
                 </div>
-                <p className="text-[11px] text-[var(--text-tertiary)] text-center">
-                  Secrets never leave your browser — only the proof is sent
-                </p>
               </div>
             )}
             {claimPhase === "withdrawing" && (

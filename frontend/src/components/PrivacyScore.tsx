@@ -33,7 +33,7 @@ export default function PrivacyScore(props: PrivacyScoreProps) {
   const color = score >= 60 ? "var(--accent-emerald)" : score >= 30 ? "var(--accent-amber)" : "var(--text-quaternary)";
   const label = score >= 80 ? "Excellent" : score >= 60 ? "Strong" : score >= 30 ? "Moderate" : "Building";
 
-  const radius = 40;
+  const radius = 50;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
 
@@ -43,39 +43,57 @@ export default function PrivacyScore(props: PrivacyScoreProps) {
 
       <div className="flex flex-col items-center mt-4 gap-3">
         <div className="relative">
-          <svg width="96" height="96" viewBox="0 0 96 96">
-            <circle cx="48" cy="48" r={radius} fill="none" stroke="var(--bg-elevated)" strokeWidth="5" />
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            {/* Glow ring */}
+            <circle cx="60" cy="60" r={radius} fill="none" stroke={color} strokeWidth="10" opacity="0.12" style={{ filter: "blur(8px)" }} />
+            {/* Background track */}
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--bg-elevated)" strokeWidth="6" />
+            {/* Score arc */}
             <motion.circle
-              cx="48" cy="48" r={radius}
-              fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
+              cx="60" cy="60" r={radius}
+              fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
               strokeDasharray={circumference}
               initial={{ strokeDashoffset: circumference }}
               animate={{ strokeDashoffset: offset }}
               transition={{ type: "spring", stiffness: 80, damping: 20 }}
-              transform="rotate(-90 48 48)"
+              transform="rotate(-90 60 60)"
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <motion.span
-              className="text-xl font-['JetBrains_Mono'] font-bold font-tabular"
-              style={{ color }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-            >
-              {score}
-            </motion.span>
+            <div className="flex items-baseline gap-0.5">
+              <motion.span
+                className="text-2xl font-['JetBrains_Mono'] font-bold font-tabular"
+                style={{ color }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                {score}
+              </motion.span>
+              <span className="text-[10px] text-[var(--text-quaternary)] font-['JetBrains_Mono']">/ 100</span>
+            </div>
             <span className="text-[10px] text-[var(--text-quaternary)]">{label}</span>
           </div>
         </div>
 
-        <div className="w-full space-y-1">
+        <div className="w-full space-y-2">
           {items.map(({ label, value, max }) => (
-            <div key={label} className="flex items-center justify-between">
-              <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
-              <span className="text-[11px] font-['JetBrains_Mono'] text-[var(--text-secondary)] font-tabular">
-                {value}<span className="text-[var(--text-quaternary)]">/{max}</span>
-              </span>
+            <div key={label} className="space-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
+                <span className="text-[11px] font-['JetBrains_Mono'] text-[var(--text-secondary)] font-tabular">
+                  {value}<span className="text-[var(--text-quaternary)]">/{max}</span>
+                </span>
+              </div>
+              <div className="h-1 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(value / max) * 100}%` }}
+                  transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
+                />
+              </div>
             </div>
           ))}
         </div>

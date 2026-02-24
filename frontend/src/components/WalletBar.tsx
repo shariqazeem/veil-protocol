@@ -43,18 +43,22 @@ export default function WalletBar() {
     setSnConnecting(true);
 
     try {
-      // Pre-enable the wallet via legacy enable() API to trigger the popup.
-      // The modern SNIP-1193 request({ type: "wallet_requestAccounts" }) hangs
-      // on some wallet versions, but enable() is widely supported.
-      const walletKey = `starknet_${connector.id}`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const walletObj = (window as any)[walletKey];
+      // Cartridge Controller is not a browser extension — it opens its own modal.
+      // Skip the legacy window enable() flow for it.
+      if (connector.id !== "controller") {
+        // Pre-enable the wallet via legacy enable() API to trigger the popup.
+        // The modern SNIP-1193 request({ type: "wallet_requestAccounts" }) hangs
+        // on some wallet versions, but enable() is widely supported.
+        const walletKey = `starknet_${connector.id}`;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const walletObj = (window as any)[walletKey];
 
-      if (walletObj?.enable) {
-        await Promise.race([
-          walletObj.enable({ starknetVersion: "v5" }),
-          new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), 12000)),
-        ]);
+        if (walletObj?.enable) {
+          await Promise.race([
+            walletObj.enable({ starknetVersion: "v5" }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), 12000)),
+          ]);
+        }
       }
 
       // Wallet is now enabled — connect through starknet-react
@@ -239,7 +243,7 @@ export default function WalletBar() {
                           disabled={snConnecting || connectPending}
                           className="w-full text-left px-3.5 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[#4D4DFF]/30 rounded-xl text-[13px] font-medium text-[var(--text-primary)] transition-all cursor-pointer disabled:opacity-50"
                         >
-                          {(snConnecting || connectPending) ? "Connecting..." : connector.name}
+                          {(snConnecting || connectPending) ? "Connecting..." : connector.id === "controller" ? "Social Login (Email / Google)" : connector.name}
                         </button>
                       ))}
                       {(snError || connectError) && (

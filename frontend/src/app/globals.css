@@ -68,11 +68,11 @@
   --glow-violet: 0 0 30px -5px rgba(77, 77, 255, 0.15);
 
   /* Shadows — multi-layered institutional system */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.03), 0 1px 3px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 12px -2px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
-  --shadow-lg: 0 12px 24px -4px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.03);
-  --shadow-xl: 0 24px 48px -8px rgba(0,0,0,0.10), 0 8px 16px rgba(0,0,0,0.04);
-  --shadow-2xl: 0 32px 64px -12px rgba(0,0,0,0.14), 0 12px 24px rgba(0,0,0,0.05);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px -2px rgba(0,0,0,0.09), 0 2px 6px rgba(0,0,0,0.05);
+  --shadow-lg: 0 12px 24px -4px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.05);
+  --shadow-xl: 0 24px 48px -8px rgba(0,0,0,0.14), 0 8px 16px rgba(0,0,0,0.06);
+  --shadow-2xl: 0 32px 64px -12px rgba(0,0,0,0.18), 0 12px 24px rgba(0,0,0,0.07);
   /* Colored halos */
   --shadow-indigo: 0 8px 32px -4px rgba(77,77,255,0.15), 0 4px 12px rgba(77,77,255,0.08);
   --shadow-indigo-lg: 0 16px 48px -8px rgba(77,77,255,0.20), 0 8px 24px rgba(77,77,255,0.10);
@@ -131,6 +131,14 @@ h1, h2, h3, h4, h5, h6 {
 .bloomberg-data {
   font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Focus Ring ── */
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: 12px;
 }
 
 /* ── Glass Morphism ── */
@@ -247,7 +255,14 @@ h1, h2, h3, h4, h5, h6 {
 .animate-circuit-trace { animation: circuit-trace 2s ease-in-out infinite; }
 .animate-scan-line { animation: scan-line 3s linear infinite; }
 .animate-success-ring { animation: success-ring 0.8s ease-out forwards; }
+@keyframes data-reveal {
+  0% { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
 .typewriter-cursor { animation: blink-cursor 0.7s step-end infinite; }
+.animate-data-reveal { animation: data-reveal 0.5s ease-out forwards; }
 
 /* ── Cards ── */
 
@@ -255,7 +270,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--bg-primary);
   border: 2px solid var(--border-subtle);
   border-radius: 24px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 
 .glass-card-solid {

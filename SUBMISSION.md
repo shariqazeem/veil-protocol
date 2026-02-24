@@ -2,11 +2,13 @@
 
 ## Project Description (500 words)
 
-### Veil Protocol: Privacy Infrastructure with AI-Powered Analytics on Starknet
+### Veil Protocol: The First Intelligent Privacy Layer for Bitcoin on Starknet
+
+**Veil Protocol is the first intelligent privacy layer for Bitcoin on Starknet** -- deployed on mainnet, not a testnet demo, with 127 tests (37 Cairo + 90 Vitest), real ZK proofs verified on-chain, and an AI agent that scores your anonymity in real-time.
 
 **Problem.** Every DeFi transaction is public. Depositors, traders, and institutions expose their strategy, timing, and position sizes on-chain. Privacy pools exist, but they offer no guidance on *how private you actually are*. Users deposit blindly with no way to measure anonymity strength, identify timing risks, or optimize their privacy posture. Meanwhile, front-runners and chain analysts exploit this transparency.
 
-**Solution.** Veil Protocol is production-grade privacy infrastructure deployed on Starknet mainnet. Users deposit USDC into fixed-denomination shielded pools ($1/$10/$100/$1,000), which batch into unified conversions via AVNU DEX. Withdrawals require zero-knowledge proofs generated entirely in-browser. What makes Veil unique is the **AI Privacy Agent** -- a conversational interface that scores, analyzes, and optimizes your on-chain privacy in real-time, with premium features gated by x402 micropayments.
+**Solution.** Veil Protocol is production-grade privacy infrastructure deployed on Starknet mainnet. Users deposit USDC into fixed-denomination shielded pools ($10/$100/$1,000), which batch into unified conversions via AVNU DEX. Withdrawals require zero-knowledge proofs generated entirely in-browser -- each proof produces approximately 2,835 calldata elements in UltraKeccakZKHonk format. What makes Veil unique is the **AI Privacy Agent** -- a conversational interface that scores, analyzes, and optimizes your on-chain privacy in real-time using a 4-factor privacy scoring engine across 5 weighted dimensions, with premium features gated by x402 micropayments.
 
 **How It Works.**
 
@@ -22,7 +24,7 @@
 
 **AI Privacy Agent.**
 
-The Privacy Agent processes 8 distinct intents via natural language: privacy scoring, pool health analysis, deposit strategy, education, premium audits, withdrawal timing, and more. All responses include structured data cards rendered as interactive UI. Premium analysis (deep per-deposit audits, advanced strategy) is gated behind x402 micropayments -- pay 0.005 STRK per query, settled and verified on-chain. This is the first privacy protocol with x402-native monetization.
+The Privacy Agent processes 8 distinct intents via natural language: privacy scoring, pool health analysis, deposit strategy, education, premium audits, withdrawal timing, and more. All responses include structured data cards rendered as interactive UI. Premium analysis (deep per-deposit audits, advanced strategy) is gated behind x402 micropayments -- pay 0.005 STRK per query, settled and verified on-chain. **Veil is the first privacy protocol with native HTTP 402 micropayment monetization.** The agent is also accessible via **Telegram bot** (@VeilStrategistBot) for mobile-native privacy management.
 
 **Technical Innovation.**
 
@@ -30,10 +32,11 @@ The Privacy Agent processes 8 distinct intents via natural language: privacy sco
 - **Browser-side proving**: bb.js WASM. Secrets never leave the browser.
 - **Dual commitment scheme**: Pedersen + Poseidon BN254, bridging Starknet-native and ZK domains.
 - **Privacy scoring engine**: Weighted multi-factor privacy scores computed from live on-chain pool state.
+- **Starkzap social login**: Cartridge Controller integration via `@cartridge/connector` — Google, email, and passkey authentication as a native wallet option alongside Argent and Braavos. Web2-friendly onboarding with session key policies for gasless UX.
 - **x402 micropayment-gated APIs**: HTTP 402 for premium AI features. Pay-per-query privacy analytics.
 - **127 tests**: 37 Cairo contract tests + 90 Vitest frontend tests.
 
-**Deployed on Mainnet.** ShieldedPool and GaragaVerifier are live on Starknet mainnet with real USDC, WBTC, and AVNU integration. This is not a testnet demo.
+**Deployed on Starknet Mainnet -- Not a Testnet Demo.** ShieldedPool and GaragaVerifier are live on Starknet mainnet with real USDC, real WBTC, and production AVNU DEX integration. Every transaction is verifiable on-chain.
 
 ---
 
@@ -48,7 +51,8 @@ The Privacy Agent processes 8 distinct intents via natural language: privacy sco
 
 - **Privacy Track**: ZK proofs, shielded pools, k-anonymity, Garaga on-chain verifier, gasless relayer, AI privacy scoring, timing protection, anonymity set analysis, threat detection, privacy-optimized withdrawal recommendations
 - **AI Agents Track**: Privacy Agent with 8-intent natural language processing, structured card responses, real-time on-chain analytics, per-deposit privacy scoring, pool health monitoring, strategy planning
-- **x402 Integration**: HTTP 402 micropayment-gated premium AI endpoints, STRK on-chain settlement, x402 flat-fee relay for zero-percentage withdrawals, pay-per-query privacy audits
+- **Starkzap Track**: Cartridge Controller social login (Google, email, passkeys) as a native starknet-react connector, session key policies for all protocol contracts, web2-friendly onboarding
+- **x402 Integration**: First privacy protocol with native HTTP 402 micropayment monetization, STRK on-chain settlement, x402 flat-fee relay for zero-percentage withdrawals, pay-per-query privacy audits
 
 ## Starknet Wallet Address
 

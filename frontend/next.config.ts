@@ -15,11 +15,11 @@ const nextConfig: NextConfig = {
 
   // Webpack fallback config (used with --webpack flag)
   webpack: (config, { isServer }) => {
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
     if (!isServer) {
-      config.experiments = {
-        ...config.experiments,
-        asyncWebAssembly: true,
-      };
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,

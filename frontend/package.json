@@ -15,6 +15,9 @@
   },
   "dependencies": {
     "@aztec/bb.js": "^3.0.0-nightly.20251104",
+    "@cartridge/connector": "^0.13.9",
+    "@cartridge/controller": "^0.13.9",
+    "@cartridge/presets": "^0.5.2",
     "@noir-lang/noir_js": "^1.0.0-beta.16",
     "@starknet-react/chains": "^5.0.3",
     "@starknet-react/core": "^5.0.3",

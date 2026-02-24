@@ -483,8 +483,8 @@ export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed 
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {Object.entries(DENOMINATIONS).map(([tier, amount]) => {
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(DENOMINATIONS).filter(([tier]) => Number(tier) > 0).map(([tier, amount]) => {
                   const tierNum = Number(tier);
                   const isSelected = selectedTier === tierNum;
                   const usdcAmount = amount / 1_000_000;
@@ -546,9 +546,9 @@ export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed 
               disabled={!canAccumulate}
               className="btn-shimmer w-full py-4 bg-gray-900 text-white rounded-2xl text-[15px] font-semibold tracking-tight
                          disabled:opacity-20 disabled:cursor-not-allowed
-                         cursor-pointer transition-all flex items-center justify-center gap-2
-                         shadow-lg active:scale-[0.98]"
-              whileHover={canAccumulate ? { y: -2, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" } : {}}
+                         cursor-pointer transition-all duration-300 flex items-center justify-center gap-2
+                         shadow-lg hover:shadow-[var(--shadow-indigo)] active:scale-[0.98]"
+              whileHover={canAccumulate ? { y: -2, boxShadow: "0 16px 48px -8px rgba(77,77,255,0.20), 0 8px 24px rgba(77,77,255,0.10)" } : {}}
               whileTap={canAccumulate ? { scale: 0.98 } : {}}
               transition={spring}
             >
