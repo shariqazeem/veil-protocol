@@ -483,8 +483,8 @@ export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed 
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(DENOMINATIONS).filter(([tier]) => Number(tier) > 0).map(([tier, amount]) => {
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {Object.entries(DENOMINATIONS).map(([tier, amount]) => {
                   const tierNum = Number(tier);
                   const isSelected = selectedTier === tierNum;
                   const usdcAmount = amount / 1_000_000;

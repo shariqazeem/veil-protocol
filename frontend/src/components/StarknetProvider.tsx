@@ -65,7 +65,7 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     createCartridgeConnector().then((c) => {
-      setConnectors([argent(), braavos(), c as unknown as Connector]);
+      setConnectors([c as unknown as Connector, argent(), braavos()]);
     });
   }, []);
 

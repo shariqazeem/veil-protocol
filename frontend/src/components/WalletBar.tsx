@@ -236,16 +236,28 @@ export default function WalletBar() {
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      {connectors.map((connector) => (
-                        <button
-                          key={connector.id}
-                          onClick={() => handleStarknetConnect(connector)}
-                          disabled={snConnecting || connectPending}
-                          className="w-full text-left px-3.5 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[#4D4DFF]/30 rounded-xl text-[13px] font-medium text-[var(--text-primary)] transition-all cursor-pointer disabled:opacity-50"
-                        >
-                          {(snConnecting || connectPending) ? "Connecting..." : connector.id === "controller" ? "Social Login (Email / Google)" : connector.name}
-                        </button>
-                      ))}
+                      {connectors.map((connector) => {
+                        const isCartridge = connector.id === "controller";
+                        return (
+                          <button
+                            key={connector.id}
+                            onClick={() => handleStarknetConnect(connector)}
+                            disabled={snConnecting || connectPending}
+                            className={`w-full text-left px-3.5 py-3 rounded-xl text-[13px] font-medium transition-all cursor-pointer disabled:opacity-50 ${
+                              isCartridge
+                                ? "bg-[#4D4DFF]/10 hover:bg-[#4D4DFF]/20 border-2 border-[#4D4DFF]/40 hover:border-[#4D4DFF]/60 text-[#4D4DFF]"
+                                : "bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[#4D4DFF]/30 text-[var(--text-primary)]"
+                            }`}
+                          >
+                            {(snConnecting || connectPending) ? "Connecting..." : isCartridge ? (
+                              <span className="flex items-center justify-between">
+                                <span>Social Login (Email / Google)</span>
+                                <span className="text-[10px] font-semibold bg-[#4D4DFF] text-white px-1.5 py-0.5 rounded-full">Recommended</span>
+                              </span>
+                            ) : connector.name}
+                          </button>
+                        );
+                      })}
                       {(snError || connectError) && (
                         <p className="text-[12px] text-[var(--accent-red)] px-1 mt-1">
                           {snError || connectError?.message}
