@@ -6,7 +6,7 @@ import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin
 import { useToast } from "@/context/ToastContext";
 import { computeBtcIdentityHash } from "@/utils/bitcoin";
 import { motion, AnimatePresence } from "framer-motion";
-import { markNoteClaimed, buildMerkleProof, loadNotes, type GhostNote } from "@/utils/privacy";
+import { markNoteClaimed, buildMerkleProof, loadNotes, loadNotesEncrypted, saveNotesEncrypted, type GhostNote } from "@/utils/privacy";
 import { generateWithdrawalProof, preloadZKProver } from "@/utils/zkProver";
 import {
   type NoteWithStatus,
@@ -1175,8 +1175,10 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           </span>
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                const allNotes = loadNotes();
+              onClick={async () => {
+                const allNotes = address
+                  ? await loadNotesEncrypted(address)
+                  : loadNotes();
                 if (allNotes.length === 0) {
                   toast("error", "No notes to export");
                   return;
@@ -1212,7 +1214,9 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                       toast("error", "Invalid note file");
                       return;
                     }
-                    const existing = loadNotes();
+                    const existing = address
+                      ? await loadNotesEncrypted(address)
+                      : loadNotes();
                     const existingCommitments = new Set(existing.map(n => n.commitment));
                     const newNotes = imported.filter(n => n.commitment && !existingCommitments.has(n.commitment));
                     if (newNotes.length === 0) {
@@ -1220,7 +1224,11 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                       return;
                     }
                     const merged = [...existing, ...newNotes];
-                    localStorage.setItem("ghost-notes", JSON.stringify(merged));
+                    if (address) {
+                      await saveNotesEncrypted(merged, address);
+                    } else {
+                      localStorage.setItem("ghost-notes", JSON.stringify(merged));
+                    }
                     toast("success", `Imported ${newNotes.length} new notes`);
                     refreshNotes();
                   } catch {
