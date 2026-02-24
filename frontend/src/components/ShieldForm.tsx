@@ -544,7 +544,7 @@ export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed 
             {isGasless && isConnected && (
               <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--accent-emerald)] font-medium">
                 <Zap size={10} strokeWidth={2} />
-                Routed via AVNU Paymaster
+                Gas paid in USDC via AVNU Paymaster
               </div>
             )}
 

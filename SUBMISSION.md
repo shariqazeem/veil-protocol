@@ -34,7 +34,7 @@ The Privacy Agent processes 8 distinct intents via natural language: privacy sco
 - **Privacy scoring engine**: Weighted multi-factor privacy scores computed from live on-chain pool state.
 - **Starkzap social login**: Cartridge Controller integration via `@cartridge/connector` — Google, email, and passkey authentication as a native wallet option alongside Argent and Braavos. Web2-friendly onboarding.
 - **Starkzap DeFi dashboard**: ERC20 token balance queries (USDC, STRK, ETH, WBTC) and STRK delegation staking with validator selection — powered by Starkzap SDK token and validator presets.
-- **AVNU Paymaster integration**: Smart transaction routing via `usePaymasterSendTransaction` — Argent and Braavos wallets route through AVNU paymaster (SNIP-9 outside execution) for optimized fees, while Cartridge Controller falls back to standard gas. Conditional per-wallet detection with automatic fallback.
+- **AVNU Paymaster (gasless)**: Users pay gas in USDC instead of STRK via AVNU paymaster (SNIP-9 outside execution). No API key needed — users don't need to hold STRK at all. Smart per-wallet detection: Argent/Braavos use paymaster, Cartridge falls back to standard gas. Gasfree (fully sponsored) ready for Propulsion Program subsidies.
 - **x402 micropayment-gated APIs**: HTTP 402 for premium AI features. Pay-per-query privacy analytics.
 - **127 tests**: 37 Cairo contract tests + 90 Vitest frontend tests.
 

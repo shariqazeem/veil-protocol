@@ -1074,7 +1074,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
       {isGasless && isConnected && !loading && activeNotes.length > 0 && (
         <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--accent-emerald)] font-medium">
           <Zap size={10} strokeWidth={2} />
-          Routed via AVNU Paymaster
+          Gas paid in USDC via AVNU Paymaster
         </div>
       )}
 
