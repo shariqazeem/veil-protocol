@@ -4,6 +4,7 @@ import { sepolia, mainnet } from "@starknet-react/chains";
 import {
   StarknetConfig,
   jsonRpcProvider,
+  avnuPaymasterProvider,
   argent,
   braavos,
 } from "@starknet-react/core";
@@ -21,6 +22,10 @@ function rpc() {
     nodeUrl: RPC_URL,
   };
 }
+
+// AVNU paymaster — sponsors gas fees so users don't need STRK/ETH for gas.
+// Works with all connectors (Cartridge, Argent, Braavos).
+const paymaster = avnuPaymasterProvider({});
 
 // Lazy-load the Cartridge connector only on the client to avoid WASM
 // being pulled into the server-side bundle (Next.js SSR/prerender).
@@ -73,6 +78,7 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
     <StarknetConfig
       chains={chains}
       provider={jsonRpcProvider({ rpc })}
+      paymasterProvider={paymaster}
       connectors={connectors}
       autoConnect
     >

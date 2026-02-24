@@ -35,6 +35,13 @@ export function mockStarknetReact(options: MockStarknetOptions = {}) {
       isPending: false,
       error: null,
     }),
+    usePaymasterSendTransaction: vi.fn().mockReturnValue({
+      sendAsync: vi.fn().mockResolvedValue(
+        options.sendAsyncResult ?? { transaction_hash: "0xMOCK_TX" }
+      ),
+      isPending: false,
+      error: null,
+    }),
     useConnect: vi.fn().mockReturnValue({
       connect: vi.fn(),
       connectors: [

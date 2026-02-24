@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAccount, useReadContract } from "@starknet-react/core";
-import { useSendTransaction } from "@starknet-react/core";
+import { usePaymasterSendTransaction } from "@starknet-react/core";
 import { useWallet } from "@/context/WalletContext";
 import { generatePrivateNote, saveNote, DENOMINATIONS, DENOMINATION_LABELS } from "@/utils/privacy";
 import { signCommitment, computeBtcIdentityHash } from "@/utils/bitcoin";
@@ -50,7 +50,7 @@ interface ShieldFormProps {
 export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed }: ShieldFormProps) {
   const { address, isConnected } = useAccount();
   const { bitcoinAddress } = useWallet();
-  const { sendAsync } = useSendTransaction({ calls: [] });
+  const { sendAsync } = usePaymasterSendTransaction({ calls: [], options: { feeMode: { mode: "sponsored" } } });
   const { toast } = useToast();
 
   const [selectedTier, setSelectedTier] = useState<number>(1);
