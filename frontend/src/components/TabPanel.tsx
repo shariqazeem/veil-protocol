@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ShieldCheck, Shield, Unlock, Brain, Loader2 } from "lucide-react";
+import { ShieldCheck, Shield, Unlock, Brain, Coins, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTelegram } from "@/context/TelegramContext";
 import ComplianceTab from "./ComplianceTab";
@@ -31,12 +31,18 @@ const AgentTab = dynamic(() => import("./AgentTab"), {
   ssr: false,
 });
 
-type Step = 1 | 2 | "agent";
+const DefiTab = dynamic(() => import("./DefiTab"), {
+  loading: () => <TabSkeleton />,
+  ssr: false,
+});
+
+type Step = 1 | 2 | "agent" | "defi";
 
 const tabs = [
   { key: 1 as Step, label: "Shield", icon: Shield, color: "#4D4DFF", glow: "rgba(77,77,255,0.15)" },
   { key: 2 as Step, label: "Unveil", icon: Unlock, color: "#12D483", glow: "rgba(18,212,131,0.15)" },
   { key: "agent" as Step, label: "Strategist", icon: Brain, color: "#4D4DFF", glow: "rgba(77,77,255,0.15)" },
+  { key: "defi" as Step, label: "DeFi", icon: Coins, color: "#F59E0B", glow: "rgba(245,158,11,0.15)" },
 ];
 
 export default function TabPanel() {
@@ -80,6 +86,11 @@ export default function TabPanel() {
       return;
     }
 
+    if (action === "defi") {
+      setStep("defi");
+      return;
+    }
+
     // Handle ?strategy=<base64> (existing behavior)
     if (searchParams.get("strategy")) {
       setStep("agent");
@@ -100,6 +111,8 @@ export default function TabPanel() {
           if (typeof decoded.noteIdx === "number") setPrefillNoteIdx(decoded.noteIdx);
         } else if (decoded.action === "agent") {
           setStep("agent");
+        } else if (decoded.action === "defi") {
+          setStep("defi");
         }
       } catch { /* ignore parse errors */ }
     }
@@ -211,7 +224,7 @@ export default function TabPanel() {
                 onPrefillConsumed={() => { setPrefillNoteIdx(null); cleanUrlParams(); }}
               />
             </motion.div>
-          ) : (
+          ) : step === "agent" ? (
             <motion.div
               key="agent"
               initial={{ opacity: 0, y: 10 }}
@@ -220,6 +233,16 @@ export default function TabPanel() {
               transition={{ y: { type: "spring", stiffness: 300, damping: 24 }, opacity: { duration: 0.2 } }}
             >
               <AgentTab />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="defi"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ y: { type: "spring", stiffness: 300, damping: 24 }, opacity: { duration: 0.2 } }}
+            >
+              <DefiTab />
             </motion.div>
           )}
         </AnimatePresence>

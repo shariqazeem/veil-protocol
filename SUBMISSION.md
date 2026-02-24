@@ -32,7 +32,8 @@ The Privacy Agent processes 8 distinct intents via natural language: privacy sco
 - **Browser-side proving**: bb.js WASM. Secrets never leave the browser.
 - **Dual commitment scheme**: Pedersen + Poseidon BN254, bridging Starknet-native and ZK domains.
 - **Privacy scoring engine**: Weighted multi-factor privacy scores computed from live on-chain pool state.
-- **Starkzap social login**: Cartridge Controller integration via `@cartridge/connector` — Google, email, and passkey authentication as a native wallet option alongside Argent and Braavos. Web2-friendly onboarding with session key policies for gasless UX.
+- **Starkzap social login**: Cartridge Controller integration via `@cartridge/connector` — Google, email, and passkey authentication as a native wallet option alongside Argent and Braavos. Web2-friendly onboarding.
+- **Starkzap DeFi dashboard**: ERC20 token balance queries (USDC, STRK, ETH, WBTC) and STRK delegation staking with validator selection — powered by Starkzap SDK token and validator presets.
 - **x402 micropayment-gated APIs**: HTTP 402 for premium AI features. Pay-per-query privacy analytics.
 - **127 tests**: 37 Cairo contract tests + 90 Vitest frontend tests.
 
@@ -51,7 +52,7 @@ The Privacy Agent processes 8 distinct intents via natural language: privacy sco
 
 - **Privacy Track**: ZK proofs, shielded pools, k-anonymity, Garaga on-chain verifier, gasless relayer, AI privacy scoring, timing protection, anonymity set analysis, threat detection, privacy-optimized withdrawal recommendations
 - **AI Agents Track**: Privacy Agent with 8-intent natural language processing, structured card responses, real-time on-chain analytics, per-deposit privacy scoring, pool health monitoring, strategy planning
-- **Starkzap Track**: Cartridge Controller social login (Google, email, passkeys) as a native starknet-react connector, session key policies for all protocol contracts, web2-friendly onboarding
+- **Starkzap Track**: Cartridge Controller social login (Google, email, passkeys) as a native starknet-react connector, web2-friendly onboarding, DeFi dashboard with ERC20 balance queries and STRK staking delegation using Starkzap SDK presets
 - **x402 Integration**: First privacy protocol with native HTTP 402 micropayment monetization, STRK on-chain settlement, x402 flat-fee relay for zero-percentage withdrawals, pay-per-query privacy audits
 
 ## Starknet Wallet Address
