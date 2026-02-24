@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import {
   useAccount,
   useSendTransaction,
@@ -8,40 +8,33 @@ import {
 } from "@starknet-react/core";
 import type { Call, InvokeFunctionResponse } from "starknet";
 
-// USDC token address on mainnet (native USDC — same token users deposit)
+// USDC token address on mainnet (same token users deposit)
 const USDC_ADDRESS =
   "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb";
 
 /**
- * Smart transaction hook that routes through the AVNU paymaster
- * for SNIP-9 compatible wallets (Argent, Braavos).
+ * Smart transaction hook — AVNU paymaster gasless mode.
  *
- * **Gasless mode** — user pays gas in USDC instead of STRK.
- * No API key needed. Users don't need to hold STRK at all.
+ * Argent/Braavos: tries to pay gas in USDC via AVNU paymaster first.
+ * If that fails (e.g. insufficient USDC after a deposit), automatically
+ * retries with regular STRK gas. Each call is independent — a withdrawal
+ * failing on USDC gas won't break future deposits.
  *
- * Cartridge Controller doesn't support SNIP-9, so it falls back
- * to regular `useSendTransaction` (gas in STRK).
- *
- * If the paymaster fails at runtime, it transparently retries via
- * regular send so nothing breaks.
+ * Cartridge: always uses regular STRK gas (no SNIP-9 support).
  */
 export function useSmartSend() {
   const { connector } = useAccount();
 
-  // Cartridge Controller does NOT support SNIP-9 — skip paymaster for it.
+  // Cartridge Controller does NOT support SNIP-9 — skip paymaster.
   const connectorId = connector?.id ?? "";
   const supportsPaymaster =
     connectorId !== "controller" && connectorId !== "";
 
-  // Track if paymaster has failed — useState so badge updates
-  const [paymasterFailed, setPaymasterFailed] = useState(false);
-
-  // Regular send — always available as fallback
+  // Regular send — fallback for Cartridge or when paymaster fails
   const regular = useSendTransaction({ calls: [] });
 
   // Gasless send — user pays gas in USDC via AVNU paymaster.
-  // "default" mode with USDC gas token. No API key required.
-  // Users already hold USDC for deposits — no need to acquire STRK.
+  // "default" mode, no API key needed.
   const paymaster = usePaymasterSendTransaction({
     calls: [],
     options: {
@@ -54,32 +47,29 @@ export function useSmartSend() {
 
   const sendAsync = useCallback(
     async (calls: Call[]): Promise<InvokeFunctionResponse> => {
-      // Try paymaster for SNIP-9 wallets (Argent/Braavos)
-      if (supportsPaymaster && !paymasterFailed) {
+      if (supportsPaymaster) {
         try {
           return await paymaster.sendAsync(calls);
         } catch (e) {
-          // Paymaster failed — fall through to regular send
+          // Paymaster failed for THIS call (e.g. insufficient USDC).
+          // Fall through to regular send — don't disable for future calls.
           console.warn(
-            "[useSmartSend] Paymaster failed, falling back to STRK gas:",
-            e,
+            "[useSmartSend] USDC gas failed, retrying with STRK:",
+            e instanceof Error ? e.message : e,
           );
-          setPaymasterFailed(true);
         }
       }
 
       // Fallback: regular transaction (user pays gas in STRK)
       return regular.sendAsync(calls);
     },
-    [supportsPaymaster, paymasterFailed, paymaster, regular],
+    [supportsPaymaster, paymaster, regular],
   );
-
-  const usingPaymaster = supportsPaymaster && !paymasterFailed;
 
   return {
     sendAsync,
-    isPending: usingPaymaster ? paymaster.isPending : regular.isPending,
-    error: usingPaymaster ? paymaster.error : regular.error,
-    isGasless: usingPaymaster,
+    isPending: supportsPaymaster ? paymaster.isPending : regular.isPending,
+    error: supportsPaymaster ? paymaster.error : regular.error,
+    isGasless: supportsPaymaster,
   };
 }
