@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useState } from "react";
 import {
   useAccount,
   useSendTransaction,
@@ -8,14 +8,21 @@ import {
 } from "@starknet-react/core";
 import type { Call, InvokeFunctionResponse } from "starknet";
 
+// STRK token address on mainnet
+const STRK_ADDRESS =
+  "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
+
 /**
- * Smart transaction hook that automatically routes through the AVNU paymaster
- * for SNIP-9 compatible wallets (Argent, Braavos) — making transactions gasless —
- * and falls back to regular `useSendTransaction` for wallets that don't support
- * outside execution (Cartridge Controller).
+ * Smart transaction hook that routes through the AVNU paymaster for
+ * SNIP-9 compatible wallets (Argent, Braavos) and falls back to regular
+ * `useSendTransaction` for Cartridge Controller.
  *
- * If the paymaster fails at runtime (e.g. AVNU rejects sponsored mode),
- * it transparently retries via the regular send path so nothing breaks.
+ * Uses paymaster "default" mode — transactions are routed through AVNU
+ * for optimized fee estimation. User pays gas in STRK via the paymaster.
+ * ("sponsored" mode would be truly gasless but requires an AVNU API key.)
+ *
+ * If the paymaster fails at runtime, it transparently retries via
+ * regular send so nothing breaks.
  *
  * Drop-in replacement for `useSendTransaction`.
  */
@@ -28,46 +35,53 @@ export function useSmartSend() {
   const supportsPaymaster =
     connectorId !== "controller" && connectorId !== "";
 
-  // Track if paymaster has failed before — skip it on subsequent calls
-  const paymasterFailed = useRef(false);
+  // Track if paymaster has failed — state so the UI re-renders
+  const [paymasterFailed, setPaymasterFailed] = useState(false);
 
   // Regular send — always available as fallback
   const regular = useSendTransaction({ calls: [] });
 
-  // Paymaster send — sponsored mode (truly gasless, AVNU pays gas)
+  // Paymaster send — "default" mode: user pays gas in STRK via AVNU paymaster.
+  // This works without an API key and provides optimized fee routing.
   const paymaster = usePaymasterSendTransaction({
     calls: [],
     options: {
-      feeMode: { mode: "sponsored" },
+      feeMode: {
+        mode: "default",
+        gasToken: STRK_ADDRESS,
+      },
     },
   });
 
   const sendAsync = useCallback(
     async (calls: Call[]): Promise<InvokeFunctionResponse> => {
       // Try paymaster for SNIP-9 wallets (Argent/Braavos)
-      if (supportsPaymaster && !paymasterFailed.current) {
+      if (supportsPaymaster && !paymasterFailed) {
         try {
           return await paymaster.sendAsync(calls);
         } catch (e) {
           // Paymaster failed — mark it so we skip on future calls
           // and fall through to regular send
-          console.warn("[useSmartSend] Paymaster failed, falling back to regular send:", e);
-          paymasterFailed.current = true;
+          console.warn(
+            "[useSmartSend] Paymaster failed, falling back to regular send:",
+            e,
+          );
+          setPaymasterFailed(true);
         }
       }
 
-      // Fallback: regular transaction (user pays gas)
+      // Fallback: regular transaction (user pays gas directly)
       return regular.sendAsync(calls);
     },
-    [supportsPaymaster, paymaster, regular],
+    [supportsPaymaster, paymasterFailed, paymaster, regular],
   );
 
-  const isGasless = supportsPaymaster && !paymasterFailed.current;
+  const usingPaymaster = supportsPaymaster && !paymasterFailed;
 
   return {
     sendAsync,
-    isPending: supportsPaymaster ? paymaster.isPending : regular.isPending,
-    error: supportsPaymaster ? paymaster.error : regular.error,
-    isGasless,
+    isPending: usingPaymaster ? paymaster.isPending : regular.isPending,
+    error: usingPaymaster ? paymaster.error : regular.error,
+    isGasless: usingPaymaster,
   };
 }
