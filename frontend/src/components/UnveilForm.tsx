@@ -1168,7 +1168,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
       )}
 
       {/* Note Export / Import */}
-      {isConnected && (activeNotes.length > 0 || claimedNotes.length > 0) && (
+      {isConnected && (
         <div className="rounded-xl p-4 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] space-y-3">
           <span className="text-xs font-semibold text-[var(--text-secondary)] block">
             Note Backup
