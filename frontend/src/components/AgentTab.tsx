@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAccount } from "@starknet-react/core";
-import { useSendTransaction } from "@starknet-react/core";
+import { useSmartSend } from "@/hooks/useSmartSend";
 import { useWallet } from "@/context/WalletContext";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -109,7 +109,7 @@ const LOG_DOT_COLORS: Record<AgentLogEntry["type"], string> = {
 export default function AgentTab() {
   const { address, isConnected, account } = useAccount();
   const { bitcoinAddress } = useWallet();
-  const { sendAsync } = useSendTransaction({ calls: [] });
+  const { sendAsync } = useSmartSend();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const { isTelegram, webApp } = useTelegram();

@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useAccount, useReadContract } from "@starknet-react/core";
-import { useSendTransaction } from "@starknet-react/core";
+import { useSmartSend } from "@/hooks/useSmartSend";
 import { useWallet } from "@/context/WalletContext";
 import { generatePrivateNote, saveNote, DENOMINATIONS, DENOMINATION_LABELS } from "@/utils/privacy";
 import { signCommitment, computeBtcIdentityHash } from "@/utils/bitcoin";
-import { AlertTriangle, ArrowRight, Droplets, CheckCircle, Loader, Shield } from "lucide-react";
+import { AlertTriangle, ArrowRight, Droplets, CheckCircle, Loader, Shield, Zap } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
 import addresses from "@/contracts/addresses.json";
@@ -50,7 +50,7 @@ interface ShieldFormProps {
 export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed }: ShieldFormProps) {
   const { address, isConnected } = useAccount();
   const { bitcoinAddress } = useWallet();
-  const { sendAsync } = useSendTransaction({ calls: [] });
+  const { sendAsync, isGasless } = useSmartSend();
   const { toast } = useToast();
 
   const [selectedTier, setSelectedTier] = useState<number>(1);
@@ -539,6 +539,14 @@ export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed 
                 <span>Fixed tiers make all deposits indistinguishable</span>
               </div>
             </div>
+
+            {/* Gasless badge */}
+            {isGasless && isConnected && (
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--accent-emerald)] font-medium">
+                <Zap size={10} strokeWidth={2} />
+                Gasless via AVNU Paymaster
+              </div>
+            )}
 
             {/* Accumulate Button */}
             <motion.button

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAccount, useSendTransaction } from "@starknet-react/core";
+import { useAccount } from "@starknet-react/core";
+import { useSmartSend } from "@/hooks/useSmartSend";
 import { ShieldCheck, FileText, Bitcoin, Download, Loader } from "lucide-react";
 import { motion } from "framer-motion";
 import { type NoteWithStatus, checkAllNoteStatuses } from "@/utils/notesManager";
@@ -20,7 +21,7 @@ function truncateHash(h: string, chars = 6): string {
 
 export default function ComplianceTab() {
   const { address, isConnected } = useAccount();
-  const { sendAsync } = useSendTransaction({ calls: [] });
+  const { sendAsync } = useSmartSend();
 
   const [notes, setNotes] = useState<NoteWithStatus[]>([]);
   const [loading, setLoading] = useState(true);

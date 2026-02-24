@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAccount, useSendTransaction } from "@starknet-react/core";
+import { useAccount } from "@starknet-react/core";
+import { useSmartSend } from "@/hooks/useSmartSend";
 import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin, Clock, Zap, ShieldCheck, Fingerprint, Download, Upload } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { computeBtcIdentityHash } from "@/utils/bitcoin";
@@ -199,7 +200,7 @@ interface UnveilFormProps {
 
 export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: UnveilFormProps = {}) {
   const { address, account, isConnected } = useAccount();
-  const { sendAsync } = useSendTransaction({ calls: [] });
+  const { sendAsync, isGasless } = useSmartSend();
   const { toast } = useToast();
 
   const [notes, setNotes] = useState<NoteWithStatus[]>([]);
@@ -1066,6 +1067,14 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Gasless badge */}
+      {isGasless && isConnected && !loading && activeNotes.length > 0 && (
+        <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--accent-emerald)] font-medium">
+          <Zap size={10} strokeWidth={2} />
+          Gasless via AVNU Paymaster
         </div>
       )}
 

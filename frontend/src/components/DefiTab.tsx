@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAccount, useSendTransaction } from "@starknet-react/core";
+import { useAccount } from "@starknet-react/core";
+import { useSmartSend } from "@/hooks/useSmartSend";
 import { Coins, TrendingUp, Loader, RefreshCw, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RPC_URL } from "@/utils/network";
@@ -56,7 +57,7 @@ function formatBalance(raw: bigint, decimals: number): string {
 
 export default function DefiTab() {
   const { address, isConnected } = useAccount();
-  const { sendAsync } = useSendTransaction({ calls: [] });
+  const { sendAsync } = useSmartSend();
   const { toast } = useToast();
 
   const [balances, setBalances] = useState<TokenBalance[]>([]);
