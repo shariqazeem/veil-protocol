@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccount } from "@starknet-react/core";
-import { ArrowDownLeft, ArrowUpRight, ExternalLink, ChevronDown, ChevronUp, Shield, Unlock } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp, Shield, Unlock } from "lucide-react";
 import { type NoteWithStatus, checkAllNoteStatuses } from "@/utils/notesManager";
 import { EXPLORER_TX } from "@/utils/network";
 
 const TX_EXPLORER = EXPLORER_TX;
-
-const springDefault = { type: "spring" as const, stiffness: 300, damping: 24 };
 
 function truncateHash(h: string, chars = 6): string {
   if (h.length <= chars * 2 + 2) return h;
@@ -33,17 +30,13 @@ function formatTimestamp(ts: number): string {
 
 function HistoryEntry({ note }: { note: NoteWithStatus }) {
   const [expanded, setExpanded] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   const isClaimed = note.claimed || note.status === "CLAIMED";
   const usdcAmount = Number(note.amount) / 1_000_000;
   const wbtcAmount = note.wbtcShare ? Number(note.wbtcShare) / 1e8 : null;
 
   return (
-    <motion.div
-      layout
-      className="border-b border-[var(--border-subtle)] last:border-0"
-      whileHover={{ x: 2 }}
-      transition={springDefault}
-    >
+    <div className="border-b border-[var(--border-subtle)] last:border-0 transition-transform duration-200 hover:translate-x-0.5">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 py-3 px-1 hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer rounded-lg"
@@ -99,49 +92,45 @@ function HistoryEntry({ note }: { note: NoteWithStatus }) {
         </div>
       </button>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ height: springDefault, opacity: { duration: 0.2 } }}
-            className="overflow-hidden"
-          >
-            <div className="px-1 pb-3 space-y-1.5">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-[var(--text-tertiary)]">Commitment:</span>
-                <code className="font-['JetBrains_Mono'] text-[var(--text-secondary)] text-xs">
-                  {truncateHash(note.commitment, 10)}
-                </code>
-              </div>
-              {note.zkCommitment && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-[var(--text-tertiary)]">ZK Commitment:</span>
-                  <code className="font-['JetBrains_Mono'] text-[var(--text-secondary)] text-xs">
-                    {truncateHash(note.zkCommitment, 10)}
-                  </code>
-                </div>
-              )}
-              {note.hasBtcIdentity && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-[var(--text-tertiary)]">BTC Identity:</span>
-                  <span className="text-[var(--accent-orange)] font-medium">Linked</span>
-                </div>
-              )}
-              {wbtcAmount && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-[var(--text-tertiary)]">WBTC Received:</span>
-                  <span className="font-['JetBrains_Mono'] text-[var(--accent-emerald)] font-medium">
-                    {wbtcAmount.toFixed(8)}
-                  </span>
-                </div>
-              )}
+      <div
+        className="overflow-hidden transition-all duration-200"
+        style={{
+          maxHeight: expanded ? `${contentRef.current?.scrollHeight ?? 200}px` : "0px",
+          opacity: expanded ? 1 : 0,
+        }}
+      >
+        <div ref={contentRef} className="px-1 pb-3 space-y-1.5">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-[var(--text-tertiary)]">Commitment:</span>
+            <code className="font-['JetBrains_Mono'] text-[var(--text-secondary)] text-xs">
+              {truncateHash(note.commitment, 10)}
+            </code>
+          </div>
+          {note.zkCommitment && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-tertiary)]">ZK Commitment:</span>
+              <code className="font-['JetBrains_Mono'] text-[var(--text-secondary)] text-xs">
+                {truncateHash(note.zkCommitment, 10)}
+              </code>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+          )}
+          {note.hasBtcIdentity && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-tertiary)]">BTC Identity:</span>
+              <span className="text-[var(--accent-orange)] font-medium">Linked</span>
+            </div>
+          )}
+          {wbtcAmount && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-tertiary)]">WBTC Received:</span>
+              <span className="font-['JetBrains_Mono'] text-[var(--accent-emerald)] font-medium">
+                {wbtcAmount.toFixed(8)}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

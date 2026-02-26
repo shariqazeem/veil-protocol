@@ -19,24 +19,16 @@ function rpc() {
   };
 }
 
-// Lazy-load the Cartridge connector only on the client to avoid WASM
-// being pulled into the server-side bundle (Next.js SSR/prerender).
-// No session policies — Cartridge opens its own approval modal for each
-// transaction, giving normal gas fees (session keys use executeFromOutside
-// which inflates gas 50x).
-async function createCartridgeConnector() {
-  const { ControllerConnector } = await import("@cartridge/connector");
-  return new ControllerConnector({
-    rpcUrl: RPC_URL,
-  });
-}
-
 export function StarknetProvider({ children }: { children: ReactNode }) {
   const [connectors, setConnectors] = useState<Connector[]>([argent(), braavos()]);
 
   useEffect(() => {
-    createCartridgeConnector().then((c) => {
-      setConnectors([c as unknown as Connector, argent(), braavos()]);
+    // Cartridge connector is loaded from a SEPARATE module so webpack
+    // doesn't trace the 3.1MB WASM into this chunk.
+    import("@/utils/cartridgeLoader").then(({ loadCartridgeConnector }) => {
+      loadCartridgeConnector().then((c) => {
+        setConnectors([c as unknown as Connector, argent(), braavos()]);
+      });
     });
   }, []);
 

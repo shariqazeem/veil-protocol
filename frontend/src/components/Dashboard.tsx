@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, useMotionValue, animate } from "framer-motion";
-import { Play, Loader2, Check, ExternalLink, Zap, Lock, Bitcoin, ArrowRightLeft, Sparkles, Brain, CreditCard, Shield } from "lucide-react";
+import { Play, Loader2, Check, ExternalLink, Zap, Lock, Bitcoin, ArrowRightLeft, Sparkles, Brain, CreditCard, Shield, Eye, ShieldCheck, GitBranch } from "lucide-react";
 import PrivacyScore from "./PrivacyScore";
 import { SkeletonLine } from "./Skeleton";
 import { useToast } from "@/context/ToastContext";
@@ -10,26 +9,40 @@ import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import { EXPLORER_TX, RPC_URL } from "@/utils/network";
 import { RpcProvider, Contract, type Abi } from "starknet";
+import { loadNotes } from "@/utils/privacy";
 
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 
-const springDefault = { type: "spring" as const, stiffness: 300, damping: 24 };
-const springSnappy = { type: "spring" as const, stiffness: 500, damping: 30 };
-
-function AnimatedCounter({ value, decimals = 0, duration = 1.5 }: { value: number; decimals?: number; duration?: number }) {
-  const motionVal = useMotionValue(0);
+function AnimatedCounter({ value, decimals = 0, duration = 1500 }: { value: number; decimals?: number; duration?: number }) {
   const [display, setDisplay] = useState("0");
-  const prevRef = useRef(0);
+  const rafRef = useRef<number>(0);
+  const startRef = useRef<number | null>(null);
+  const fromRef = useRef(0);
 
   useEffect(() => {
-    prevRef.current = value;
-    const controls = animate(motionVal, value, {
-      duration,
-      ease: [0.4, 0, 0.2, 1],
-      onUpdate: (v) => setDisplay(decimals > 0 ? v.toFixed(decimals) : Math.round(v).toLocaleString()),
-    });
-    return () => controls.stop();
-  }, [value, duration, decimals, motionVal]);
+    const from = fromRef.current;
+    const to = value;
+    startRef.current = null;
+
+    function tick(timestamp: number) {
+      if (startRef.current === null) startRef.current = timestamp;
+      const elapsed = timestamp - startRef.current;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out quad
+      const eased = 1 - (1 - progress) * (1 - progress);
+      const current = from + (to - from) * eased;
+      setDisplay(decimals > 0 ? current.toFixed(decimals) : Math.round(current).toLocaleString());
+
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = to;
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [value, duration, decimals]);
 
   return <>{display}</>;
 }
@@ -155,12 +168,9 @@ function IntentExplorer({ poolAddress }: { poolAddress: string }) {
         {intents.map((intent) => {
           const color = STATUS_COLORS[intent.status] || "var(--text-tertiary)";
           return (
-            <motion.div
+            <div
               key={intent.id}
-              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)]"
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={springDefault}
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] animate-fade-in-up"
             >
               <div className="flex items-center gap-3">
                 <ArrowRightLeft size={12} strokeWidth={1.5} style={{ color }} />
@@ -183,7 +193,7 @@ function IntentExplorer({ poolAddress }: { poolAddress: string }) {
                   {intent.status}
                 </span>
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </div>
@@ -251,6 +261,152 @@ function usePoolData(poolAddress: string) {
   }, [fetchData]);
 
   return data;
+}
+
+function AnonBar({ label, count, delay }: { label: string; count: number; delay: number }) {
+  const [width, setWidth] = useState(0);
+  const pct = Math.min(count / 20, 1) * 100;
+  const color = count >= 10 ? "var(--accent-emerald)" : count >= 3 ? "var(--accent-amber)" : "var(--text-quaternary)";
+
+  useEffect(() => {
+    const timer = setTimeout(() => setWidth(pct), delay);
+    return () => clearTimeout(timer);
+  }, [pct, delay]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm font-['JetBrains_Mono'] text-[var(--text-secondary)] font-tabular">
+          {label}
+        </span>
+        <span className="text-sm font-['JetBrains_Mono'] font-bold font-tabular" style={{ color }}>
+          {count}
+        </span>
+      </div>
+      <div className="h-1 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-700 ease-out"
+          style={{ background: color, width: `${width}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ShieldedPortfolio({ leaves, anonSets }: { leaves: number; anonSets: number[] }) {
+  const [localNotes, setLocalNotes] = useState<Array<{ denomination: number; claimed: boolean }>>([]);
+
+  useEffect(() => {
+    try {
+      const notes = loadNotes();
+      setLocalNotes(notes.map(n => ({ denomination: n.denomination, claimed: n.claimed })));
+    } catch { /* localStorage unavailable */ }
+  }, []);
+
+  const activeNotes = localNotes.filter(n => !n.claimed);
+  const tierLabels = ["$1", "$10", "$100", "$1,000"];
+  const tierCounts = [0, 0, 0, 0];
+  for (const n of activeNotes) {
+    if (n.denomination >= 0 && n.denomination <= 3) tierCounts[n.denomination]++;
+  }
+
+  // Privacy health
+  const maxAnon = Math.max(...anonSets);
+  const tiersUsed = tierCounts.filter(c => c > 0).length;
+  const healthScore = (() => {
+    const anonPts = Math.min(maxAnon / 10, 1) * 40;
+    const tierPts = Math.min(tiersUsed / 3, 1) * 30;
+    const countPts = Math.min(activeNotes.length / 5, 1) * 30;
+    return Math.round(anonPts + tierPts + countPts);
+  })();
+  const healthColor = healthScore >= 60 ? "emerald" : healthScore >= 30 ? "amber" : "red";
+  const healthLabel = healthScore >= 60 ? "Strong" : healthScore >= 30 ? "Moderate" : "At Risk";
+
+  if (activeNotes.length === 0 && leaves === 0) return null;
+
+  return (
+    <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] p-5 sm:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Eye size={14} strokeWidth={1.5} className="text-[#4D4DFF]" />
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">Shielded Portfolio</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-[#4D4DFF] border border-indigo-200/50">
+            strkBTC Ready
+          </span>
+          <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/50">
+            Privacy Pools
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* Shielded Positions */}
+        <div className="rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] p-3.5">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <ShieldCheck size={11} strokeWidth={1.5} className="text-[var(--accent-emerald)]" />
+            <span className="text-[10px] text-[var(--text-tertiary)] font-medium">Shielded Positions</span>
+          </div>
+          <span className="text-xl font-['JetBrains_Mono'] font-bold text-[var(--text-primary)] font-tabular">
+            {activeNotes.length}
+          </span>
+          <span className="text-[10px] text-[var(--text-quaternary)] ml-1.5">active</span>
+        </div>
+
+        {/* Privacy Health */}
+        <div className="rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] p-3.5">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <GitBranch size={11} strokeWidth={1.5} className={`text-${healthColor}-500`} />
+            <span className="text-[10px] text-[var(--text-tertiary)] font-medium">Privacy Health</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xl font-bold text-${healthColor}-600 font-tabular`}>{healthLabel}</span>
+          </div>
+          <div className="h-1 bg-[var(--bg-elevated)] rounded-full overflow-hidden mt-1.5">
+            <div
+              className={`h-full rounded-full bg-${healthColor}-500 transition-all duration-700`}
+              style={{ width: `${healthScore}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Per-Tier Breakdown */}
+      {activeNotes.length > 0 && (
+        <div className="space-y-2">
+          <span className="text-[10px] text-[var(--text-quaternary)] font-medium">Per-Tier Breakdown (Local Only)</span>
+          <div className="grid grid-cols-4 gap-1.5">
+            {tierLabels.map((label, i) => (
+              <div key={label} className="text-center rounded-lg bg-[var(--bg-tertiary)] p-2 border border-[var(--border-subtle)]">
+                <div className="text-[10px] font-['JetBrains_Mono'] text-[var(--text-tertiary)] font-medium">{label}</div>
+                <div className="text-sm font-['JetBrains_Mono'] font-bold text-[var(--text-primary)] font-tabular">{tierCounts[i]}</div>
+                <div className={`text-[8px] font-semibold ${tierCounts[i] > 0 ? "text-emerald-500" : "text-[var(--text-quaternary)]"}`}>
+                  {tierCounts[i] > 0 ? "shielded" : "empty"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Shielded vs Transparent */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
+        <div className="flex items-center gap-1.5">
+          <Lock size={10} strokeWidth={1.5} className="text-[var(--accent-emerald)]" />
+          <span className="text-[10px] text-[var(--text-tertiary)]">
+            <span className="font-semibold text-[var(--text-secondary)]">{activeNotes.length}</span> shielded
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Eye size={10} strokeWidth={1.5} className="text-[var(--text-quaternary)]" />
+          <span className="text-[10px] text-[var(--text-tertiary)]">
+            <span className="font-semibold text-[var(--text-secondary)]">{localNotes.filter(n => n.claimed).length}</span> withdrawn
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -333,13 +489,9 @@ export default function Dashboard() {
       <div className="card-glow p-5 sm:p-6">
         <div className="flex items-center gap-5 sm:gap-8">
           {/* Privacy Orb */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 200, damping: 15 }}
-          >
+          <div className="animate-fade-in-up">
             <PrivacyOrb score={privacyScoreValue} leaves={leaves} />
-          </motion.div>
+          </div>
 
           {/* Metrics */}
           <div className="flex-1 min-w-0">
@@ -348,14 +500,9 @@ export default function Dashboard() {
                 <span className="text-[11px] text-[var(--text-tertiary)] font-medium uppercase tracking-wider">Total Shielded</span>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   {dataLoaded ? (
-                    <motion.span
-                      className="text-xl sm:text-2xl font-['JetBrains_Mono'] font-bold text-[var(--text-primary)] font-tabular tracking-tight"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.4 }}
-                    >
+                    <span className="text-xl sm:text-2xl font-['JetBrains_Mono'] font-bold text-[var(--text-primary)] font-tabular tracking-tight animate-fade-in-up">
                       $<AnimatedCounter value={volume} />
-                    </motion.span>
+                    </span>
                   ) : (
                     <SkeletonLine width="80px" height="24px" />
                   )}
@@ -365,14 +512,12 @@ export default function Dashboard() {
                 <span className="text-[11px] text-[var(--text-tertiary)] font-medium uppercase tracking-wider">Pending</span>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   {dataLoaded ? (
-                    <motion.span
-                      className="text-xl sm:text-2xl font-['JetBrains_Mono'] font-bold text-[#4D4DFF] font-tabular tracking-tight"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.4, delay: 0.1 }}
+                    <span
+                      className="text-xl sm:text-2xl font-['JetBrains_Mono'] font-bold text-[#4D4DFF] font-tabular tracking-tight animate-fade-in-up"
+                      style={{ animationDelay: "0.1s" }}
                     >
                       $<AnimatedCounter value={pending} />
-                    </motion.span>
+                    </span>
                   ) : (
                     <SkeletonLine width="80px" height="24px" />
                   )}
@@ -386,7 +531,7 @@ export default function Dashboard() {
                 <div key={label} className="flex items-center gap-1.5">
                   <span className="text-[11px] text-[var(--text-quaternary)]">{label}</span>
                   <span className="text-[12px] font-['JetBrains_Mono'] font-bold text-[var(--text-secondary)] font-tabular">
-                    <AnimatedCounter value={value} duration={1} />
+                    <AnimatedCounter value={value} duration={1000} />
                   </span>
                 </div>
               ))}
@@ -397,25 +542,19 @@ export default function Dashboard() {
 
       {/* Execute Batch */}
       {pending > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={springDefault}
-          className="flex items-center justify-between p-4 rounded-2xl bg-indigo-50 border border-indigo-200/50"
-        >
+        <div className="flex items-center justify-between p-4 rounded-2xl bg-indigo-50 border border-indigo-200/50 animate-fade-in-up">
           <div>
             <span className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
               <Zap size={11} strokeWidth={2} className="text-[#4D4DFF]" />
               {pending.toLocaleString()} USDC ready for conversion
             </span>
           </div>
-          <motion.button
+          <button
             onClick={handleExecuteBatch}
             disabled={batchExecuting || proverStatus !== "online"}
             className="px-4 py-2 bg-gray-900 text-white rounded-xl text-xs font-semibold
                        disabled:opacity-30 disabled:cursor-not-allowed
-                       cursor-pointer flex items-center gap-1.5 flex-shrink-0"
-            whileTap={!batchExecuting ? { scale: 0.97 } : {}}
+                       cursor-pointer flex items-center gap-1.5 flex-shrink-0 active:scale-[0.97] transition-transform"
           >
             {batchExecuting ? (
               <Loader2 size={11} className="animate-spin" strokeWidth={2} />
@@ -423,8 +562,8 @@ export default function Dashboard() {
               <Play size={11} strokeWidth={2} />
             )}
             {batchExecuting ? "Executing..." : "Convert"}
-          </motion.button>
-        </motion.div>
+          </button>
+        </div>
       )}
       {batchTxHash && (
         <a
@@ -442,6 +581,9 @@ export default function Dashboard() {
       {/* Active Bitcoin Intents */}
       <IntentExplorer poolAddress={poolAddress} />
 
+      {/* Shielded Portfolio — strkBTC Ready */}
+      <ShieldedPortfolio leaves={leaves} anonSets={[anon0, anon1, anon2, anon3]} />
+
       {/* Anonymity Sets + Privacy Score */}
       <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] p-5 sm:p-6">
         <div className="flex flex-col lg:flex-row gap-6">
@@ -454,31 +596,9 @@ export default function Dashboard() {
                 { label: "$10", count: anon1 },
                 { label: "$100", count: anon2 },
                 { label: "$1,000", count: anon3 },
-              ].map(({ label, count }, i) => {
-                const pct = Math.min(count / 20, 1) * 100;
-                const color = count >= 10 ? "var(--accent-emerald)" : count >= 3 ? "var(--accent-amber)" : "var(--text-quaternary)";
-                return (
-                  <div key={label}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm font-['JetBrains_Mono'] text-[var(--text-secondary)] font-tabular">
-                        {label}
-                      </span>
-                      <span className="text-sm font-['JetBrains_Mono'] font-bold font-tabular" style={{ color }}>
-                        {count}
-                      </span>
-                    </div>
-                    <div className="h-1 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ background: color }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ type: "spring", stiffness: 80, damping: 20, delay: 0.1 * i }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              ].map(({ label, count }, i) => (
+                <AnonBar key={label} label={label} count={count} delay={100 + i * 100} />
+              ))}
             </div>
           </div>
 
@@ -494,20 +614,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Protocol Capabilities — x402, AI, ZK */}
+      {/* Protocol Capabilities — x402, AI, ZK, Privacy Pools */}
       <div className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] p-5 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <span className="text-xs font-semibold text-[var(--text-secondary)]">Protocol Stack</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-[#4D4DFF] font-semibold">v2</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Privacy Pools</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-semibold">strkBTC Ready</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* x402 Micropayments */}
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ y: springDefault, opacity: { duration: 0.3 }, delay: 0.1 }}
-            whileHover={{ y: -4, transition: springSnappy }}
-            className="rounded-xl bg-orange-50/80 border border-orange-200/50 p-3.5"
+          <div
+            className="rounded-xl bg-orange-50/80 border border-orange-200/50 p-3.5 animate-fade-in-up hover:-translate-y-1 transition-transform"
+            style={{ animationDelay: "0.1s" }}
           >
             <div className="flex items-center gap-2 mb-2">
               <div className="w-6 h-6 rounded-lg bg-orange-100 flex items-center justify-center">
@@ -522,15 +641,12 @@ export default function Dashboard() {
               <span className="w-1.5 h-1.5 rounded-full bg-[#FF9900] animate-pulse-dot" />
               <span className="text-[9px] text-[#FF9900] font-semibold">LIVE ON STARKNET</span>
             </div>
-          </motion.div>
+          </div>
 
           {/* AI Strategy Engine */}
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ y: springDefault, opacity: { duration: 0.3 }, delay: 0.15 }}
-            whileHover={{ y: -4, transition: springSnappy }}
-            className="rounded-xl bg-indigo-50/80 border border-indigo-200/50 p-3.5"
+          <div
+            className="rounded-xl bg-indigo-50/80 border border-indigo-200/50 p-3.5 animate-fade-in-up hover:-translate-y-1 transition-transform"
+            style={{ animationDelay: "0.15s" }}
           >
             <div className="flex items-center gap-2 mb-2">
               <div className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center">
@@ -545,15 +661,12 @@ export default function Dashboard() {
               <Sparkles size={9} className="text-[#4D4DFF]" />
               <span className="text-[9px] text-[#4D4DFF] font-semibold">5 STRATEGY MODES</span>
             </div>
-          </motion.div>
+          </div>
 
           {/* ZK Privacy */}
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ y: springDefault, opacity: { duration: 0.3 }, delay: 0.2 }}
-            whileHover={{ y: -4, transition: springSnappy }}
-            className="rounded-xl bg-emerald-50/80 border border-emerald-200/50 p-3.5"
+          <div
+            className="rounded-xl bg-emerald-50/80 border border-emerald-200/50 p-3.5 animate-fade-in-up hover:-translate-y-1 transition-transform"
+            style={{ animationDelay: "0.2s" }}
           >
             <div className="flex items-center gap-2 mb-2">
               <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center">
@@ -568,7 +681,7 @@ export default function Dashboard() {
               <Lock size={9} className="text-emerald-500" />
               <span className="text-[9px] text-emerald-500 font-semibold">NOIR CIRCUITS</span>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

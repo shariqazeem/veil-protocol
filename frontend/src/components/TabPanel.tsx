@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ShieldCheck, Shield, Unlock, Brain, Coins, Loader2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { useTelegram } from "@/context/TelegramContext";
-import ComplianceTab from "./ComplianceTab";
 
 function TabSkeleton() {
   return (
@@ -36,13 +34,18 @@ const DefiTab = dynamic(() => import("./DefiTab"), {
   ssr: false,
 });
 
+const ComplianceTab = dynamic(() => import("./ComplianceTab"), {
+  loading: () => <TabSkeleton />,
+  ssr: false,
+});
+
 type Step = 1 | 2 | "agent" | "defi";
 
 const tabs = [
-  { key: 1 as Step, label: "Shield", icon: Shield, color: "#4D4DFF", glow: "rgba(77,77,255,0.15)" },
-  { key: 2 as Step, label: "Unveil", icon: Unlock, color: "#12D483", glow: "rgba(18,212,131,0.15)" },
-  { key: "agent" as Step, label: "Strategist", icon: Brain, color: "#4D4DFF", glow: "rgba(77,77,255,0.15)" },
-  { key: "defi" as Step, label: "DeFi", icon: Coins, color: "#F59E0B", glow: "rgba(245,158,11,0.15)" },
+  { key: 1 as Step, label: "Shield", icon: Shield, color: "#4D4DFF" },
+  { key: 2 as Step, label: "Unveil", icon: Unlock, color: "#12D483" },
+  { key: "agent" as Step, label: "Strategist", icon: Brain, color: "#4D4DFF" },
+  { key: "defi" as Step, label: "DeFi", icon: Coins, color: "#F59E0B" },
 ];
 
 export default function TabPanel() {
@@ -53,6 +56,22 @@ export default function TabPanel() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { startParam } = useTelegram();
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
+
+  // Compute tab indicator position
+  useEffect(() => {
+    if (!tabBarRef.current) return;
+    const activeIndex = tabs.findIndex((t) => t.key === step);
+    const buttons = tabBarRef.current.querySelectorAll<HTMLButtonElement>("[data-tab]");
+    const btn = buttons[activeIndex];
+    if (btn) {
+      setIndicatorStyle({
+        left: btn.offsetLeft,
+        width: btn.offsetWidth,
+      });
+    }
+  }, [step]);
 
   useEffect(() => {
     // Handle ?action=shield&tier=2
@@ -145,40 +164,34 @@ export default function TabPanel() {
     );
   }
 
-  const activeTab = tabs.find((t) => t.key === step)!;
-
   return (
     <div className="bg-[var(--bg-secondary)] rounded-3xl border-2 border-[var(--border-subtle)] overflow-hidden">
       {/* Tab Bar */}
       <div className="px-4 sm:px-6 pt-4 sm:pt-5">
         <div className="flex items-center gap-3">
-          {/* Segmented Control — ParallaxPay pill pattern */}
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl flex-1">
+          {/* Segmented Control */}
+          <div ref={tabBarRef} className="flex gap-1 p-1 bg-gray-100 rounded-xl flex-1 relative">
+            {/* Sliding indicator */}
+            <div
+              className="absolute top-1 h-[calc(100%-8px)] bg-white rounded-lg shadow-md transition-all duration-300 ease-out"
+              style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+            />
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = step === tab.key;
               return (
-                <motion.button
+                <button
                   key={String(tab.key)}
+                  data-tab
                   onClick={() => setStep(tab.key)}
-                  className={`flex-1 py-2.5 text-sm text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 rounded-lg font-medium relative ${
+                  className={`flex-1 py-2.5 text-sm text-center transition-colors cursor-pointer flex items-center justify-center gap-1.5 rounded-lg font-medium relative z-10 active:scale-[0.97] ${
                     isActive ? "" : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                   }`}
                   style={isActive ? { color: tab.color } : undefined}
-                  whileTap={{ scale: 0.97 }}
                 >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute inset-0 rounded-lg bg-white shadow-md"
-                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-1.5">
-                    <Icon size={14} strokeWidth={1.5} />
-                    {tab.label}
-                  </span>
-                </motion.button>
+                  <Icon size={14} strokeWidth={1.5} />
+                  {tab.label}
+                </button>
               );
             })}
           </div>
@@ -196,56 +209,30 @@ export default function TabPanel() {
 
       {/* Content */}
       <div className="p-4 sm:p-6">
-        <AnimatePresence mode="wait">
-          {step === 1 ? (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ x: { type: "spring", stiffness: 300, damping: 24 }, opacity: { duration: 0.2 } }}
-            >
-              <ShieldForm
-                onComplete={handleAccumulationComplete}
-                prefillTier={prefillTier}
-                onPrefillConsumed={() => { setPrefillTier(null); cleanUrlParams(); }}
-              />
-            </motion.div>
-          ) : step === 2 ? (
-            <motion.div
-              key="step2"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              transition={{ x: { type: "spring", stiffness: 300, damping: 24 }, opacity: { duration: 0.2 } }}
-            >
-              <UnveilForm
-                prefillNoteIdx={prefillNoteIdx}
-                onPrefillConsumed={() => { setPrefillNoteIdx(null); cleanUrlParams(); }}
-              />
-            </motion.div>
-          ) : step === "agent" ? (
-            <motion.div
-              key="agent"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ y: { type: "spring", stiffness: 300, damping: 24 }, opacity: { duration: 0.2 } }}
-            >
-              <AgentTab />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="defi"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ y: { type: "spring", stiffness: 300, damping: 24 }, opacity: { duration: 0.2 } }}
-            >
-              <DefiTab />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {step === 1 ? (
+          <div key="step1" className="animate-fade-in-up">
+            <ShieldForm
+              onComplete={handleAccumulationComplete}
+              prefillTier={prefillTier}
+              onPrefillConsumed={() => { setPrefillTier(null); cleanUrlParams(); }}
+            />
+          </div>
+        ) : step === 2 ? (
+          <div key="step2" className="animate-fade-in-up">
+            <UnveilForm
+              prefillNoteIdx={prefillNoteIdx}
+              onPrefillConsumed={() => { setPrefillNoteIdx(null); cleanUrlParams(); }}
+            />
+          </div>
+        ) : step === "agent" ? (
+          <div key="agent" className="animate-fade-in-up">
+            <AgentTab />
+          </div>
+        ) : (
+          <div key="defi" className="animate-fade-in-up">
+            <DefiTab />
+          </div>
+        )}
       </div>
     </div>
   );

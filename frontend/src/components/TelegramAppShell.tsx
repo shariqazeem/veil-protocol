@@ -1,8 +1,10 @@
 "use client";
 
 import { useTelegram } from "@/context/TelegramContext";
-import WalletBar from "./WalletBar";
+import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
+
+const WalletBar = dynamic(() => import("./WalletBar"), { ssr: false });
 
 interface TelegramAppShellProps {
   children: ReactNode;

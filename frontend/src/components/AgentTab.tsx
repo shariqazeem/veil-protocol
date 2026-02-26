@@ -826,10 +826,10 @@ export default function AgentTab() {
           {chatMessages.length === 0 && (
             <div className="flex flex-wrap gap-1.5">
               {[
-                "Check pool health",
+                "Check my compliance",
                 "How private am I?",
-                "When should I withdraw?",
-                "What is k-anonymity?",
+                "Am I strkBTC ready?",
+                "Check pool health",
               ].map((prompt) => (
                 <motion.button
                   key={prompt}

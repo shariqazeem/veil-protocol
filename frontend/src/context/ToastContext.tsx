@@ -1,7 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import { CheckCircle, AlertTriangle, Info, X } from "lucide-react";
 
 type ToastType = "success" | "error" | "info";
@@ -10,6 +9,7 @@ interface Toast {
   id: number;
   type: ToastType;
   message: string;
+  exiting?: boolean;
 }
 
 interface ToastContextValue {
@@ -26,19 +26,12 @@ export function useToast() {
 
 let nextId = 0;
 
-export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+function ToastItem({ t, onDismiss }: { t: Toast; onDismiss: (id: number) => void }) {
+  const [visible, setVisible] = useState(false);
 
-  const toast = useCallback((type: ToastType, message: string) => {
-    const id = nextId++;
-    setToasts((prev) => [...prev, { id, type, message }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 5000);
-  }, []);
-
-  const dismiss = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+  useEffect(() => {
+    // Trigger enter animation on next frame
+    requestAnimationFrame(() => setVisible(true));
   }, []);
 
   const icons = {
@@ -60,30 +53,51 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   };
 
   return (
+    <div
+      className={`flex items-center gap-2.5 px-5 py-3.5 rounded-xl border backdrop-blur-xl ${styles[t.type]} ${glows[t.type]} transition-all duration-200 ${
+        visible && !t.exiting
+          ? "opacity-100 translate-y-0 scale-100"
+          : "opacity-0 translate-y-5 scale-95"
+      }`}
+    >
+      {icons[t.type]}
+      <span className="text-[13px] font-medium flex-1">{t.message}</span>
+      <button
+        onClick={() => onDismiss(t.id)}
+        className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] cursor-pointer flex-shrink-0"
+      >
+        <X size={12} strokeWidth={1.5} />
+      </button>
+    </div>
+  );
+}
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const dismiss = useCallback((id: number) => {
+    // Mark as exiting for animation, then remove after transition
+    setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)));
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 200);
+  }, []);
+
+  const toast = useCallback((type: ToastType, message: string) => {
+    const id = nextId++;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      dismiss(id);
+    }, 5000);
+  }, [dismiss]);
+
+  return (
     <ToastContext.Provider value={{ toast }}>
       {children}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
-        <AnimatePresence>
-          {toasts.map((t) => (
-            <motion.div
-              key={t.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className={`flex items-center gap-2.5 px-5 py-3.5 rounded-xl border backdrop-blur-xl ${styles[t.type]} ${glows[t.type]}`}
-            >
-              {icons[t.type]}
-              <span className="text-[13px] font-medium flex-1">{t.message}</span>
-              <button
-                onClick={() => dismiss(t.id)}
-                className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] cursor-pointer flex-shrink-0"
-              >
-                <X size={12} strokeWidth={1.5} />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        {toasts.map((t) => (
+          <ToastItem key={t.id} t={t} onDismiss={dismiss} />
+        ))}
       </div>
     </ToastContext.Provider>
   );

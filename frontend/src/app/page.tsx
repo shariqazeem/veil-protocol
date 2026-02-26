@@ -98,6 +98,96 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* PRIVACY POOLS + strkBTC READY */}
+      <section className="px-4 sm:px-6 pb-20 sm:pb-24 relative">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Left: Association Set */}
+            <div className="rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/30 p-6 sm:p-8 shadow-sm hover:shadow-2xl transition-shadow">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-200">
+                  <ShieldCheck size={18} strokeWidth={1.5} className="text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-[14px] font-bold text-gray-900" style={{ fontFamily: "'Inter Tight', sans-serif" }}>First Association Set Privacy Pool</h2>
+                  <span className="text-[10px] text-emerald-600 font-semibold">on Starknet</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed mb-5">
+                Implementing the <strong>Privacy Pools</strong> model (Buterin, Soleimani et al.) with STARK-native proofs. Compliant privacy that separates honest users from illicit funds.
+              </p>
+
+              {/* Protocol flow diagram */}
+              <div className="space-y-2.5 mb-5">
+                {[
+                  { step: "Deposit", desc: "USDC enters shielded pool", icon: Shield, color: "#4D4DFF" },
+                  { step: "Merkle Tree", desc: "Commitment added to Association Set", icon: Layers, color: "#12D483" },
+                  { step: "ZK Proof", desc: "Prove inclusion without revealing deposit", icon: Fingerprint, color: "#06B6D4" },
+                  { step: "Withdrawal", desc: "Compliant exit via inclusion proof", icon: CheckCircle, color: "#12D483" },
+                ].map((s, i) => (
+                  <div key={s.step} className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${s.color}10`, border: `1px solid ${s.color}20` }}>
+                      <s.icon size={13} strokeWidth={1.5} style={{ color: s.color }} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-['JetBrains_Mono'] text-gray-300">0{i + 1}</span>
+                        <span className="text-xs font-bold text-gray-900">{s.step}</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400">{s.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                <CheckCircle size={10} strokeWidth={2} />
+                Based on Buterin et al. Privacy Pools research
+              </div>
+            </div>
+
+            {/* Right: strkBTC-Ready */}
+            <div className="rounded-3xl border-2 border-orange-200 bg-gradient-to-br from-white to-orange-50/30 p-6 sm:p-8 shadow-sm hover:shadow-2xl transition-shadow">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center border border-orange-200">
+                  <Bitcoin size={18} strokeWidth={1.5} className="text-[#FF9900]" />
+                </div>
+                <div>
+                  <h2 className="text-[14px] font-bold text-gray-900" style={{ fontFamily: "'Inter Tight', sans-serif" }}>strkBTC-Ready Architecture</h2>
+                  <span className="text-[10px] text-orange-600 font-semibold">Day 1 Compatible</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed mb-5">
+                Built independently before strkBTC was announced. Our architecture already implements the features strkBTC promises for compliant shielded BTC on Starknet.
+              </p>
+
+              {/* Feature checklist */}
+              <div className="space-y-3 mb-5">
+                {[
+                  { label: "Shielded/Unshielded dual modes", desc: "ZK-private withdrawals + transparent ragequit" },
+                  { label: "Viewing keys for selective disclosure", desc: "Audit-ready without compromising other users" },
+                  { label: "STARK-native ZK proofs (no trusted setup)", desc: "Noir + Garaga — quantum-secure verification" },
+                  { label: "Bitcoin settlement integration", desc: "Intent-based escrow with solver network" },
+                ].map((feat) => (
+                  <div key={feat.label} className="flex items-start gap-2.5">
+                    <CheckCircle size={14} strokeWidth={2} className="text-[#FF9900] mt-0.5 flex-shrink-0" />
+                    <div>
+                      <span className="text-xs font-bold text-gray-900 block">{feat.label}</span>
+                      <span className="text-[10px] text-gray-400">{feat.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl bg-orange-50 border border-orange-100 p-3 text-center">
+                <span className="text-xs font-bold text-orange-700">Built before strkBTC was announced.</span>
+                <span className="text-[10px] text-orange-500 block mt-0.5">Ready for Day 1 integration.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* THREE PILLARS */}
       <section className="px-4 sm:px-6 pb-20 relative">
         <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -364,7 +454,7 @@ export default function LandingPage() {
           <div className="rounded-3xl border-2 border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="text-center mb-6"><span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Technology Stack</span></div>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2.5">
-              {["Cairo 2.15", "Starknet", "Noir ZK", "Garaga", "Barretenberg", "x402-starknet", "AVNU Paymaster", "Pedersen Hash", "Poseidon BN254", "Merkle Trees", "Next.js", "sats-connect", "snforge", "37 Cairo Tests"].map((tech) => (
+              {["Cairo 2.15", "Starknet", "Noir ZK", "Garaga", "Barretenberg", "x402-starknet", "AVNU Paymaster", "Pedersen Hash", "Poseidon BN254", "Merkle Trees", "Association Sets (Privacy Pools)", "strkBTC-Compatible", "Next.js", "sats-connect", "snforge", "37 Cairo Tests"].map((tech) => (
                 <span key={tech} className="text-[12px] font-['JetBrains_Mono'] font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all cursor-default">{tech}</span>
               ))}
             </div>
@@ -376,7 +466,7 @@ export default function LandingPage() {
       <section className="px-4 sm:px-6 pb-20 sm:pb-32 relative">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-[24px] sm:text-[36px] font-black tracking-tight text-gray-900 mb-4" style={{ fontFamily: "'Inter Tight', sans-serif" }}>AI-powered. Privacy-first. Pay-per-use.</h2>
-          <p className="text-[14px] text-gray-500 mb-8 max-w-lg mx-auto">The first protocol combining AI strategy agents, ZK privacy, and x402 micropayments on Starknet. Built for the Re&#123;define&#125; Hackathon.</p>
+          <p className="text-[14px] text-gray-500 mb-8 max-w-lg mx-auto">The first Association Set privacy pool on Starknet — combining Privacy Pools compliance, AI strategy agents, ZK proofs, and strkBTC-ready architecture. Built for the Re&#123;define&#125; Hackathon.</p>
           <Link href="/app">
             <button className="btn-shimmer px-8 py-4 bg-gray-900 text-white rounded-2xl text-[15px] font-bold tracking-tight cursor-pointer flex items-center gap-2 mx-auto shadow-xl hover:-translate-y-0.5 transition-transform">
               <Brain size={16} strokeWidth={1.5} /> Launch App <ArrowRight size={14} strokeWidth={2} />
@@ -389,7 +479,7 @@ export default function LandingPage() {
       <footer className="text-center pb-10 px-4 relative">
         <div className="h-px bg-gray-200 max-w-lg mx-auto mb-8" />
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mb-2">
-          {["AI Strategy Agent", "x402 Micropayments", "ZK Privacy", "Bitcoin Settlement", "Starknet Mainnet"].map((item) => (
+          {["Privacy Pools", "strkBTC Ready", "AI Strategy Agent", "x402 Micropayments", "ZK Privacy", "Bitcoin Settlement", "Starknet Mainnet"].map((item) => (
             <span key={item} className="text-xs text-gray-400 font-medium">{item}</span>
           ))}
         </div>

@@ -84,22 +84,35 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    const tg = window.Telegram?.WebApp;
-    if (!tg) return;
+    function init() {
+      const tg = window.Telegram?.WebApp;
+      if (!tg) return false;
 
-    // Signal to Telegram that the Mini-App is ready
-    tg.ready();
-    tg.expand();
+      // Signal to Telegram that the Mini-App is ready
+      tg.ready();
+      tg.expand();
 
-    const user = tg.initDataUnsafe?.user ?? null;
-    const startParam = tg.initDataUnsafe?.start_param ?? null;
+      const user = tg.initDataUnsafe?.user ?? null;
+      const startParam = tg.initDataUnsafe?.start_param ?? null;
 
-    setState({
-      isTelegram: true,
-      webApp: tg,
-      user,
-      startParam,
-    });
+      setState({
+        isTelegram: true,
+        webApp: tg,
+        user,
+        startParam,
+      });
+      return true;
+    }
+
+    // Try immediately (script may already be loaded in Telegram's webview)
+    if (init()) return;
+
+    // If not available yet, poll briefly for the afterInteractive script
+    let attempts = 0;
+    const interval = setInterval(() => {
+      if (init() || ++attempts >= 20) clearInterval(interval);
+    }, 150);
+    return () => clearInterval(interval);
   }, []);
 
   return (

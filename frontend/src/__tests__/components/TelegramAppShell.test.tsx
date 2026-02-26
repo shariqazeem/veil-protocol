@@ -20,31 +20,20 @@ vi.mock("@/components/WalletBar", () => ({
   default: () => <div data-testid="wallet-bar">WalletBar</div>,
 }));
 
-vi.mock("framer-motion", () => ({
-  motion: new Proxy(
-    {},
-    {
-      get: (_target, tag) => {
-        return ({ children, ...props }: any) => {
-          const {
-            initial,
-            animate,
-            exit,
-            transition,
-            whileHover,
-            whileTap,
-            variants,
-            layout,
-            layoutId,
-            ...htmlProps
-          } = props;
-          const Tag = typeof tag === "string" ? tag : "div";
-          return <Tag {...htmlProps}>{children}</Tag>;
-        };
-      },
-    },
-  ),
-  AnimatePresence: ({ children }: any) => children,
+// Mock next/dynamic to eagerly render the dynamically-imported component
+vi.mock("next/dynamic", () => ({
+  default: (loader: () => Promise<any>, _opts?: any) => {
+    let Comp: any = null;
+    // Resolve the loader synchronously for test purposes
+    const promise = loader();
+    promise.then((m: any) => { Comp = m.default || m; });
+    // Return a wrapper that renders the resolved component
+    return function DynamicMock(props: any) {
+      // If the mock resolved synchronously (vi.mock hoisting), Comp is set
+      if (Comp) return <Comp {...props} />;
+      return null;
+    };
+  },
 }));
 
 import TelegramAppShell from "@/components/TelegramAppShell";
