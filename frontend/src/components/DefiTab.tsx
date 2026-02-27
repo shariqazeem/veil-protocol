@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RPC_URL } from "@/utils/network";
 import { RpcProvider, CallData } from "starknet";
 import { useToast } from "@/context/ToastContext";
+import { Staking, Amount, mainnetValidators, type Address, type Token } from "starkzap";
 
 // ── Starkzap token presets (mainnet addresses) ──────────────────────
 const TOKENS = [
@@ -17,17 +18,20 @@ const TOKENS = [
   { symbol: "WBTC", name: "Wrapped BTC", decimals: 8, address: "0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac" },
 ] as const;
 
-// ── Starkzap validator presets (top 5) ──────────────────────────────
+// ── Starkzap validator presets (top 5 from mainnetValidators) ───────
 const VALIDATORS = [
-  { name: "Karnot", stakerAddress: "0x072543946080646d1aac08bb4ba6f6531b2b29ce41ebfe72b8a6506500d5220e" },
-  { name: "Ready (prev. Argent)", stakerAddress: "0x00d3b910d8c528bf0216866053c3821ac6c97983dc096bff642e9a3549210ee7" },
-  { name: "AVNU", stakerAddress: "0x036963c7b56f08105ffdd7f12560924bdc0cb29ce210417ecbc8bf3c7e4b9090" },
-  { name: "Braavos", stakerAddress: "0x0474d6a0978dfd80227b163b58d2cd13c0e0ab3715eb42a9e8f12735a1d1d702" },
-  { name: "Nethermind", stakerAddress: "0x01d6e3ae9fcc0bf72067cd5f3d7e2fe7c253a80b8e4e17a37a76e1e0b054e8b4" },
-] as const;
+  mainnetValidators.KARNOT,
+  mainnetValidators.READY_PREV_ARGENT,
+  mainnetValidators.AVNU,
+  mainnetValidators.BRAAVOS,
+  mainnetValidators.NETHERMIND,
+];
 
-// Staking manager contract (mainnet)
-const STAKING_CONTRACT = "0x00ca1702e64c81d9a07b86bd2c540188d92a2c73cf5cc0e508d949015e7e84a7";
+// Staking config for Starkzap SDK (mainnet staking manager)
+const STAKING_CONFIG = { contract: "0x00ca1702e64c81d9a07b86bd2c540188d92a2c73cf5cc0e508d949015e7e84a7" as Address };
+
+// STRK token definition for Starkzap Amount
+const STRK_TOKEN: Token = { name: "Starknet", symbol: "STRK", decimals: 18, address: TOKENS[1].address as Address };
 
 type TokenBalance = {
   symbol: string;
@@ -39,7 +43,7 @@ type TokenBalance = {
 type ValidatorInfo = {
   name: string;
   stakerAddress: string;
-  poolAddress: string | null;
+  stakingInstance: Staking | null;
 };
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
@@ -109,47 +113,24 @@ export default function DefiTab() {
     }
   }, [isConnected, address, fetchBalances]);
 
-  // ── Resolve validator pool addresses from staking manager ────────
+  // ── Resolve validator staking instances via Starkzap SDK ─────────
   useEffect(() => {
     async function resolveValidators() {
       const infos: ValidatorInfo[] = [];
       for (const v of VALIDATORS) {
-        let poolAddress: string | null = null;
+        let stakingInstance: Staking | null = null;
         try {
-          // Call state_of on staking manager to get StakerInfo
-          // StakerInfo layout: reward_address, operational_address, unstake_time (Option<u64>), amount_own, index, unclaimed_rewards_own, pool_info (Option<StakerPoolInfo>)
-          // StakerPoolInfo layout: pool_contract, amount, unclaimed_rewards, commission
-          const result = await provider.callContract({
-            contractAddress: STAKING_CONTRACT,
-            entrypoint: "state_of",
-            calldata: CallData.compile({ staker_address: v.stakerAddress }),
-          });
-          // Parse result array to find pool_contract
-          // result[0] = reward_address
-          // result[1] = operational_address
-          // result[2] = unstake_time Option flag (0=None, 1=Some)
-          // result[2+1?] = unstake_time value if Some
-          // Then: amount_own, index, unclaimed_rewards_own
-          // Then: pool_info Option flag (0=None, 1=Some)
-          // If Some: pool_contract, amount, unclaimed_rewards, commission
-          let idx = 0;
-          idx++; // reward_address [0]
-          idx++; // operational_address [1]
-          const unstakeFlag = Number(BigInt(result[idx])); // [2]
-          idx++;
-          if (unstakeFlag === 1) idx++; // skip unstake_time value
-          idx++; // amount_own
-          idx++; // index
-          idx++; // unclaimed_rewards_own
-          const poolFlag = Number(BigInt(result[idx])); // pool_info Option flag
-          idx++;
-          if (poolFlag === 1) {
-            poolAddress = result[idx]; // pool_contract address
-          }
+          // Cast provider to avoid starknet version mismatch between app and starkzap
+          stakingInstance = await Staking.fromStaker(
+            v.stakerAddress as Address,
+            STRK_TOKEN,
+            provider as unknown as Parameters<typeof Staking.fromStaker>[2],
+            STAKING_CONFIG,
+          );
         } catch {
-          // If we can't resolve, leave poolAddress null
+          // If we can't resolve, leave stakingInstance null
         }
-        infos.push({ name: v.name, stakerAddress: v.stakerAddress, poolAddress });
+        infos.push({ name: v.name, stakerAddress: v.stakerAddress, stakingInstance });
       }
       setValidators(infos);
     }
@@ -179,37 +160,16 @@ export default function DefiTab() {
 
     try {
       const validator = validators[selectedValidator];
-      const amountWei = BigInt(Math.floor(amount * 1e18));
-      const strkAddress = TOKENS.find((t) => t.symbol === "STRK")!.address;
 
-      if (!validator.poolAddress) {
-        setError("Pool address not resolved for this validator. Please try again or select a different validator.");
+      if (!validator?.stakingInstance) {
+        setError("Pool not resolved for this validator. Please wait or select a different validator.");
         setStaking(false);
         return;
       }
 
-      // 1. Approve STRK to the validator's POOL contract (not staking manager)
-      // 2. Call enter_delegation_pool on the POOL contract
-      //    - reward_address: user's address (where rewards go)
-      //    - amount: u128 (single felt, not u256)
-      const calls = [
-        {
-          contractAddress: strkAddress,
-          entrypoint: "approve",
-          calldata: CallData.compile({
-            spender: validator.poolAddress,
-            amount: { low: (amountWei & BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")).toString(), high: (amountWei >> 128n).toString() },
-          }),
-        },
-        {
-          contractAddress: validator.poolAddress,
-          entrypoint: "enter_delegation_pool",
-          calldata: CallData.compile({
-            reward_address: address,
-            amount: amountWei.toString(),
-          }),
-        },
-      ];
+      // Use Starkzap SDK to build the approve + enter_delegation_pool calls
+      const strkAmount = Amount.parse(stakeAmount, STRK_TOKEN);
+      const calls = validator.stakingInstance.populateEnter(address as Address, strkAmount);
 
       await sendAsync(calls);
       setStakeSuccess(true);
