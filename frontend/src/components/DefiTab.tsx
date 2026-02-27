@@ -109,17 +109,52 @@ export default function DefiTab() {
     }
   }, [isConnected, address, fetchBalances]);
 
-  // ── Resolve validator pool addresses ──────────────────────────────
+  // ── Resolve validator pool addresses from staking manager ────────
   useEffect(() => {
     async function resolveValidators() {
       const infos: ValidatorInfo[] = [];
       for (const v of VALIDATORS) {
-        // For display purposes, we show validator info even without resolving pool
-        infos.push({ name: v.name, stakerAddress: v.stakerAddress, poolAddress: null });
+        let poolAddress: string | null = null;
+        try {
+          // Call state_of on staking manager to get StakerInfo
+          // StakerInfo layout: reward_address, operational_address, unstake_time (Option<u64>), amount_own, index, unclaimed_rewards_own, pool_info (Option<StakerPoolInfo>)
+          // StakerPoolInfo layout: pool_contract, amount, unclaimed_rewards, commission
+          const result = await provider.callContract({
+            contractAddress: STAKING_CONTRACT,
+            entrypoint: "state_of",
+            calldata: CallData.compile({ staker_address: v.stakerAddress }),
+          });
+          // Parse result array to find pool_contract
+          // result[0] = reward_address
+          // result[1] = operational_address
+          // result[2] = unstake_time Option flag (0=None, 1=Some)
+          // result[2+1?] = unstake_time value if Some
+          // Then: amount_own, index, unclaimed_rewards_own
+          // Then: pool_info Option flag (0=None, 1=Some)
+          // If Some: pool_contract, amount, unclaimed_rewards, commission
+          let idx = 0;
+          idx++; // reward_address [0]
+          idx++; // operational_address [1]
+          const unstakeFlag = Number(BigInt(result[idx])); // [2]
+          idx++;
+          if (unstakeFlag === 1) idx++; // skip unstake_time value
+          idx++; // amount_own
+          idx++; // index
+          idx++; // unclaimed_rewards_own
+          const poolFlag = Number(BigInt(result[idx])); // pool_info Option flag
+          idx++;
+          if (poolFlag === 1) {
+            poolAddress = result[idx]; // pool_contract address
+          }
+        } catch {
+          // If we can't resolve, leave poolAddress null
+        }
+        infos.push({ name: v.name, stakerAddress: v.stakerAddress, poolAddress });
       }
       setValidators(infos);
     }
     resolveValidators();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Stake STRK ────────────────────────────────────────────────────
@@ -147,23 +182,31 @@ export default function DefiTab() {
       const amountWei = BigInt(Math.floor(amount * 1e18));
       const strkAddress = TOKENS.find((t) => t.symbol === "STRK")!.address;
 
-      // 1. Approve STRK to staking contract
-      // 2. Call stake on staking manager
+      if (!validator.poolAddress) {
+        setError("Pool address not resolved for this validator. Please try again or select a different validator.");
+        setStaking(false);
+        return;
+      }
+
+      // 1. Approve STRK to the validator's POOL contract (not staking manager)
+      // 2. Call enter_delegation_pool on the POOL contract
+      //    - reward_address: user's address (where rewards go)
+      //    - amount: u128 (single felt, not u256)
       const calls = [
         {
           contractAddress: strkAddress,
           entrypoint: "approve",
           calldata: CallData.compile({
-            spender: STAKING_CONTRACT,
+            spender: validator.poolAddress,
             amount: { low: (amountWei & BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")).toString(), high: (amountWei >> 128n).toString() },
           }),
         },
         {
-          contractAddress: STAKING_CONTRACT,
+          contractAddress: validator.poolAddress,
           entrypoint: "enter_delegation_pool",
           calldata: CallData.compile({
-            staker_address: validator.stakerAddress,
-            amount: { low: (amountWei & BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")).toString(), high: (amountWei >> 128n).toString() },
+            reward_address: address,
+            amount: amountWei.toString(),
           }),
         },
       ];
