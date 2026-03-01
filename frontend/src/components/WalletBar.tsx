@@ -129,10 +129,13 @@ export default function WalletBar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 py-3.5 sm:py-4 bg-white/80 backdrop-blur-2xl border-b border-gray-200/40">
       <div className="max-w-3xl mx-auto flex items-center justify-between">
-        {/* Wordmark */}
-        <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
-          Veil<span className="text-[#4D4DFF]"> Protocol</span>
-        </span>
+        {/* Logo + Wordmark */}
+        <div className="flex items-center gap-2">
+          <img src="/logo.jpg" alt="Veil Protocol" width={28} height={28} className="rounded-lg" />
+          <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
+            Veil<span className="text-[#4D4DFF]"> Protocol</span>
+          </span>
+        </div>
 
         {/* Identity Pill */}
         <div ref={ref} className="relative">

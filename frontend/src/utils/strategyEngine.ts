@@ -333,12 +333,14 @@ interface TierOption {
 }
 
 function getTierOptions(poolState: PoolState): TierOption[] {
-  return Object.entries(DENOMINATIONS).map(([tier, rawAmount]) => ({
-    tier: Number(tier),
-    label: DENOMINATION_LABELS[Number(tier)],
-    usdcPerDeposit: rawAmount / 1_000_000,
-    anonSet: poolState.anonSets[Number(tier)] ?? 0,
-  }));
+  return Object.entries(DENOMINATIONS)
+    .filter(([tier]) => Number(tier) > 0) // Tier 0 ($1) is disabled on frontend
+    .map(([tier, rawAmount]) => ({
+      tier: Number(tier),
+      label: DENOMINATION_LABELS[Number(tier)],
+      usdcPerDeposit: rawAmount / 1_000_000,
+      anonSet: poolState.anonSets[Number(tier)] ?? 0,
+    }));
 }
 
 /** Pick the best tier based on strategy type. */

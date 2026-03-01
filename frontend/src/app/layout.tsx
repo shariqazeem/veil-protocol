@@ -20,7 +20,8 @@ export const metadata: Metadata = {
   description: "Institutional-grade confidential Bitcoin accumulation infrastructure. STARK-verified ZK proofs, tranche-based privacy pools, and intent-based BTC settlement on Starknet.",
   metadataBase: new URL("https://theveilprotocol.vercel.app"),
   icons: {
-    icon: "/icon.svg",
+    icon: "/favicon-32.png",
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
     title: "Veil Protocol | Confidential Bitcoin Accumulation on Starknet",
