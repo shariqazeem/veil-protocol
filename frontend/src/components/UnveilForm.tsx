@@ -471,8 +471,28 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                 }),
               },
             ];
-            const result = await sendAsync(withdrawCalls);
-            setClaimTxHash(result.transaction_hash);
+            // Garaga ZK verification needs ~730M L2Gas — wallets underestimate.
+            // Estimate fee and boost 3x to prevent reverts.
+            if (account) {
+              console.log("[unveil] Estimating fee for ZK withdrawal...");
+              const est = await account.estimateInvokeFee(withdrawCalls, { skipValidate: true });
+              const l2Amt = BigInt(est.resourceBounds.l2_gas.max_amount) * 3n;
+              const l2Price = BigInt(est.resourceBounds.l2_gas.max_price_per_unit);
+              const l1Amt = BigInt(est.resourceBounds.l1_gas.max_amount) * 2n;
+              const l1Price = BigInt(est.resourceBounds.l1_gas.max_price_per_unit);
+              console.log(`[unveil] Estimated L2Gas: ${est.resourceBounds.l2_gas.max_amount}, boosted to: ${l2Amt}`);
+              const result = await account.execute(withdrawCalls, {
+                resourceBounds: {
+                  l2_gas: { max_amount: l2Amt, max_price_per_unit: l2Price },
+                  l1_gas: { max_amount: l1Amt, max_price_per_unit: l1Price },
+                  l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
+                },
+              });
+              setClaimTxHash(result.transaction_hash);
+            } else {
+              const result = await sendAsync(withdrawCalls);
+              setClaimTxHash(result.transaction_hash);
+            }
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           }
         } catch (zkErr) {
@@ -610,7 +630,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           });
 
           setClaimPhase("withdrawing");
-          const result = await sendAsync([{
+          const batchWithdrawCalls = [{
             contractAddress: poolAddress,
             entrypoint: "withdraw_private",
             calldata: CallData.compile({
@@ -623,7 +643,25 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
               recipient: address,
               btc_recipient_hash: btcRecipientHash,
             }),
-          }]);
+          }];
+
+          let result;
+          if (account) {
+            const est = await account.estimateInvokeFee(batchWithdrawCalls, { skipValidate: true });
+            const l2Amt = BigInt(est.resourceBounds.l2_gas.max_amount) * 3n;
+            const l2Price = BigInt(est.resourceBounds.l2_gas.max_price_per_unit);
+            const l1Amt = BigInt(est.resourceBounds.l1_gas.max_amount) * 2n;
+            const l1Price = BigInt(est.resourceBounds.l1_gas.max_price_per_unit);
+            result = await account.execute(batchWithdrawCalls, {
+              resourceBounds: {
+                l2_gas: { max_amount: l2Amt, max_price_per_unit: l2Price },
+                l1_gas: { max_amount: l1Amt, max_price_per_unit: l1Price },
+                l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
+              },
+            });
+          } else {
+            result = await sendAsync(batchWithdrawCalls);
+          }
 
           lastTxHash = result.transaction_hash;
 
