@@ -493,6 +493,26 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
         throw new Error("This note does not have a ZK commitment. Only ZK-private withdrawals are supported.");
       }
 
+      // Wait for on-chain confirmation before marking claimed
+      // (prevents note loss if tx reverts due to gas issues)
+      if (claimTxHash) {
+        try {
+          const rpc = new RpcProvider({ nodeUrl: RPC_URL });
+          const receipt = await rpc.waitForTransaction(claimTxHash, { retryInterval: 3000 });
+          if ("execution_status" in receipt && receipt.execution_status === "REVERTED") {
+            throw new Error("Transaction reverted on-chain. Your note is safe — try again with more gas.");
+          }
+        } catch (waitErr) {
+          const msg = waitErr instanceof Error ? waitErr.message : "";
+          if (msg.includes("REVERTED") || msg.includes("reverted")) {
+            throw new Error("Transaction reverted on-chain. Your note is safe — try again with more gas.");
+          }
+          // If waitForTransaction itself fails (timeout etc), still mark claimed
+          // as we can't be sure — user can re-import if needed
+          console.warn("[unveil] Could not verify tx receipt, marking claimed:", msg);
+        }
+      }
+
       await markNoteClaimed(note.commitment, address);
       setClaimPhase("success");
       toast("success", isBtcIntent ? "Settlement initiated — solver will fulfill" : "Confidential exit executed");
@@ -606,6 +626,23 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           }]);
 
           lastTxHash = result.transaction_hash;
+
+          // Verify tx was accepted on-chain before marking claimed
+          try {
+            const rpc = new RpcProvider({ nodeUrl: RPC_URL });
+            const receipt = await rpc.waitForTransaction(result.transaction_hash, { retryInterval: 3000 });
+            if ("execution_status" in receipt && receipt.execution_status === "REVERTED") {
+              console.warn(`[auto-exit] Note ${i} tx reverted on-chain, skipping`);
+              continue; // Don't mark claimed — note is still valid
+            }
+          } catch (waitErr) {
+            const waitMsg = waitErr instanceof Error ? waitErr.message : "";
+            if (waitMsg.includes("REVERTED") || waitMsg.includes("reverted")) {
+              console.warn(`[auto-exit] Note ${i} tx reverted on-chain, skipping`);
+              continue;
+            }
+          }
+
           await markNoteClaimed(note.commitment, address);
           totalClaimed++;
 

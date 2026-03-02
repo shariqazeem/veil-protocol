@@ -6,7 +6,7 @@
  */
 
 import type { GhostNote } from "./privacy";
-import { loadNotes, loadNotesEncrypted } from "./privacy";
+import { loadNotes, loadNotesEncrypted, saveNotesEncrypted } from "./privacy";
 import { RpcProvider, Contract, type Abi } from "starknet";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import { RPC_URL } from "@/utils/network";
@@ -40,6 +40,29 @@ export async function checkNoteStatus(
   note: GhostNote,
   provider?: RpcProvider,
 ): Promise<NoteWithStatus> {
+  // If locally marked claimed, verify on-chain — reverted txs may have set this incorrectly
+  if (note.claimed && note.zkNullifier) {
+    const poolAddress = addresses.contracts.shieldedPool;
+    if (poolAddress) {
+      try {
+        const rpc = provider ?? new RpcProvider({ nodeUrl: RPC_URL });
+        const pool = new Contract({
+          abi: SHIELDED_POOL_ABI as unknown as Abi,
+          address: poolAddress,
+          providerOrAccount: rpc,
+        });
+        const isSpent = await withRetry(() => pool.call("is_zk_nullifier_spent", [note.zkNullifier!]));
+        if (!isSpent) {
+          // Nullifier not spent on-chain — this note was NOT actually claimed (tx likely reverted)
+          // Override local flag and continue to check batch status below
+          note.claimed = false;
+        }
+      } catch {
+        // If check fails, trust local flag
+      }
+    }
+  }
+
   if (note.claimed) {
     return { ...note, status: "CLAIMED" };
   }
@@ -150,6 +173,27 @@ export async function checkAllNoteStatuses(
     ? await loadNotesEncrypted(walletAddress)
     : loadNotes();
   const withStatuses = await Promise.all(notes.map((n) => checkNoteStatus(n, provider)));
+
+  // Persist any corrected claimed flags back to storage
+  // (handles case where tx reverted but note was locally marked claimed)
+  const anyRecovered = withStatuses.some(
+    (ns, i) => notes[i].claimed && !ns.claimed,
+  );
+  if (anyRecovered) {
+    const corrected = notes.map((n) => {
+      const status = withStatuses.find((s) => s.commitment === n.commitment);
+      if (status && n.claimed && !status.claimed) {
+        return { ...n, claimed: false };
+      }
+      return n;
+    });
+    if (walletAddress) {
+      await saveNotesEncrypted(corrected, walletAddress);
+    } else {
+      localStorage.setItem("ghost-notes", JSON.stringify(corrected));
+    }
+  }
+
   // Filter out stale notes whose commitments don't exist on-chain (e.g. from old contract deployments)
   return withStatuses.filter((n) => n.status !== "STALE");
 }

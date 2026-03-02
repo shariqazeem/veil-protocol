@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ShieldCheck, Shield, Unlock, Brain, Coins, Loader2 } from "lucide-react";
+import { ShieldCheck, Shield, Unlock, Brain, Wallet2, Loader2 } from "lucide-react";
 import { useTelegram } from "@/context/TelegramContext";
 
 function TabSkeleton() {
@@ -29,7 +29,7 @@ const AgentTab = dynamic(() => import("./AgentTab"), {
   ssr: false,
 });
 
-const DefiTab = dynamic(() => import("./DefiTab"), {
+const PortfolioTab = dynamic(() => import("./PortfolioTab"), {
   loading: () => <TabSkeleton />,
   ssr: false,
 });
@@ -39,13 +39,13 @@ const ComplianceTab = dynamic(() => import("./ComplianceTab"), {
   ssr: false,
 });
 
-type Step = 1 | 2 | "agent" | "defi";
+type Step = 1 | 2 | "agent" | "portfolio";
 
 const tabs = [
   { key: 1 as Step, label: "Shield", icon: Shield, color: "#4D4DFF" },
   { key: 2 as Step, label: "Unveil", icon: Unlock, color: "#12D483" },
   { key: "agent" as Step, label: "Strategist", icon: Brain, color: "#4D4DFF" },
-  { key: "defi" as Step, label: "DeFi", icon: Coins, color: "#F59E0B" },
+  { key: "portfolio" as Step, label: "Portfolio", icon: Wallet2, color: "#8B5CF6" },
 ];
 
 export default function TabPanel() {
@@ -105,8 +105,8 @@ export default function TabPanel() {
       return;
     }
 
-    if (action === "defi") {
-      setStep("defi");
+    if (action === "portfolio" || action === "defi") {
+      setStep("portfolio");
       return;
     }
 
@@ -130,8 +130,8 @@ export default function TabPanel() {
           if (typeof decoded.noteIdx === "number") setPrefillNoteIdx(decoded.noteIdx);
         } else if (decoded.action === "agent") {
           setStep("agent");
-        } else if (decoded.action === "defi") {
-          setStep("defi");
+        } else if (decoded.action === "portfolio" || decoded.action === "defi") {
+          setStep("portfolio");
         }
       } catch { /* ignore parse errors */ }
     }
@@ -229,8 +229,8 @@ export default function TabPanel() {
             <AgentTab />
           </div>
         ) : (
-          <div key="defi" className="animate-fade-in-up">
-            <DefiTab />
+          <div key="portfolio" className="animate-fade-in-up">
+            <PortfolioTab />
           </div>
         )}
       </div>
