@@ -15,7 +15,7 @@ A production-grade privacy protocol deployed on Starknet mainnet with real asset
 3. **Verify** -- Zero-knowledge proof generated entirely in-browser (noir_js + bb.js WASM). Garaga verifier validates the UltraKeccakZKHonk proof on-chain (~2,835 felt252 calldata).
 4. **Unveil** -- Claim WBTC with ZK proof or exit to native Bitcoin via intent bridge. Gasless relayer breaks the sender-link entirely. x402 flat-fee option for zero-percentage withdrawals.
 
-37 contract tests + 90 frontend tests (127 total) passing. Deployed on Starknet mainnet.
+37 contract tests + 123 frontend tests (160 total) passing. Deployed on Starknet mainnet.
 
 ## Key Features
 
@@ -98,7 +98,7 @@ cd contracts && scarb build && snforge test    # 37 tests
 cd frontend && npm install && npm run dev      # localhost:3000
 
 # Run tests
-cd frontend && npm test                        # 90 tests
+cd frontend && npm test                        # 123 tests
 
 # Batch executor
 cd scripts && npm install && npm run keeper
@@ -137,7 +137,7 @@ All responses include structured data cards (privacy scores, pool health, threat
 
 ## Tech Stack
 
-- **Contracts** -- Cairo 2.15, Scarb, snforge (37 tests)
+- **Contracts** -- Cairo 2.15, Scarb, snforge (37 Cairo tests)
 - **ZK** -- Noir circuit, @aztec/bb.js (UltraKeccakZKHonk), Garaga verifier
 - **Frontend** -- Next.js 15, TypeScript, Tailwind CSS, starknet.js v7
 - **Privacy AI** -- Deterministic scoring engine, 8-intent chat system, structured card responses
@@ -145,7 +145,7 @@ All responses include structured data cards (privacy scores, pool health, threat
 - **Relayer** -- Embedded Next.js API routes, gasless + x402 flat-fee paths
 - **DEX** -- AVNU aggregator for USDC-to-WBTC batch conversion
 - **Bot** -- grammY (Telegram Bot API), @VeilStrategistBot
-- **Tests** -- 37 Cairo contract tests + 90 Vitest frontend tests (127 total)
+- **Tests** -- 37 Cairo contract tests + 123 Vitest frontend tests (160 total)
 - **Explorer** -- Voyager (https://voyager.online)
 
 ## License

@@ -106,3 +106,26 @@ export function saveAnchor(merkleRoot: string, signature: string): void {
   // Keep last 50
   localStorage.setItem("ghostsats_anchors", JSON.stringify(history.slice(0, 50)));
 }
+
+/**
+ * Validate a Bitcoin address.
+ * Supports P2PKH (1...), P2SH (3...), Bech32 (bc1q...), and Bech32m/Taproot (bc1p...).
+ */
+export function isValidBitcoinAddress(address: string): boolean {
+  if (!address || typeof address !== "string") return false;
+  const trimmed = address.trim();
+
+  // P2PKH: starts with 1, 25-34 chars, base58
+  if (/^1[1-9A-HJ-NP-Za-km-z]{24,33}$/.test(trimmed)) return true;
+
+  // P2SH: starts with 3, 25-34 chars, base58
+  if (/^3[1-9A-HJ-NP-Za-km-z]{24,33}$/.test(trimmed)) return true;
+
+  // Bech32 (P2WPKH/P2WSH): bc1q, 42 or 62 chars
+  if (/^bc1q[a-z0-9]{38,58}$/.test(trimmed)) return true;
+
+  // Bech32m (Taproot P2TR): bc1p, 62-63 chars total
+  if (/^bc1p[a-z0-9]{58,59}$/.test(trimmed)) return true;
+
+  return false;
+}

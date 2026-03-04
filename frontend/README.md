@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Veil Protocol — Frontend
 
-## Getting Started
+Next.js 15 frontend for Veil Protocol, a privacy-first DeFi protocol on Starknet mainnet.
 
-First, run the development server:
+[Live App](https://theveilprotocol.vercel.app) | [Root README](../README.md) | [Docs](https://veilprotocol-docs.vercel.app)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## Features
+
+- **Shield** — Deposit USDC into fixed-denomination privacy pools ($10 / $100 / $1,000). Pedersen + Poseidon BN254 commitments computed client-side.
+- **Unveil** — ZK-verified withdrawals via Garaga on-chain verifier. Gasless relayer option breaks sender link entirely.
+- **Bitcoin Settlement** — Exit to native BTC via intent-based escrow with solver network. Address validation for P2PKH, P2SH, Bech32, and Taproot.
+- **AI Privacy Agent** — Natural language chat for privacy scoring, pool health, threat detection, and strategy planning.
+- **x402 Micropayments** — Premium AI analytics gated by HTTP 402 micropayments, settled on-chain via AVNU paymaster.
+- **Portfolio** — View balances, staking positions, and send tokens. Manage STRK staking via StarkZap SDK.
+- **Note Management** — Export/import privacy notes for cross-wallet recovery. Encrypted local storage per wallet.
+- **Telegram Bot** — @VeilProtocolBot for strategy planning via chat, linking to web app for execution.
+
+## Architecture
+
+```
+src/
+├── app/              # Next.js App Router pages + API routes
+│   ├── api/
+│   │   ├── agent/    # AI chat, privacy scoring, x402 premium endpoints
+│   │   └── relayer/  # Gasless relay, batch execution, calldata, solver
+│   ├── app/          # Main application (shield, unveil, portfolio, agent)
+│   └── page.tsx      # Landing page
+├── components/       # React components (ShieldForm, UnveilForm, PrivacyAgent, etc.)
+├── context/          # React contexts (Wallet, Toast, Telegram)
+├── contracts/        # ABIs and deployed addresses
+├── hooks/            # Custom hooks (useSmartSend, useGasless)
+└── utils/            # Utilities (privacy, zkProver, bitcoin, x402, network)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Running Locally
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev          # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Environment Variables
 
-## Learn More
+```env
+NEXT_PUBLIC_RELAYER_URL=     # Relayer API base (defaults to /api/relayer)
+NEXT_PUBLIC_PROVER_URL=      # ZK calldata service (defaults to /api/relayer)
+RELAYER_PRIVATE_KEY=         # Starknet account key for gasless relay
+ANTHROPIC_API_KEY=           # Claude API for AI Privacy Agent
+TELEGRAM_BOT_TOKEN=          # Telegram bot token
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Tests
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm test             # Run all tests
+npm test -- --watch  # Watch mode
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployed Contracts (Starknet Mainnet)
 
-## Deploy on Vercel
+| Contract | Address |
+|----------|---------|
+| ShieldedPool | `0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38` |
+| GaragaVerifier | `0x5176db82a5995bbdc3390b4f189540b0119c8d4ac8114ca7e0d5185f6f0444c` |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Next.js 15, TypeScript, Tailwind CSS, starknet.js v7, noir_js + bb.js (in-browser ZK proving), x402-starknet, Framer Motion, Vitest + Testing Library.

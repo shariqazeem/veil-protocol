@@ -5,7 +5,7 @@ import { useAccount } from "@starknet-react/core";
 import { useSmartSend } from "@/hooks/useSmartSend";
 import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin, Clock, Zap, ShieldCheck, Fingerprint, Download, Upload } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
-import { computeBtcIdentityHash } from "@/utils/bitcoin";
+import { computeBtcIdentityHash, isValidBitcoinAddress } from "@/utils/bitcoin";
 import { motion, AnimatePresence } from "framer-motion";
 import { markNoteClaimed, buildMerkleProof, loadNotes, loadNotesEncrypted, saveNotesEncrypted, type GhostNote } from "@/utils/privacy";
 import { generateWithdrawalProof, preloadZKProver } from "@/utils/zkProver";
@@ -211,6 +211,7 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
   const [claimTxHash, setClaimTxHash] = useState<string | null>(null);
   const [claimedWbtcAmount, setClaimedWbtcAmount] = useState<string | null>(null);
   const [btcWithdrawAddress, setBtcWithdrawAddress] = useState<string>("");
+  const [btcAddressError, setBtcAddressError] = useState<string | null>(null);
   const [tokenAdded, setTokenAdded] = useState(false);
   const [useRelayer, setUseRelayer] = useState(false);
   const [relayerFee, setRelayerFee] = useState<number | null>(null);
@@ -298,6 +299,12 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
     if (!poolAddress) return;
 
     const isBtcIntent = withdrawMode === "btc_intent" && btcWithdrawAddress.trim().length > 0;
+
+    if (isBtcIntent && !isValidBitcoinAddress(btcWithdrawAddress)) {
+      setBtcAddressError("Invalid Bitcoin address. Supported: P2PKH (1...), P2SH (3...), Bech32 (bc1q...), Taproot (bc1p...)");
+      return;
+    }
+    setBtcAddressError(null);
 
     setClaimingCommitment(note.commitment);
     setClaimError(null);
@@ -550,6 +557,9 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
       } else if (msg.includes("User abort") || msg.includes("cancelled") || msg.includes("rejected")) {
         setClaimError("Transaction rejected in wallet.");
         toast("error", "Transaction rejected");
+      } else if (msg.includes("Resources bounds") || msg.includes("RunResources") || msg.includes("resource_bounds") || msg.includes("insufficient gas")) {
+        setClaimError("Gas limit exceeded — Garaga ZK verification requires ~730M L2Gas which exceeds wallet limits. Enable the Gasless ZK Exit toggle above to use the relayer instead.");
+        toast("error", "Gas limit exceeded — try Gasless mode");
       } else {
         setClaimError(msg);
         toast("error", "Withdrawal failed");
@@ -630,45 +640,71 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           });
 
           setClaimPhase("withdrawing");
-          const batchWithdrawCalls = [{
-            contractAddress: poolAddress,
-            entrypoint: "withdraw_private",
-            calldata: CallData.compile({
-              denomination,
-              zk_nullifier: zkNullifier,
-              zk_commitment: note.zkCommitment!,
-              proof,
-              merkle_path: merklePath,
-              path_indices: pathIndices,
-              recipient: address,
-              btc_recipient_hash: btcRecipientHash,
-            }),
-          }];
 
-          let result;
-          if (account) {
-            const est = await account.estimateInvokeFee(batchWithdrawCalls, { skipValidate: true });
-            const l2Amt = BigInt(est.resourceBounds.l2_gas.max_amount) * 3n;
-            const l2Price = BigInt(est.resourceBounds.l2_gas.max_price_per_unit);
-            const l1Amt = BigInt(est.resourceBounds.l1_gas.max_amount) * 2n;
-            const l1Price = BigInt(est.resourceBounds.l1_gas.max_price_per_unit);
-            result = await account.execute(batchWithdrawCalls, {
-              resourceBounds: {
-                l2_gas: { max_amount: l2Amt, max_price_per_unit: l2Price },
-                l1_gas: { max_amount: l1Amt, max_price_per_unit: l1Price },
-                l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
-              },
+          let txHash: string;
+
+          if (useRelayer) {
+            // Gasless relayer path — avoids wallet gas cap issues with Garaga verification
+            const relayRes = await fetch(`${RELAYER_URL}/relay`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                denomination,
+                zk_nullifier: zkNullifier,
+                zk_commitment: note.zkCommitment!,
+                proof,
+                merkle_path: merklePath,
+                path_indices: pathIndices.map(Number),
+                recipient: address,
+                btc_recipient_hash: btcRecipientHash,
+              }),
             });
+            const relayData = await relayRes.json();
+            if (!relayData.success) throw new Error(relayData.error ?? "Relayer failed");
+            txHash = relayData.txHash;
           } else {
-            result = await sendAsync(batchWithdrawCalls);
+            // Direct wallet path — requires sufficient gas
+            const batchWithdrawCalls = [{
+              contractAddress: poolAddress,
+              entrypoint: "withdraw_private",
+              calldata: CallData.compile({
+                denomination,
+                zk_nullifier: zkNullifier,
+                zk_commitment: note.zkCommitment!,
+                proof,
+                merkle_path: merklePath,
+                path_indices: pathIndices,
+                recipient: address,
+                btc_recipient_hash: btcRecipientHash,
+              }),
+            }];
+
+            let result;
+            if (account) {
+              const est = await account.estimateInvokeFee(batchWithdrawCalls, { skipValidate: true });
+              const l2Amt = BigInt(est.resourceBounds.l2_gas.max_amount) * 3n;
+              const l2Price = BigInt(est.resourceBounds.l2_gas.max_price_per_unit);
+              const l1Amt = BigInt(est.resourceBounds.l1_gas.max_amount) * 2n;
+              const l1Price = BigInt(est.resourceBounds.l1_gas.max_price_per_unit);
+              result = await account.execute(batchWithdrawCalls, {
+                resourceBounds: {
+                  l2_gas: { max_amount: l2Amt, max_price_per_unit: l2Price },
+                  l1_gas: { max_amount: l1Amt, max_price_per_unit: l1Price },
+                  l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
+                },
+              });
+            } else {
+              result = await sendAsync(batchWithdrawCalls);
+            }
+            txHash = result.transaction_hash;
           }
 
-          lastTxHash = result.transaction_hash;
+          lastTxHash = txHash;
 
           // Verify tx was accepted on-chain before marking claimed
           try {
             const rpc = new RpcProvider({ nodeUrl: RPC_URL });
-            const receipt = await rpc.waitForTransaction(result.transaction_hash, { retryInterval: 3000 });
+            const receipt = await rpc.waitForTransaction(txHash, { retryInterval: 3000 });
             if ("execution_status" in receipt && receipt.execution_status === "REVERTED") {
               console.warn(`[auto-exit] Note ${i} tx reverted on-chain, skipping`);
               continue; // Don't mark claimed — note is still valid
@@ -949,6 +985,16 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
           {claimError && (
             <div className="mt-2 text-xs">{claimError}</div>
           )}
+          <button
+            onClick={() => {
+              setClaimPhase("idle");
+              setClaimError(null);
+              setClaimTxHash(null);
+            }}
+            className="mt-3 px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--accent-red)]/20 hover:bg-[var(--accent-red)]/30 text-[var(--accent-red)] transition-colors cursor-pointer"
+          >
+            Try Again
+          </button>
         </motion.div>
       )}
 
@@ -971,10 +1017,10 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
               </div>
               <div className="text-left">
                 <span className="text-[12px] font-semibold text-[var(--text-primary)] block leading-tight">
-                  Gasless withdrawal
+                  {useRelayer ? "Gasless ZK Exit" : "Direct Wallet Exit"}
                 </span>
                 <span className="text-xs text-[var(--text-tertiary)]">
-                  Relayer pays gas, no wallet signature
+                  {useRelayer ? "Recommended — relayer handles gas for ZK verification" : "Advanced — your wallet pays gas (~730M L2Gas)"}
                 </span>
               </div>
             </div>
@@ -1061,9 +1107,19 @@ export default function UnveilForm({ prefillNoteIdx, onPrefillConsumed }: Unveil
                 type="text"
                 placeholder="bc1q... (your Bitcoin address)"
                 value={btcWithdrawAddress}
-                onChange={(e) => setBtcWithdrawAddress(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-primary)] border border-[var(--border-medium)] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
+                onChange={(e) => {
+                  setBtcWithdrawAddress(e.target.value);
+                  if (btcAddressError) setBtcAddressError(null);
+                }}
+                className={`w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-primary)] border text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] font-['JetBrains_Mono'] focus:outline-none focus:ring-1 ${
+                  btcAddressError
+                    ? "border-[var(--accent-red)] focus:ring-[var(--accent-red)]"
+                    : "border-[var(--border-medium)] focus:ring-[var(--accent-orange)]"
+                }`}
               />
+              {btcAddressError && (
+                <p className="text-[11px] text-[var(--accent-red)] font-medium">{btcAddressError}</p>
+              )}
               <p className="text-[11px] text-[var(--text-tertiary)]">
                 Your BTC is locked in escrow. A solver sends native Bitcoin to this address, an oracle confirms settlement, and the solver receives the escrowed BTC.
               </p>

@@ -56,8 +56,6 @@ export async function POST(req: NextRequest) {
       btc_recipient_hash: btc_recipient_hash ?? "0x0",
     });
 
-    console.log("[relayer/relay] Compiled calldata length:", compiledCalldata.length, "feeBps:", feeBps);
-
     const calls = [
       {
         contractAddress: POOL_ADDRESS,
@@ -77,7 +75,6 @@ export async function POST(req: NextRequest) {
 
       // If resource bounds exceed balance, retry with capped bounds
       if (errMsg.includes("Resources bounds") && errMsg.includes("exceed balance")) {
-        console.log("[relayer/relay] Retrying with capped resource bounds...");
         const provider = getProvider();
 
         // Get relayer STRK balance
@@ -90,16 +87,9 @@ export async function POST(req: NextRequest) {
         const balance = BigInt(balResult[0]);
         // Use 90% of balance as budget (leave 10% safety margin)
         const budget = (balance * 90n) / 100n;
-        console.log("[relayer/relay] STRK balance:", balance.toString(), "budget:", budget.toString());
 
         // Estimate fee with skipValidate to get realistic amounts
         const estimate = await account.estimateInvokeFee(calls, { skipValidate: true });
-        console.log("[relayer/relay] Estimate:", JSON.stringify({
-          l2_max: estimate.resourceBounds.l2_gas.max_amount.toString(),
-          l2_price: estimate.resourceBounds.l2_gas.max_price_per_unit.toString(),
-          l1_data_max: estimate.resourceBounds.l1_data_gas.max_amount.toString(),
-          l1_data_price: estimate.resourceBounds.l1_data_gas.max_price_per_unit.toString(),
-        }));
 
         // Calculate total cost of the estimate
         const l2Amount = BigInt(estimate.resourceBounds.l2_gas.max_amount);
@@ -112,7 +102,6 @@ export async function POST(req: NextRequest) {
         if (totalCost > budget) {
           // Scale down proportionally to fit budget
           const scale = Number(budget * 1000n / totalCost) / 1000; // e.g. 0.65
-          console.log("[relayer/relay] Scaling bounds by", scale, "to fit budget");
           resourceBounds = {
             l1_gas: estimate.resourceBounds.l1_gas, // keep L1 gas from estimate
             l2_gas: {

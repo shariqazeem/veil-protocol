@@ -78,7 +78,6 @@ async function fetchAvnuQuote(
   });
 
   const url = `${AVNU_API_BASE}/swap/v2/quotes?${params}`;
-  console.log(`[execute-batch] Fetching AVNU quote for ${sellAmount} USDC...`);
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -162,8 +161,6 @@ async function updateMockRouterRate(account: ReturnType<typeof getRelayerAccount
   const btcPrice = await getBtcPrice();
   const denominator = Math.round(btcPrice);
 
-  console.log(`[execute-batch] Live BTC price: $${btcPrice} → rate 100/${denominator}`);
-
   const setRateCall = {
     contractAddress: ROUTER_ADDRESS,
     entrypoint: "set_rate",
@@ -176,7 +173,6 @@ async function updateMockRouterRate(account: ReturnType<typeof getRelayerAccount
   const provider = getProvider();
   const result = await account.execute([setRateCall]);
   await provider.waitForTransaction(result.transaction_hash);
-  console.log(`[execute-batch] Rate updated: tx ${result.transaction_hash}`);
 
   return btcPrice;
 }
@@ -211,8 +207,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "No pending USDC to convert" }, { status: 400 });
       }
 
-      console.log(`[execute-batch] Mainnet: ${pendingUsdc} pending USDC, fetching AVNU quote...`);
-
       // Retry up to 3 times
       let quote: AvnuQuote | null = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
@@ -220,7 +214,6 @@ export async function POST(req: NextRequest) {
         if (quote) break;
         if (attempt < 3) {
           const delay = attempt * 3_000;
-          console.log(`[execute-batch] Retry ${attempt}/3 in ${delay / 1000}s...`);
           await new Promise((r) => setTimeout(r, delay));
         }
       }
@@ -238,8 +231,6 @@ export async function POST(req: NextRequest) {
       const buyAmount = BigInt(quote.buyAmount);
       const minOut = (buyAmount * BigInt(10_000 - SLIPPAGE_BPS)) / BigInt(10_000);
       btcPrice = await getBtcPrice().catch(() => undefined);
-
-      console.log(`[execute-batch] Expected WBTC: ${buyAmount}, min out: ${minOut}, route felts: ${routeFelts.length}`);
 
       // Build execute_batch calldata manually: min_wbtc_out (u256) + route felts
       const minOutHex = "0x" + minOut.toString(16);

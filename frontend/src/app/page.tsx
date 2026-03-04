@@ -457,7 +457,7 @@ export default function LandingPage() {
           <div className="rounded-3xl border-2 border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="text-center mb-6"><span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Technology Stack</span></div>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2.5">
-              {["Cairo 2.15", "Starknet", "Noir ZK", "Garaga", "Barretenberg", "x402-starknet", "AVNU Paymaster", "Pedersen Hash", "Poseidon BN254", "Merkle Trees", "Association Sets (Privacy Pools)", "strkBTC-Compatible", "Next.js", "sats-connect", "snforge", "37 Cairo Tests"].map((tech) => (
+              {["Cairo 2.15", "Starknet", "Noir ZK", "Garaga", "Barretenberg", "x402-starknet", "AVNU Paymaster", "Pedersen Hash", "Poseidon BN254", "Merkle Trees", "Association Sets (Privacy Pools)", "strkBTC-Compatible", "Next.js", "sats-connect", "snforge", "160 Tests"].map((tech) => (
                 <span key={tech} className="text-[12px] font-['JetBrains_Mono'] font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all cursor-default">{tech}</span>
               ))}
             </div>

@@ -114,7 +114,6 @@ async function verifyMicropayment(
     const TRANSFER_KEY = norm("0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9");
 
     const events = (receipt as any).events ?? [];
-    console.log(`[premium-strategy] Verifying tx ${txHash}, ${events.length} events`);
 
     for (const event of events) {
       const emitter = norm(event.from_address ?? "");
@@ -150,7 +149,6 @@ async function verifyMicropayment(
       if (totalAmount >= expectedAmount) {
         return { valid: true, payer: from };
       }
-      console.log(`[premium-strategy] Amount too low: ${totalAmount} < ${expectedAmount}`);
     }
 
     return { valid: false, error: "STRK transfer to treasury not found or amount too low" };
