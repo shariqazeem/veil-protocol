@@ -6,11 +6,13 @@ Before you hit record, do all of this:
 
 - [ ] Ready Wallet has ~$50 USDC + some STRK for gas
 - [ ] Cartridge Controller account exists (social login)
-- [ ] Browser: open theveilprotocol.vercel.app/app (clean tab, no other tabs visible)
+- [ ] Browser: open theveilprotocol.vercel.app (landing page — show it first!)
+- [ ] Pre-load theveilprotocol.vercel.app/app in another tab (don't show yet)
 - [ ] Start the app logged OUT (no wallet connected)
 - [ ] Telegram Desktop open on Mac, search for your bot: @VeilStrategistBot
 - [ ] Screen recording at 1080p, notifications OFF on Mac
 - [ ] Phone ready with this script open
+- [ ] Practice the full flow 2-3 times before recording
 
 ## BEFORE RECORDING — START THE TELEGRAM BOT
 
@@ -34,177 +36,146 @@ Keep this terminal running in background.
 ## THE SCRIPT
 
 Read this naturally. Don't read word-for-word — use your own words
-around these points. Stay calm and confident.
+around these points. Stay calm and confident. Sound like you're
+showing a friend, not presenting to investors.
+
+**CRITICAL**: Target 2:50 recorded — leaves buffer under 3:00 limit.
 
 ---
 
-### PART 1: INTRO (0:00 — 0:15)
+### PART 1: HOOK + INTRO (0:00 — 0:20)
 
-> "Hey — this is Veil Protocol.
+**[Start on landing page — show "Re{defining} Privacy on Starknet" hero]**
+
+> "Every on-chain transaction is public. Your entire financial
+> history is exposed — anyone can trace your wallet, link your
+> identities, analyze your strategy.
 >
-> It's a privacy-first DeFi app on Starknet using zero-knowledge
-> proofs. The problem: when you hold or move crypto, your entire
-> financial history is public. Anyone can trace your wallet.
-> Veil fixes this — you shield your tokens privately and unveil
-> them from a completely different wallet, with zero on-chain link.
->
-> Let me show you with real money on mainnet."
+> Veil Protocol re{defines} that. Real zero-knowledge privacy,
+> deployed on Starknet mainnet with real money. Not a testnet
+> demo — let me show you."
+
+**[Scroll briefly past the "What We Re{define}" cards — let judges
+see them flash by, then click "Launch App"]**
 
 ---
 
-### PART 2: CONNECT CARTRIDGE + FUND IT (0:15 — 0:40)
+### PART 2: CONNECT + PORTFOLIO (0:20 — 0:45)
 
 **[Click wallet pill top-right → Connect Cartridge Controller
-via social login (email/Google)]**
+via social login (email/passkey)]**
 
-> "I'm connecting with Cartridge Controller — social login,
-> no seed phrase. Easiest way to onboard new users to Starknet."
+> "Connecting with Cartridge Controller — social login, no seed
+> phrase, works on any device. This is powered by the new Starkzap
+> SDK — wasn't possible a few weeks ago."
 
-**[Show connected. Wallet is empty.]**
+**[Show connected → Portfolio tab briefly — show token balances]**
 
-> "My Cartridge wallet is empty. Let me fund it live."
+> "Portfolio tab — 9 token balances with on-chain logos, send
+> any token, STRK staking to top validators. All via Starkzap SDK."
 
-**[Disconnect Cartridge → Connect Ready Wallet (Argent/Braavos)
-→ Portfolio tab → Send → Select USDC → Paste Cartridge address
-→ Send ~$12 USDC. Also send some STRK for gas.]**
+**[If Cartridge wallet is pre-funded, skip funding step entirely.
+If not: briefly show Send flow from another wallet — CUT the TX wait.]**
 
-> "Switching to my main wallet — Ready Wallet. I'll send some
-> USDC and STRK to Cartridge using the built-in send feature.
-> This shows the Portfolio tab — token balances with logos,
-> send flow, all powered by Starkzap SDK."
-
-**[TX confirms → Disconnect Ready → Reconnect Cartridge
-→ Portfolio shows ~$12 USDC]**
-
-> "Done. Cartridge has funds. Now — the privacy magic."
+> "Now — the privacy magic."
 
 ---
 
-### PART 3: SHIELD $10 FROM CARTRIDGE (0:40 — 1:10)
+### PART 3: SHIELD $10 (0:45 — 1:10)
 
-**[Shield tab → Select Tier 0 ($10) → Click Shield]**
+**[Shield tab → Select $10 tier → Click Shield Capital]**
 
-> "Shielding 10 dollars into the privacy pool. A zero-knowledge
-> proof is being generated right in my browser — client-side.
-> This proof lets me deposit into a shared anonymity pool.
-> The more people in the pool, the stronger everyone's privacy.
->
-> Gas is paid in USDC through AVNU's paymaster — completely
-> gasless, no STRK needed for Cartridge users."
+> "Shielding 10 dollars into the privacy pool. ZK proof generated
+> right in my browser — secrets never leave this device. Gas paid
+> in USDC through AVNU's paymaster — completely gasless."
 
 **[TX confirms — CUT the wait time in editing]**
 
-> "Shielded. My 10 dollars is inside the ZK privacy pool.
-> I get a private note — like a secret receipt only I can
-> use to withdraw."
+> "Shielded. My deposit is now indistinguishable from every other
+> $10 deposit in the pool. I get a private note — the only key
+> to withdraw these funds."
 
 ---
 
-### PART 4: EXPORT NOTE + UNVEIL FROM DIFFERENT WALLET (1:10 — 1:50)
+### PART 4: CROSS-WALLET UNVEIL — THE WOW MOMENT (1:10 — 1:50)
 
-**THIS IS THE KEY MOMENT — shows real privacy in action.**
+**THIS IS THE KEY MOMENT. Nail this and judges remember you.**
 
 **[Unveil tab → Show the note → Click Export / Copy Note]**
 
-> "Here's where it gets powerful. I'm exporting this private
-> note — and I'm going to import it into a COMPLETELY DIFFERENT
-> wallet. This is the whole point of Veil.
->
-> The deposit wallet and the withdrawal wallet have absolutely
-> zero connection on-chain. Nobody can trace that these two
-> wallets belong to the same person."
+> "Here's what re{defines} privacy. I'm exporting this private
+> note — and importing it into a COMPLETELY DIFFERENT wallet."
 
-**[Disconnect Cartridge → Connect Ready Wallet → Unveil tab
+**[Disconnect Cartridge → Connect Argent/Braavos → Unveil tab
 → Import/Paste the note → Click Unveil]**
 
-> "I switch to Ready Wallet — a totally separate identity.
-> I paste the exported note and unveil it. The protocol
-> verifies my ZK proof, confirms I own this note, and releases
-> the funds — without revealing which deposit created it.
+> "Different wallet, different identity. The protocol verifies
+> my ZK proof on-chain via Garaga — confirms I own this note
+> — and releases the funds. Without revealing WHICH deposit
+> the note came from.
 >
-> That's real cryptographic privacy. Not mixing, not tumbling
-> — true unlinkability powered by zero-knowledge proofs."
+> Two wallets. ZERO on-chain connection. That's not mixing,
+> not tumbling — that's mathematically provable unlinkability."
 
-**[TX confirms — CUT wait time → Show $10 arrived in balance]**
+**[TX confirms — CUT wait time → Show funds arrived]**
 
-> "10 dollars moved between two wallets. Zero trace. That's Veil."
+> "10 dollars moved. Zero trace. That's Veil."
 
 ---
 
-### PART 5: AI STRATEGIST + SHIELD $40 (1:50 — 2:20)
+### PART 5: AI STRATEGIST (1:50 — 2:15)
 
-**[Stay on Ready Wallet → Strategist tab]**
+**[Stay on current wallet → Strategist tab]**
 
-> "For larger amounts, we built an AI Strategist. Instead of
-> manually picking tiers, I describe what I want in plain English."
+> "For larger amounts, manually picking tiers isn't optimal.
+> Our AI Strategist re{defines} that."
 
 **[Type: "shield 40 dollars with maximum privacy"]**
 
-> "I say — shield 40 dollars, maximum privacy. The agent
-> analyzes live pool conditions — anonymity set sizes, which
-> tiers give the best privacy coverage — and builds an
-> optimal multi-step plan."
+> "I describe what I want in plain English. The agent analyzes
+> live pool conditions — anonymity set sizes, tier distributions —
+> and generates an optimal multi-step deposit plan. Five strategy
+> modes from stealth DCA to whale distribution."
 
-**[Agent responds with plan → Click to execute]**
+**[Agent responds with plan — show the cards/steps]**
 
-> "It recommends splitting across multiple tiers for better
-> anonymity. I execute right here. Gas on Ready Wallet is
-> under 65 cents per transaction — way cheaper than L1."
+> "It splits across tiers for maximum anonymity. One-click execute."
 
-**[Execute shields → FAST FORWARD through multiple TXs]**
-
-*[In editing: speed up 4x through the deposits, show each
-confirming quickly]*
-
-> "Each deposit generates a fresh ZK proof and grows the
-> anonymity pool. And I can unveil all of them — each
-> withdrawal is completely unlinkable to its deposit."
-
-**[Unveil tab → Show multiple notes → Claim them
-→ FAST FORWARD]**
+**[If time: click execute and FAST FORWARD through TXs at 4x.
+If tight on time: just show the plan and move on.]**
 
 ---
 
-### PART 6: TELEGRAM BOT (2:20 — 2:45)
+### PART 6: QUICK HITS — COMPLIANCE + TELEGRAM + x402 (2:15 — 2:40)
 
-**[Switch to Telegram Desktop on Mac → Open the bot chat]**
+**[Compliance tab — flash briefly]**
 
-> "We also built a Telegram bot — the Veil Strategist.
-> Users can plan everything from Telegram without opening
-> the web app."
+> "Privacy doesn't mean lawlessness. This is an Association Set —
+> same compliance model proposed by Vitalik Buterin. You can prove
+> your funds are clean without revealing your transaction history."
 
-**[Type: /start → Show welcome message with buttons]**
+**[Switch to Telegram Desktop → Show bot, type /status]**
 
-> "Quick actions right here."
+> "Veil Strategist Bot — plan strategies right from Telegram.
+> Pool analytics, AI-powered deposit plans, deep links to execute.
+> The bot never touches your keys."
 
-**[Type: /status → Show pool state with anonymity sets]**
+**[Back to web app → Strategist tab, mention x402]**
 
-> "Real-time pool analytics — anonymity set sizes, BTC price,
-> protocol health — all live from Starknet."
-
-**[Type: /strategy $50 max privacy → Show the response
-with Execute button]**
-
-> "I plan a strategy right in Telegram — 50 dollars, max
-> privacy. The bot generates the same AI-powered plan and
-> gives me a link to execute in the web app.
->
-> The bot plans. Your wallet executes. It never touches
-> your keys."
+> "Premium analytics gated by x402 micropayments — fractions of
+> a cent per query, settled on-chain. No subscriptions, no API keys."
 
 ---
 
-### PART 7: CLOSING (2:45 — 3:00)
+### PART 7: CLOSING (2:40 — 2:55)
 
-**[Switch back to web app → Portfolio tab → Show balances
-and the staking section briefly]**
+**[Show landing page briefly — the Re{define} cards visible]**
 
-> "Veil Protocol — privacy-preserving DeFi on Starknet.
-> Real zero-knowledge proofs. Deployed on mainnet with real
-> money. Gasless transactions. AI strategy planning.
-> Full portfolio management with staking. All open source.
->
-> Privacy isn't a feature — it's a right. Thanks for watching."
+> "Veil Protocol. First Association Set Privacy Pool on Starknet.
+> Real ZK proofs verified by Garaga on mainnet. Real money.
+> 164 tests across three languages. Re{defining} privacy —
+> where compliance and confidentiality aren't enemies,
+> they're the same thing."
 
 ---
 
@@ -212,20 +183,37 @@ and the staking section briefly]**
 
 1. Cut all TX wait times (10-20 sec each) — show "confirming"
    then jump to confirmed
-2. Raw recording will be ~7 min — cuts bring it to 3
+2. Raw recording will be ~6-7 min — cuts bring it to ~2:50
 3. Optional: subtle lo-fi background music (very low volume)
-4. Title card at start: "Veil Protocol — Privacy-First DeFi on Starknet"
+4. Title card at start: "Veil Protocol — Re{defining} Privacy on Starknet"
 5. Text overlays during key moments:
-   - "ZK proof generated client-side" (during shield)
-   - "ZERO on-chain link between wallets" (during cross-wallet unveil)
-   - "Gas paid in USDC — no STRK needed" (during Cartridge TX)
+   - "ZK proof: browser-side, secrets never leave your device" (during shield)
+   - "ZERO on-chain link" (during cross-wallet unveil — make this BIG)
+   - "MAINNET — real money" (show briefly)
+   - "Gas paid in USDC via AVNU Paymaster" (during Cartridge TX)
    - "AI analyzes live pool conditions" (during strategist)
-6. End card: GitHub URL + "Built for Re{define} Hackathon"
+   - "164 tests (Cairo + Noir + Vitest)" (quick flash near end)
+6. End card: "Re{defining} Privacy on Starknet" + GitHub URL
+
+## TIMING SUMMARY
+
+| Part | Duration | Content |
+|------|----------|---------|
+| 1. Hook + Intro | 0:00-0:20 | Landing page, Re{define} narrative |
+| 2. Connect + Portfolio | 0:20-0:45 | Social login, Starkzap SDK |
+| 3. Shield | 0:45-1:10 | $10 deposit, ZK proof, gasless |
+| 4. Cross-Wallet Unveil | 1:10-1:50 | THE WOW MOMENT — two wallets, zero link |
+| 5. AI Strategist | 1:50-2:15 | Natural language → optimal plan |
+| 6. Quick Hits | 2:15-2:40 | Compliance, Telegram bot, x402 |
+| 7. Close | 2:40-2:55 | Re{define} sign-off |
+
+**Target: 2:50-2:55** (under 3:00 limit with buffer)
 
 ## IF SOMETHING BREAKS
 
 - **TX fails?** Say "let me retry" naturally, cut the failed attempt
-- **Bot not responding?** Skip Telegram, you have 2:45 of solid content
+- **Bot not responding?** Skip Telegram section — you have 2:40 of solid content without it
 - **Balances not loading?** Hit refresh button, say "fetching on-chain data"
-- **Cartridge gas too high?** Use Ready Wallet for everything, explain both wallets verbally
+- **Cartridge login fails?** Use Argent/Braavos for everything, mention social login verbally
 - **Note export not working?** Copy the note manually from browser storage, paste it
+- **Slow proof generation?** Pre-generate and have note ready, cut the wait in editing

@@ -20,6 +20,7 @@ import {
 import addresses from "@/contracts/addresses.json";
 import { EXPLORER_CONTRACT } from "@/utils/network";
 import { HeroAnimations } from "@/components/LandingAnimations";
+import { LivePoolStats } from "@/components/LivePoolStats";
 
 export default function LandingPage() {
   return (
@@ -99,6 +100,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* LIVE MAINNET STATS */}
+      <LivePoolStats />
 
       {/* PRIVACY POOLS + strkBTC READY */}
       <section className="px-4 sm:px-6 pb-20 sm:pb-24 relative">
