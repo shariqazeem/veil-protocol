@@ -566,7 +566,7 @@ export default function ShieldForm({ onComplete, prefillTier, onPrefillConsumed 
 
             {!isConnected && (
               <p className="text-[12px] text-[var(--text-tertiary)] text-center">
-                Connect your Starknet wallet to begin
+                Connect wallet to begin &mdash; supports Cartridge social login, Argent, or Braavos
               </p>
             )}
 

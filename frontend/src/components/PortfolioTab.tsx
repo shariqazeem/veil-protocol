@@ -464,9 +464,14 @@ export default function PortfolioTab() {
         <div className="text-center py-10">
           <Wallet2 size={24} className="mx-auto mb-3 text-[var(--text-quaternary)]" strokeWidth={1.5} />
           <p className="text-sm text-[var(--text-secondary)]">Connect wallet to view portfolio</p>
-          <p className="text-xs text-[var(--text-tertiary)] mt-1">
-            Your token balances, send flow, and staking options will appear here
+          <p className="text-xs text-[var(--text-tertiary)] mt-1 mb-4">
+            Powered by Starkzap SDK &mdash; token balances, send, and STRK staking
           </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {["9 Token Balances", "Send Any Token", "STRK Staking", "Social Login"].map((f) => (
+              <span key={f} className="text-[10px] font-medium text-[var(--text-quaternary)] px-2.5 py-1 rounded-full border border-[var(--border-secondary)] bg-[var(--bg-secondary)]">{f}</span>
+            ))}
+          </div>
         </div>
       ) : (
         <>

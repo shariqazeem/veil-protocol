@@ -59,10 +59,10 @@ function ScrambleText({ text, delay = 400 }: { text: string; delay?: number }) {
 export function HeroAnimations() {
   return (
     <>
-      <span><ScrambleText text="AI-Powered Privacy" delay={300} /></span>
+      <span>Re&#123;<ScrambleText text="defining" delay={300} />&#125; Privacy</span>
       <br />
       <span className="text-gradient-animated">
-        <TypewriterText text="for Bitcoin on Starknet" delay={900} speed={45} />
+        <TypewriterText text="on Starknet" delay={900} speed={45} />
       </span>
     </>
   );

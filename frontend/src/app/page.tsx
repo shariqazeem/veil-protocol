@@ -16,7 +16,6 @@ import {
   CreditCard,
   Bot,
   Wallet,
-  Eye,
 } from "lucide-react";
 import addresses from "@/contracts/addresses.json";
 import { EXPLORER_CONTRACT } from "@/utils/network";
@@ -78,15 +77,15 @@ export default function LandingPage() {
 
           <p className="text-[15px] sm:text-[18px] text-gray-500 max-w-xl mx-auto mb-4 leading-relaxed animate-fade-in-up"
             style={{ animationDelay: "0.2s" }}>
-            An AI strategy agent plans your confidential BTC accumulation. ZK proofs verified on-chain via Garaga. Premium analytics gated by x402 micropayments. All on Starknet mainnet.
+            Privacy protocols force you to choose: hide everything or expose everything. Veil re&#123;defines&#125; that choice. First Association Set Privacy Pool on Starknet &mdash; deployed on mainnet with real money.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-8 animate-fade-in-up" style={{ animationDelay: "0.25s" }}>
-            <span className="text-[12px] text-gray-400">AI plans your strategy</span>
+            <span className="text-[12px] text-gray-400">ZK proofs verified on-chain</span>
             <span className="w-1 h-1 rounded-full bg-gray-300" />
-            <span className="text-[12px] text-gray-400">x402 unlocks premium intel</span>
+            <span className="text-[12px] text-gray-400">AI-powered strategy</span>
             <span className="w-1 h-1 rounded-full bg-gray-300" />
-            <span className="text-[12px] text-gray-400">ZK proofs hide everything</span>
+            <span className="text-[12px] text-gray-400">x402 micropayments</span>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
@@ -326,32 +325,35 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* PROBLEM + SOLUTION */}
+      {/* WHAT WE RE{DEFINE} */}
       <section className="px-4 sm:px-6 pb-20 sm:pb-24 relative">
-        <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="rounded-3xl border-2 border-red-100 bg-gradient-to-br from-white to-red-50/20 p-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center border border-red-100"><Eye size={14} strokeWidth={1.5} className="text-red-500" /></div>
-              <h2 className="text-[14px] font-bold text-gray-900">The Problem</h2>
-            </div>
-            <p className="text-xs text-gray-500 leading-relaxed mb-4">Every Bitcoin purchase on DeFi is publicly visible. No AI guidance. No privacy. No way to accumulate BTC without signaling your strategy to the entire market.</p>
-            <div className="space-y-2">
-              {["Strategy exposed to front-runners", "Transaction amounts create fingerprints", "No intelligent entry timing"].map((item) => (
-                <div key={item} className="flex items-center gap-2 text-xs text-red-400"><span className="w-1 h-1 rounded-full bg-red-300" />{item}</div>
-              ))}
-            </div>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">What We Re&#123;define&#125;</span>
+            <h2 className="text-[22px] sm:text-[30px] font-black tracking-tight text-gray-900 mt-3" style={{ fontFamily: "'Inter Tight', sans-serif" }}>Five things the ecosystem treats as trade-offs.<br className="hidden sm:block" /> We built the proof they&apos;re not.</h2>
           </div>
-          <div className="rounded-3xl border-2 border-emerald-100 bg-gradient-to-br from-white to-emerald-50/20 p-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center border border-emerald-100"><Shield size={14} strokeWidth={1.5} className="text-emerald-600" /></div>
-              <h2 className="text-[14px] font-bold text-gray-900">Veil Protocol</h2>
-            </div>
-            <p className="text-xs text-gray-500 leading-relaxed mb-4">AI plans your strategy. ZK proofs hide your activity. x402 micropayments unlock premium analytics. Starknet&apos;s STARKs provide quantum-secure verification.</p>
-            <div className="space-y-2">
-              {["AI optimizes privacy + timing", "Fixed tranches make deposits uniform", "Pay-per-insight analytics via x402"].map((item) => (
-                <div key={item} className="flex items-center gap-2 text-xs text-emerald-500"><CheckCircle size={10} strokeWidth={2} />{item}</div>
-              ))}
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { icon: ShieldCheck, oldWay: "Privacy = Lawlessness", newWay: "Privacy + Compliance", desc: "Association Sets let you prove compliance without revealing transaction history. Same model proposed by Vitalik Buterin, adopted by 0xbow on Ethereum.", color: "#12D483", bg: "from-emerald-50 to-white", border: "border-emerald-200" },
+              { icon: Fingerprint, oldWay: "ZK Proofs = Slow", newWay: "Browser-Side, On-Chain Verified", desc: "Noir circuits generate proofs in-browser via bb.js WASM. Garaga verifies ~2,835 calldata elements on-chain. Secrets never leave your device.", color: "#06B6D4", bg: "from-cyan-50 to-white", border: "border-cyan-200" },
+              { icon: Bitcoin, oldWay: "Bitcoin on Starknet = Wrapped Tokens", newWay: "Shielded BTC + Native Exit", desc: "Shielded accumulation via AVNU batch swaps. Exit to native Bitcoin through intent-based escrow with solver settlement. strkBTC-ready from Day 1.", color: "#FF9900", bg: "from-orange-50 to-white", border: "border-orange-200" },
+              { icon: Brain, oldWay: "AI = Chatbot", newWay: "Privacy Strategist", desc: "Analyzes live pool conditions — anonymity set sizes, tier distributions, timing risks — and generates optimal multi-step deposit plans. Five strategy modes.", color: "#4D4DFF", bg: "from-indigo-50 to-white", border: "border-indigo-200" },
+              { icon: CreditCard, oldWay: "Monetization = Subscriptions", newWay: "x402 Micropayments", desc: "Pay fractions of a cent per query, settled on-chain via AVNU paymaster. No API keys, no accounts, no middlemen. HTTP 402 for Web3.", color: "#FF9900", bg: "from-amber-50 to-white", border: "border-amber-200" },
+            ].map((card) => (
+              <div key={card.oldWay} className={`rounded-2xl border-2 ${card.border} bg-gradient-to-br ${card.bg} p-5 hover:shadow-2xl hover:-translate-y-2 transition-all`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${card.color}10`, border: `1px solid ${card.color}20` }}>
+                    <card.icon size={16} strokeWidth={1.5} style={{ color: card.color }} />
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <span className="text-xs text-red-400 line-through decoration-red-300 font-medium">{card.oldWay}</span>
+                  <span className="text-xs text-gray-300 mx-2">&rarr;</span>
+                  <span className="text-xs font-bold" style={{ color: card.color }}>{card.newWay}</span>
+                </div>
+                <p className="text-[11px] text-gray-500 leading-relaxed">{card.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -405,7 +407,7 @@ export default function LandingPage() {
       {/* WHAT SETS US APART */}
       <section className="px-4 sm:px-6 pb-20 sm:pb-24 relative">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12"><span className="text-xs font-bold text-gray-400 uppercase tracking-wider">What Sets Us Apart</span></div>
+          <div className="text-center mb-12"><span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Built Different</span></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { icon: Brain, title: "AI-Planned Privacy", desc: "Strategy engine picks optimal tiers, timing, and pool conditions for maximum anonymity.", color: "#4D4DFF" },
@@ -457,7 +459,7 @@ export default function LandingPage() {
           <div className="rounded-3xl border-2 border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="text-center mb-6"><span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Technology Stack</span></div>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2.5">
-              {["Cairo 2.15", "Starknet", "Noir ZK", "Garaga", "Barretenberg", "x402-starknet", "AVNU Paymaster", "Pedersen Hash", "Poseidon BN254", "Merkle Trees", "Association Sets (Privacy Pools)", "strkBTC-Compatible", "Next.js", "sats-connect", "snforge", "160 Tests"].map((tech) => (
+              {["Cairo 2.15", "Starknet", "Noir ZK", "Garaga", "Barretenberg", "x402-starknet", "AVNU Paymaster", "Pedersen Hash", "Poseidon BN254", "Merkle Trees", "Association Sets (Privacy Pools)", "strkBTC-Compatible", "Next.js", "sats-connect", "snforge", "164 Tests"].map((tech) => (
                 <span key={tech} className="text-[12px] font-['JetBrains_Mono'] font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all cursor-default">{tech}</span>
               ))}
             </div>
@@ -468,8 +470,8 @@ export default function LandingPage() {
       {/* CTA */}
       <section className="px-4 sm:px-6 pb-20 sm:pb-32 relative">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-[24px] sm:text-[36px] font-black tracking-tight text-gray-900 mb-4" style={{ fontFamily: "'Inter Tight', sans-serif" }}>AI-powered. Privacy-first. Pay-per-use.</h2>
-          <p className="text-[14px] text-gray-500 mb-8 max-w-lg mx-auto">The first Association Set privacy pool on Starknet — combining Privacy Pools compliance, AI strategy agents, ZK proofs, and strkBTC-ready architecture. Built for the Re&#123;define&#125; Hackathon.</p>
+          <h2 className="text-[24px] sm:text-[36px] font-black tracking-tight text-gray-900 mb-4" style={{ fontFamily: "'Inter Tight', sans-serif" }}>Re&#123;defining&#125; privacy on Starknet.</h2>
+          <p className="text-[14px] text-gray-500 mb-8 max-w-lg mx-auto">First Association Set Privacy Pool on Starknet. Real ZK proofs. Real mainnet deployment. Real money. Where compliance and confidentiality aren&apos;t enemies &mdash; they&apos;re the same thing.</p>
           <Link href="/app">
             <button className="btn-shimmer px-8 py-4 bg-gray-900 text-white rounded-2xl text-[15px] font-bold tracking-tight cursor-pointer flex items-center gap-2 mx-auto shadow-xl hover:-translate-y-0.5 transition-transform">
               <Brain size={16} strokeWidth={1.5} /> Launch App <ArrowRight size={14} strokeWidth={2} />
@@ -486,7 +488,7 @@ export default function LandingPage() {
             <span key={item} className="text-xs text-gray-400 font-medium">{item}</span>
           ))}
         </div>
-        <p className="text-xs text-gray-400">Veil Protocol &middot; AI + x402 + Privacy on Starknet</p>
+        <p className="text-xs text-gray-400">Veil Protocol &middot; Re&#123;defining&#125; Privacy on Starknet</p>
         <p className="text-xs text-gray-400 mt-1">Re&#123;define&#125; Hackathon 2026 &middot; Privacy + Bitcoin + x402 Tracks</p>
       </footer>
     </div>

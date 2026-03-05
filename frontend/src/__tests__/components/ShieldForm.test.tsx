@@ -117,7 +117,7 @@ describe("ShieldForm", () => {
     render(<ShieldForm />);
 
     expect(
-      screen.getByText("Connect your Starknet wallet to begin"),
+      screen.getByText(/Connect wallet to begin/),
     ).toBeInTheDocument();
   });
 
