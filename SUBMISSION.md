@@ -33,6 +33,7 @@ Re{defining} privacy — where compliance and confidentiality aren't enemies, th
 ## Links
 
 - **Live App**: https://theveilprotocol.vercel.app
+- **Demo Video**: https://youtu.be/YOUR_VIDEO_ID
 - **GitHub**: https://github.com/shariqazeem/veil-protocol
 - **Docs**: https://veilprotocol-docs.vercel.app
 - **Telegram Bot**: @VeilStrategistBot

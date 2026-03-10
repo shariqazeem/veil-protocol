@@ -6,7 +6,9 @@ We built the **first Association Set Privacy Pool on Starknet** — implementing
 
 Deployed on **Starknet mainnet** with real assets. Not a testnet demo.
 
-[Live App](https://theveilprotocol.vercel.app) | [Docs](https://veilprotocol-docs.vercel.app) | [Pool on Voyager](https://voyager.online/contract/0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38) | [Verifier on Voyager](https://voyager.online/contract/0x5176db82a5995bbdc3390b4f189540b0119c8d4ac8114ca7e0d5185f6f0444c) | Re{define} Starknet Hackathon 2026
+[Live App](https://theveilprotocol.vercel.app) | [Demo Video](https://youtu.be/YOUR_VIDEO_ID) | [Docs](https://veilprotocol-docs.vercel.app) | [Pool on Voyager](https://voyager.online/contract/0x318cb7bc9953b6157367a9d5175ee797f3f2b52741cf5e51743a9f5beafdd38) | [Verifier on Voyager](https://voyager.online/contract/0x5176db82a5995bbdc3390b4f189540b0119c8d4ac8114ca7e0d5185f6f0444c)
+
+**Re{define} Starknet Hackathon 2026** — Privacy + Bitcoin + x402 + Starkzap Tracks
 
 ---
 
