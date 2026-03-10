@@ -9,7 +9,7 @@ Before you hit record, do all of this:
 - [ ] Browser: open theveilprotocol.vercel.app (landing page — show it first!)
 - [ ] Pre-load theveilprotocol.vercel.app/app in another tab (don't show yet)
 - [ ] Start the app logged OUT (no wallet connected)
-- [ ] Telegram Desktop open on Mac, search for your bot: @VeilStrategistBot
+- [ ] Telegram Desktop open on Mac, search for your bot: @VeilProtocolBot
 - [ ] Screen recording at 1080p, notifications OFF on Mac
 - [ ] Phone ready with this script open
 - [ ] Practice the full flow 2-3 times before recording

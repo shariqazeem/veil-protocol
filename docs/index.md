@@ -28,7 +28,7 @@ features:
     details: Relayer submits your withdrawal transaction. You never sign. No gas payment means no on-chain footprint linking you to the original deposit.
   - icon: "\uD83D\uDCF1"
     title: Telegram Bot
-    details: "@VeilStrategistBot -- plan and execute accumulation strategies directly from Telegram. Live BTC price, pool analytics, and deep-link execution to the web app."
+    details: "@VeilProtocolBot -- plan and execute accumulation strategies directly from Telegram. Live BTC price, pool analytics, and deep-link execution to the web app."
   - icon: "\uD83C\uDF0A"
     title: Anonymity Sets
     details: "Fixed denominations ($1 / $10 / $100 / $1,000 USDC) make all deposits in a tier indistinguishable. More participants per tier means exponentially stronger privacy."

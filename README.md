@@ -173,7 +173,7 @@ cd scripts && npx tsx seed-pool.ts --execute   # live
 - **DEX** — AVNU aggregator for USDC-to-WBTC batch conversion
 - **Portfolio** — Starkzap SDK for token balances, send, STRK staking
 - **Social Login** — Cartridge Controller (email, passkeys) via Starkzap
-- **Bot** — grammY (Telegram Bot API), @VeilStrategistBot
+- **Bot** — grammY (Telegram Bot API), @VeilProtocolBot
 - **Tests** — 37 Cairo + 4 Noir + 123 Vitest = **164 total tests**
 - **Explorer** — Voyager (https://voyager.online)
 
