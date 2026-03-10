@@ -42,3 +42,21 @@ Thumbs.db
 scripts/package-lock.json
 .vercel
 .env*.local
+
+# Internal notes & strategy (keep locally, not for repo)
+FIX_NOTES.js
+WINNING_GUIDE.md
+X_POST.txt
+X_LAUNCH.md
+X_SCHEDULE.md
+
+# Reference docs (not project source)
+starknetbuilddocs.md
+x402-starknet API Reference.md
+x402_starknetREADME.md
+
+# Assets not needed in repo
+veilprotocollogo.jpg
+
+# Build logs
+frontend/build.log
