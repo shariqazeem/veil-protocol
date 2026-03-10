@@ -38,7 +38,7 @@ export default function LandingPage() {
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <a href="https://veilprotocol-docs.vercel.app" target="_blank" rel="noopener noreferrer"
+            <a href="https://veilprotocol-docs.vercel.app/guide/what-is-veil-protocol.html" target="_blank" rel="noopener noreferrer"
               className="text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors">Docs</a>
             <Link href="/app">
               <button className="btn-shimmer px-5 py-2.5 bg-gray-900 text-white rounded-xl text-[13px] font-bold tracking-tight cursor-pointer flex items-center gap-2 shadow-lg hover:-translate-y-px transition-transform">

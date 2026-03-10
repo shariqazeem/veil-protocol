@@ -85,12 +85,12 @@ Strategies planned in Telegram can be executed on the web app via deep links.
 | On-Chain Verifier | Garaga UltraKeccakZKHonkVerifier |
 | DEX | Avnu Aggregator (batch swaps) |
 | BTC Settlement | Native Bitcoin via intent settlement + solver network |
-| Frontend | Next.js 16, React 19, Tailwind 4, Framer Motion |
+| Frontend | Next.js 15, React 19, Tailwind CSS, Framer Motion |
 | Embedded Relayer | Next.js API routes (`/api/relayer/*`) |
 | AI Agent | Deterministic strategy engine (client-side, no external API) |
 | Telegram Bot | Grammy framework with live pool state and deep links |
 | Wallets | Starknet (Argent/Braavos) + Bitcoin (Xverse via sats-connect) |
 | Cryptography | Pedersen (Stark), Poseidon BN254, AES-GCM |
-| Testing | snforge (37 Cairo tests) + Vitest (90 frontend tests) = 127 total |
+| Testing | snforge (37 Cairo tests) + nargo (4 Noir tests) + Vitest (123 frontend tests) = **164 total** |
 | Deployment | Vercel (frontend), **Starknet Mainnet** (contracts) |
 | Explorer | [Voyager](https://voyager.online) |

@@ -20,7 +20,7 @@ scarb build        # Compile Cairo contracts
 snforge test       # Run 37 Cairo tests
 ```
 
-All 37 contract tests cover deposits, withdrawals, batch execution, Merkle tree operations, ZK proof verification, intent escrow, and privacy guarantees. The frontend has 90 additional tests (Vitest) covering API routes, components, and utilities -- 127 tests total.
+All 37 contract tests cover deposits, withdrawals, batch execution, Merkle tree operations, ZK proof verification, intent escrow, and privacy guarantees. Plus 4 Noir circuit tests and 123 frontend tests (Vitest) -- **164 tests total**.
 
 ## ZK Circuit
 

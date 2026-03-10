@@ -1,23 +1,56 @@
 :root {
-  --vp-c-brand-1: #FF5A00;
-  --vp-c-brand-2: #FF7A33;
-  --vp-c-brand-3: #FF9A66;
-  --vp-c-brand-soft: rgba(255, 90, 0, 0.14);
+  /* Match app's indigo brand color */
+  --vp-c-brand-1: #4D4DFF;
+  --vp-c-brand-2: #6B6BFF;
+  --vp-c-brand-3: #8989FF;
+  --vp-c-brand-soft: rgba(77, 77, 255, 0.14);
 
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(135deg, #FF5A00, #FF9A66);
-  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(255, 90, 0, 0.2), rgba(16, 185, 129, 0.2));
-  --vp-home-hero-image-filter: blur(44px);
+  /* Light background like the app */
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-soft: #f9fafb;
+  --vp-c-bg-mute: #f3f4f6;
+
+  /* Clean borders */
+  --vp-c-divider: #e5e7eb;
+  --vp-c-gutter: #e5e7eb;
+
+  /* Sidebar */
+  --vp-sidebar-bg-color: #ffffff;
+
+  /* Nav */
+  --vp-nav-bg-color: rgba(255, 255, 255, 0.9);
+
+  /* Button colors */
+  --vp-button-brand-bg: #4D4DFF;
+  --vp-button-brand-hover-bg: #3B3BCC;
+  --vp-button-brand-active-bg: #2D2D99;
 }
 
+/* Override dark mode to stay light — docs should always be light */
 .dark {
-  --vp-c-bg: #09090B;
-  --vp-c-bg-soft: #131316;
-  --vp-c-bg-mute: #1A1A1F;
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-soft: #f9fafb;
+  --vp-c-bg-mute: #f3f4f6;
+  --vp-c-text-1: #111827;
+  --vp-c-text-2: #4b5563;
+  --vp-c-text-3: #9ca3af;
+  --vp-c-divider: #e5e7eb;
+  --vp-c-gutter: #e5e7eb;
+  --vp-sidebar-bg-color: #ffffff;
+  --vp-nav-bg-color: rgba(255, 255, 255, 0.9);
+  --vp-c-brand-1: #4D4DFF;
+  --vp-c-brand-2: #6B6BFF;
+  --vp-c-brand-3: #8989FF;
+  --vp-c-brand-soft: rgba(77, 77, 255, 0.14);
+  --vp-button-brand-bg: #4D4DFF;
+  --vp-button-brand-hover-bg: #3B3BCC;
+  --vp-button-brand-active-bg: #2D2D99;
+  --vp-code-bg: #f3f4f6;
 }
 
+/* Remove hero gradient styling since we no longer have a landing page */
 .VPHero .clip {
-  background: linear-gradient(135deg, #FF5A00, #FF9A66) !important;
+  background: linear-gradient(135deg, #4D4DFF, #12D483) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
 }

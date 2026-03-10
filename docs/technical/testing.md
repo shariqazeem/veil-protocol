@@ -1,6 +1,6 @@
 # Testing
 
-Veil Protocol has **127 passing tests** -- 37 Cairo contract tests and 90 frontend tests.
+Veil Protocol has **164 passing tests** -- 37 Cairo contract tests, 4 Noir circuit tests, and 123 frontend tests (Vitest).
 
 ## Cairo Contract Tests (37 tests)
 
@@ -62,12 +62,24 @@ Tests the BTC intent settlement system:
 - Full lifecycle: deposit, batch execute, withdraw with Merkle proof
 - Two-user withdrawal with independent Merkle proofs
 
-## Frontend Tests (90 tests)
+## Noir Circuit Tests (4 tests)
+
+```bash
+cd circuits/ghostsats && nargo test
+# [ghostsats] 4 tests passed
+```
+
+- `test_valid_proof` -- Valid withdrawal proof generation
+- `test_invalid_commitment` -- Rejects wrong commitment
+- `test_invalid_nullifier` -- Rejects wrong nullifier
+- `test_zero_recipient` -- Rejects zero recipient
+
+## Frontend Tests (123 tests)
 
 ```bash
 cd frontend && npx vitest run
-# Test Files  16 passed (16)
-#      Tests  90 passed (90)
+# Test Files  20 passed (20)
+#      Tests  123 passed (123)
 ```
 
 ### API Route Tests (36 tests)
